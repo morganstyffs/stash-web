@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconBackspace,
@@ -6,10 +6,12 @@ import {
   IconCheck,
   IconPlus,
   IconStar,
+  IconWallet,
   IconX,
 } from '@tabler/icons-react'
-import { useCategories, useFavorites } from '@/hooks/useLookups'
+import { useCategories, useFavorites, useUpsertFavorite } from '@/hooks/useLookups'
 import { useAddTransaction } from '@/hooks/useAddTransaction'
+import { useWallets } from '@/hooks/useSettings'
 import { categoryIcon } from '@/lib/icons'
 import { formatBaht } from '@/lib/format'
 import type { TransactionType } from '@/lib/database.types'
@@ -20,11 +22,23 @@ export function AddPage() {
   const navigate = useNavigate()
   const catsQ = useCategories()
   const favQ = useFavorites()
+  const walletsQ = useWallets()
   const add = useAddTransaction()
+  const saveFav = useUpsertFavorite()
 
   const [type, setType] = useState<TransactionType>('expense')
   const [amountStr, setAmountStr] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
+  const [walletId, setWalletId] = useState<string | null>(null)
+  const [favSaved, setFavSaved] = useState(false)
+
+  // Default the wallet to the first one once wallets load (wallet_id is optional
+  // in the schema, so if the user has none we simply save without a wallet).
+  useEffect(() => {
+    if (walletId == null && walletsQ.data && walletsQ.data.length > 0) {
+      setWalletId(walletsQ.data[0].id)
+    }
+  }, [walletsQ.data, walletId])
 
   // Quick-add chips: categories of the chosen kind, excluding stock categories
   // (those have their own intake flow).
@@ -58,15 +72,39 @@ export function AddPage() {
   function switchType(next: TransactionType) {
     setType(next)
     setCategoryId(null)
+    setFavSaved(false)
+  }
+
+  function pickCategory(id: string) {
+    setCategoryId(id)
+    setFavSaved(false)
   }
 
   async function save() {
     if (!canSave) return
     try {
-      await add.mutateAsync({ type, amount, categoryId })
+      await add.mutateAsync({ type, amount, categoryId, walletId })
       navigate('/')
     } catch {
       /* error surfaced below via add.error */
+    }
+  }
+
+  // Save the current entry as a one-tap preset. Label defaults to the category
+  // name; the amount is captured only when one has been entered.
+  async function saveFavorite() {
+    if (!categoryId) return
+    const cat = categories.find((c) => c.id === categoryId)
+    try {
+      await saveFav.mutateAsync({
+        label: cat?.name ?? 'รายการโปรด',
+        type,
+        amount: amount > 0 ? amount : null,
+        category_id: categoryId,
+      })
+      setFavSaved(true)
+    } catch {
+      /* non-blocking; favorites are optional */
     }
   }
 
@@ -142,7 +180,7 @@ export function AddPage() {
           return (
             <button
               key={c.id}
-              onClick={() => setCategoryId(c.id)}
+              onClick={() => pickCategory(c.id)}
               className={`flex shrink-0 items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
                 active
                   ? 'bg-mint-tint font-medium text-mint-text'
@@ -159,6 +197,46 @@ export function AddPage() {
           เพิ่ม
         </span>
       </div>
+
+      {/* wallet selector (only when the user has wallets) */}
+      {walletsQ.data && walletsQ.data.length > 0 && (
+        <div className="no-scrollbar flex items-center gap-[7px] overflow-x-auto px-4 pb-3">
+          <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted">
+            <IconWallet size={13} />
+            กระเป๋า
+          </span>
+          {walletsQ.data.map((w) => {
+            const active = w.id === walletId
+            return (
+              <button
+                key={w.id}
+                onClick={() => setWalletId(w.id)}
+                className={`shrink-0 rounded-pill px-[13px] py-[6px] text-[12px] ${
+                  active
+                    ? 'bg-mint-tint font-medium text-mint-text'
+                    : 'bg-fill text-muted'
+                }`}
+              >
+                {w.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* save current entry as a favorite */}
+      {categoryId && (
+        <div className="px-4 pb-3">
+          <button
+            onClick={saveFavorite}
+            disabled={saveFav.isPending || favSaved}
+            className="flex items-center gap-1 text-[12px] font-medium text-mint-deep disabled:text-faint"
+          >
+            <IconStar size={13} />
+            {favSaved ? 'บันทึกเป็นรายการโปรดแล้ว' : 'บันทึกเป็นรายการโปรด'}
+          </button>
+        </div>
+      )}
 
       {/* favorites (only when the user has some) */}
       {favQ.data && favQ.data.length > 0 && (

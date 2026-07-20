@@ -4,6 +4,7 @@ import {
   IconList,
   IconPlus,
   IconBox,
+  IconReportMoney,
   IconSettings,
   IconSparkles,
 } from '@tabler/icons-react'
@@ -24,7 +25,13 @@ const RIGHT: Tab[] = [
   { to: '/stock', label: 'สต็อก', icon: IconBox },
   { to: '/settings', label: 'ตั้งค่า', icon: IconSettings },
 ]
-const ALL: Tab[] = [...LEFT, ...RIGHT]
+// Desktop rail has room for งบประมาณ; the mobile bottom nav stays at 5 slots
+// (design spec §4), so budget is reached there via the home strip / settings.
+const RAIL: Tab[] = [
+  ...LEFT,
+  { to: '/budget', label: 'งบประมาณ', icon: IconReportMoney },
+  ...RIGHT,
+]
 
 export function AppLayout() {
   const navigate = useNavigate()
@@ -37,7 +44,7 @@ export function AppLayout() {
           S
         </div>
         <div className="flex flex-1 flex-col items-center gap-6">
-          {ALL.map(({ to, icon: I }) => (
+          {RAIL.map(({ to, icon: I }) => (
             <NavLink key={to} to={to} end={to === '/'} aria-label={to}>
               {({ isActive }) => (
                 <I size={22} className={isActive ? 'text-mint-deep' : 'text-faint'} />

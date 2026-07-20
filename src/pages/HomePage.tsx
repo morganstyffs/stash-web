@@ -5,6 +5,7 @@ import {
   IconArrowUpRight,
   IconBell,
   IconBolt,
+  IconChevronRight,
   IconDots,
   IconEye,
   IconMicrophone,
@@ -55,12 +56,16 @@ export function HomePage() {
             {formatBaht(summary.income)}
           </span>
         </div>
-        <div className="-mt-1.5 flex items-center justify-between rounded-[14px] bg-cat-yellow px-4 py-[9px]">
+        <Link
+          to="/budget"
+          className="-mt-1.5 flex items-center justify-between rounded-[14px] bg-cat-yellow px-4 py-[9px]"
+        >
           <span className="text-[13px] font-medium text-cat-yellow-ink">งบที่ตั้งไว้</span>
-          <span className="text-[13px] font-medium text-cat-yellow-ink">
+          <span className="flex items-center gap-1 text-[13px] font-medium text-cat-yellow-ink">
             {formatBaht(budgetTotalQ.data ?? 0)}
+            <IconChevronRight size={14} className="opacity-60" />
           </span>
-        </div>
+        </Link>
         <div className="-mt-1.5 flex items-center justify-between rounded-[14px] bg-cat-black px-4 py-[9px]">
           <span className="text-[13px] font-medium text-cat-black-ink">รายจ่ายเดือนนี้</span>
           <span className="text-[13px] font-medium text-cat-black-ink">
