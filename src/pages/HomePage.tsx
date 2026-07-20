@@ -18,6 +18,7 @@ import {
   type RecentRow,
 } from '@/hooks/useHome'
 import { Donut, TrendLine } from '@/components/charts'
+import { useMonthBudgetTotal } from '@/hooks/useBudgets'
 import { categoryIcon } from '@/lib/icons'
 import { formatBaht, formatMonthLong, formatSigned } from '@/lib/format'
 
@@ -26,6 +27,7 @@ export function HomePage() {
   const monthQ = useMonthTransactions()
   const catsQ = useCategories()
   const recentQ = useRecentTransactions()
+  const budgetTotalQ = useMonthBudgetTotal()
 
   const summary = useMemo(
     () => computeHomeSummary(monthQ.data ?? [], catsQ.data ?? []),
@@ -51,6 +53,12 @@ export function HomePage() {
           <span className="text-[13px] font-medium text-cat-green-ink">รายรับเดือนนี้</span>
           <span className="text-[13px] font-medium text-cat-green-ink">
             {formatBaht(summary.income)}
+          </span>
+        </div>
+        <div className="-mt-1.5 flex items-center justify-between rounded-[14px] bg-cat-yellow px-4 py-[9px]">
+          <span className="text-[13px] font-medium text-cat-yellow-ink">งบที่ตั้งไว้</span>
+          <span className="text-[13px] font-medium text-cat-yellow-ink">
+            {formatBaht(budgetTotalQ.data ?? 0)}
           </span>
         </div>
         <div className="-mt-1.5 flex items-center justify-between rounded-[14px] bg-cat-black px-4 py-[9px]">

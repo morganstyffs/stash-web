@@ -14,6 +14,7 @@
 2. `migrations/0002_seed_defaults.sql` — หมวด/กระเป๋าเริ่มต้น + trigger seed ตอนสมัคร
 3. `migrations/0003_storage.sql` — bucket `stock-photos` (private) + RLS ตาม user
 4. `migrations/0004_stock_intake_rpc.sql` — RPC `stock_intake_create` เขียนแบบ atomic (สร้าง `transactions` + `stock_items` + ลิงก์ 2 ทางในครั้งเดียว, gen SKU) · `security invoker` → RLS ยังบังคับ `auth.uid() = user_id`
+5. `migrations/0005_budgets.sql` — ตาราง `budgets` (งบต่อหมวดต่อเดือน) + RLS ครบ 4 คำสั่ง · unique `(user_id, category_id, month)` · trigger `updated_at`
 
 ทุกไฟล์เป็น **additive-only** และ **รันซ้ำได้** (idempotent) — รันใหม่ไม่พังของเดิม
 

@@ -34,3 +34,8 @@ export function formatDayShort(date: Date): string {
 export function formatMonthLong(date: Date): string {
   return new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric' }).format(date)
 }
+
+/** Short Buddhist-era month label, e.g. "ก.ค. 2569". */
+export function formatMonthShort(date: Date): string {
+  return new Intl.DateTimeFormat('th-TH', { month: 'short', year: 'numeric' }).format(date)
+}

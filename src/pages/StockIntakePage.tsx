@@ -1,14 +1,12 @@
-import { useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconAlertCircle,
   IconArrowDownRight,
   IconArrowLeft,
-  IconCameraPlus,
   IconCheck,
   IconChevronDown,
   IconPlus,
-  IconX,
 } from '@tabler/icons-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useLookups'
@@ -17,12 +15,16 @@ import { useCreateStockIntake } from '@/hooks/useStockIntake'
 import { uploadStockPhotos } from '@/lib/storage'
 import { previewSku } from '@/lib/sku'
 import { formatBaht } from '@/lib/format'
+import {
+  ConditionChips,
+  Label,
+  PhotoEditor,
+  TextInput,
+  computeNeedsDetails,
+  type EditablePhoto,
+} from '@/components/StockFields'
 import type { ItemCondition } from '@/lib/database.types'
 
-interface Photo {
-  path: string
-  preview: string
-}
 interface SessionItem {
   id: string
   name: string
@@ -31,19 +33,12 @@ interface SessionItem {
   needsDetails: boolean
 }
 
-const CONDITIONS: { key: ItemCondition; label: string }[] = [
-  { key: 'new', label: 'ของใหม่' },
-  { key: 'used_good', label: 'มือสอง · ดี' },
-  { key: 'flawed', label: 'มีตำหนิ' },
-]
-
 export function StockIntakePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const catsQ = useCategories()
   const stockCountQ = useStockCount()
   const intake = useCreateStockIntake()
-  const fileRef = useRef<HTMLInputElement>(null)
 
   const stockCategories = useMemo(
     () => (catsQ.data ?? []).filter((c) => c.is_stock_category),
@@ -62,7 +57,7 @@ export function StockIntakePage() {
   const [color, setColor] = useState('')
   const [condition, setCondition] = useState<ItemCondition | ''>('')
   const [target, setTarget] = useState('')
-  const [photos, setPhotos] = useState<Photo[]>([])
+  const [photos, setPhotos] = useState<EditablePhoto[]>([])
   const [folder] = useState(() => crypto.randomUUID())
   const [uploading, setUploading] = useState(false)
 
@@ -82,10 +77,8 @@ export function StockIntakePage() {
 
   const canSave = name.trim() !== '' && !!categoryId && costNum >= 0 && !intake.isPending
 
-  async function onPickPhotos(e: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? [])
-    e.target.value = ''
-    if (!files.length || !user) return
+  async function onAddPhotos(files: File[]) {
+    if (!user) return
     setUploading(true)
     try {
       const paths = await uploadStockPhotos(user.id, folder, files)
@@ -116,8 +109,13 @@ export function StockIntakePage() {
 
   async function save(done: boolean) {
     if (!canSave) return
-    const needsDetails =
-      !size.trim() || !color.trim() || !condition || targetNum == null || photos.length === 0
+    const needsDetails = computeNeedsDetails({
+      size,
+      color,
+      condition,
+      target: targetNum,
+      photoCount: photos.length,
+    })
     try {
       await intake.mutateAsync({
         p_name: name.trim(),
@@ -172,47 +170,19 @@ export function StockIntakePage() {
 
       {/* core form */}
       <div className="px-4">
-        <div className="mb-3 flex gap-[10px]">
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="flex h-[58px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[11px] border-[1.5px] border-dashed border-chevron"
-          >
-            <IconCameraPlus size={19} className="text-faint" />
-            <span className="text-[9px] text-faint">{uploading ? '…' : 'รูป'}</span>
-          </button>
-          {photos.map((p) => (
-            <div key={p.path} className="relative h-[58px] w-[58px] shrink-0">
-              <img
-                src={p.preview}
-                alt=""
-                className="h-full w-full rounded-[11px] object-cover"
-              />
-              <button
-                aria-label="ลบรูป"
-                onClick={() => setPhotos((prev) => prev.filter((x) => x.path !== p.path))}
-                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white"
-              >
-                <IconX size={12} />
-              </button>
-            </div>
-          ))}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={onPickPhotos}
+        <div className="mb-3">
+          <Label>รูปสินค้า</Label>
+          <PhotoEditor
+            photos={photos}
+            onAdd={onAddPhotos}
+            onRemove={(path) => setPhotos((prev) => prev.filter((x) => x.path !== path))}
+            uploading={uploading}
           />
-          <div className="flex-1">
-            <Label>ชื่อสินค้า</Label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="เช่น เสื้อ Carhartt น้ำตาล"
-              className="h-[58px] w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] text-[13px] outline-none placeholder:text-faint focus:border-mint"
-            />
-          </div>
+        </div>
+
+        <div className="mb-3">
+          <Label>ชื่อสินค้า</Label>
+          <TextInput value={name} onChange={setName} placeholder="เช่น เสื้อ Carhartt น้ำตาล" />
         </div>
 
         <div className="mb-3 flex gap-[10px]">
@@ -288,43 +258,26 @@ export function StockIntakePage() {
             <div className="mb-3 flex gap-[10px]">
               <div className="flex-1">
                 <Label>ประเภท</Label>
-                <Field value={type} onChange={setType} placeholder="เช่น เสื้อยืด" />
+                <TextInput value={type} onChange={setType} placeholder="เช่น เสื้อยืด" />
               </div>
               <div className="flex-1">
                 <Label>แบรนด์</Label>
-                <Field value={brand} onChange={setBrand} placeholder="Nike" />
+                <TextInput value={brand} onChange={setBrand} placeholder="Nike" />
               </div>
             </div>
             <div className="mb-3 flex gap-[10px]">
               <div className="flex-1">
                 <Label>ไซซ์</Label>
-                <Field value={size} onChange={setSize} placeholder="L" />
+                <TextInput value={size} onChange={setSize} placeholder="L" />
               </div>
               <div className="flex-1">
                 <Label>สี</Label>
-                <Field value={color} onChange={setColor} placeholder="เขียว" />
+                <TextInput value={color} onChange={setColor} placeholder="เขียว" />
               </div>
             </div>
             <div className="mb-3">
               <Label>สภาพ</Label>
-              <div className="flex gap-[7px]">
-                {CONDITIONS.map((c) => {
-                  const active = condition === c.key
-                  return (
-                    <button
-                      key={c.key}
-                      onClick={() => setCondition(active ? '' : c.key)}
-                      className={`rounded-pill px-[14px] py-1.5 text-[12px] ${
-                        active
-                          ? 'bg-mint-tint font-medium text-mint-text'
-                          : 'border-[0.5px] border-hairline text-muted'
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  )
-                })}
-              </div>
+              <ConditionChips value={condition} onChange={setCondition} />
             </div>
             <div className="mb-3">
               <Label>ราคาตั้งขาย/ชิ้น</Label>
@@ -413,28 +366,5 @@ export function StockIntakePage() {
         </div>
       )}
     </div>
-  )
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return <p className="mb-1 ml-0.5 text-[11px] text-faint">{children}</p>
-}
-
-function Field({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-}) {
-  return (
-    <input
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] text-[13px] outline-none placeholder:text-faint focus:border-mint"
-    />
   )
 }

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconAdjustmentsHorizontal,
+  IconChevronRight,
+  IconClipboardList,
   IconHanger,
   IconPackageImport,
   IconSearch,
@@ -33,6 +35,7 @@ export function StockPage() {
 
   const items = data?.items ?? []
   const hero = useMemo(() => computeStockHero(items), [items])
+  const queueCount = items.filter((it) => it.needs_details).length
 
   const visible = items.filter((it) => {
     if (filter === 'in_stock') return it.status !== 'sold'
@@ -71,6 +74,20 @@ export function StockPage() {
           </div>
         </div>
       </div>
+
+      {/* queue banner */}
+      {queueCount > 0 && (
+        <button
+          onClick={() => navigate('/stock/queue')}
+          className="mx-4 mb-3 flex items-center gap-2.5 rounded-[12px] bg-warn-bg px-3.5 py-2.5 text-left"
+        >
+          <IconClipboardList size={18} className="shrink-0 text-warn-ink" />
+          <span className="flex-1 text-[12px] font-medium text-warn-ink">
+            {queueCount} ชิ้นรอเติมรายละเอียด
+          </span>
+          <IconChevronRight size={16} className="shrink-0 text-warn-ink" />
+        </button>
+      )}
 
       {/* filter chips */}
       <div className="no-scrollbar flex gap-[7px] overflow-x-auto px-4 pb-1.5">
