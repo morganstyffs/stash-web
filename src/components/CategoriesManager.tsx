@@ -49,7 +49,7 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
 
   return (
     <Overlay
-      title="หมวดหมู่"
+      title="หมวด"
       onClose={onClose}
       action={
         <button
