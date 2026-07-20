@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react'
 import { Overlay, Toggle } from '@/components/ui'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
 import { useCategories } from '@/hooks/useLookups'
 import {
@@ -8,6 +10,7 @@ import {
   useToggleStockCategory,
   useUpsertCategory,
 } from '@/hooks/useSettings'
+import { translateError } from '@/lib/errors'
 import type { Category, CategoryKind } from '@/lib/database.types'
 
 interface FormState {
@@ -22,8 +25,9 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
   const upsert = useUpsertCategory()
   const del = useDeleteCategory()
   const toggle = useToggleStockCategory()
+  const toast = useToast()
   const [form, setForm] = useState<FormState | null>(null)
-  const [err, setErr] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<Category | null>(null)
 
   const list = categories ?? []
   const groups: { kind: CategoryKind; label: string }[] = [
@@ -31,12 +35,15 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
     { kind: 'income', label: 'รายรับ' },
   ]
 
-  async function remove(c: Category) {
-    setErr(null)
+  async function confirmRemove() {
+    if (!confirming) return
     try {
-      await del.mutateAsync(c.id)
+      await del.mutateAsync(confirming.id)
+      toast.success('ลบหมวดแล้ว')
+      setConfirming(null)
     } catch (e) {
-      setErr((e as Error).message)
+      toast.error(translateError(e))
+      setConfirming(null)
     }
   }
 
@@ -53,8 +60,6 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
         </button>
       }
     >
-      {err && <p className="mb-2 text-[12px] text-expense">{err}</p>}
-
       {form && (
         <div className="mb-4 rounded-card border-[0.5px] border-hairline p-3.5">
           <input
@@ -89,13 +94,18 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
             <button
               disabled={!form.name.trim() || upsert.isPending}
               onClick={async () => {
-                await upsert.mutateAsync({
-                  id: form.id,
-                  name: form.name.trim(),
-                  kind: form.kind,
-                  is_stock_category: form.is_stock_category,
-                })
-                setForm(null)
+                try {
+                  await upsert.mutateAsync({
+                    id: form.id,
+                    name: form.name.trim(),
+                    kind: form.kind,
+                    is_stock_category: form.is_stock_category,
+                  })
+                  toast.success(form.id ? 'บันทึกหมวดแล้ว' : 'เพิ่มหมวดแล้ว')
+                  setForm(null)
+                } catch (e) {
+                  toast.error(translateError(e))
+                }
               }}
               className="flex-1 rounded-btn bg-mint-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
             >
@@ -147,7 +157,11 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                   >
                     <IconPencil size={16} className="text-faint" />
                   </button>
-                  <button aria-label="ลบ" onClick={() => remove(c)}>
+                  <button
+                    aria-label="ลบ"
+                    disabled={del.isPending}
+                    onClick={() => setConfirming(c)}
+                  >
                     <IconTrash size={16} className="text-faint" />
                   </button>
                 </div>
@@ -156,6 +170,16 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
           </div>
         )
       })}
+
+      {confirming && (
+        <ConfirmDialog
+          title={`ลบหมวด “${confirming.name}” ?`}
+          message="ถ้าหมวดนี้ยังมีรายการอยู่จะลบไม่ได้ — ย้ายรายการไปหมวดอื่นก่อน"
+          busy={del.isPending}
+          onCancel={() => setConfirming(null)}
+          onConfirm={confirmRemove}
+        />
+      )}
     </Overlay>
   )
 }

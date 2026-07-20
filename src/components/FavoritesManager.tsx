@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { IconPencil, IconPlus, IconStar, IconTrash } from '@tabler/icons-react'
 import { Overlay } from '@/components/ui'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useToast } from '@/components/Toast'
 import {
   useCategories,
   useDeleteFavorite,
@@ -8,6 +10,7 @@ import {
   useUpsertFavorite,
 } from '@/hooks/useLookups'
 import { formatBaht } from '@/lib/format'
+import { translateError } from '@/lib/errors'
 import type { Favorite, TransactionType } from '@/lib/database.types'
 
 interface FormState {
@@ -25,8 +28,9 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
   const { data: categories } = useCategories()
   const upsert = useUpsertFavorite()
   const del = useDeleteFavorite()
+  const toast = useToast()
   const [form, setForm] = useState<FormState | null>(null)
-  const [err, setErr] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<Favorite | null>(null)
 
   // categories selectable for the chosen kind (stock categories excluded — they
   // have their own intake flow, not a quick-add favorite).
@@ -38,18 +42,20 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
     [categories, form],
   )
 
-  async function remove(f: Favorite) {
-    setErr(null)
+  async function confirmRemove() {
+    if (!confirming) return
     try {
-      await del.mutateAsync(f.id)
+      await del.mutateAsync(confirming.id)
+      toast.success('ลบรายการโปรดแล้ว')
+      setConfirming(null)
     } catch (e) {
-      setErr((e as Error).message)
+      toast.error(translateError(e))
+      setConfirming(null)
     }
   }
 
   async function submit() {
     if (!form) return
-    setErr(null)
     try {
       await upsert.mutateAsync({
         id: form.id,
@@ -58,9 +64,10 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
         amount: form.amount ? Number(form.amount) : null,
         category_id: form.categoryId || null,
       })
+      toast.success(form.id ? 'บันทึกรายการโปรดแล้ว' : 'เพิ่มรายการโปรดแล้ว')
       setForm(null)
     } catch (e) {
-      setErr((e as Error).message)
+      toast.error(translateError(e))
     }
   }
 
@@ -76,8 +83,6 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
         </button>
       }
     >
-      {err && <p className="mb-2 text-[12px] text-expense">{err}</p>}
-
       {form && (
         <div className="mb-4 rounded-card border-[0.5px] border-hairline p-3.5">
           <input
@@ -188,13 +193,22 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
               <button
                 aria-label="ลบ"
                 disabled={del.isPending}
-                onClick={() => remove(f)}
+                onClick={() => setConfirming(f)}
               >
                 <IconTrash size={16} className="text-faint" />
               </button>
             </div>
           )
         })
+      )}
+
+      {confirming && (
+        <ConfirmDialog
+          title={`ลบรายการโปรด “${confirming.label}” ?`}
+          busy={del.isPending}
+          onCancel={() => setConfirming(null)}
+          onConfirm={confirmRemove}
+        />
       )}
     </Overlay>
   )

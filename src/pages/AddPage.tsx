@@ -12,8 +12,10 @@ import {
 import { useCategories, useFavorites, useUpsertFavorite } from '@/hooks/useLookups'
 import { useAddTransaction } from '@/hooks/useAddTransaction'
 import { useWallets } from '@/hooks/useSettings'
+import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
 import { formatBaht } from '@/lib/format'
+import { translateError } from '@/lib/errors'
 import type { TransactionType } from '@/lib/database.types'
 
 const intFmt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 })
@@ -25,6 +27,7 @@ export function AddPage() {
   const walletsQ = useWallets()
   const add = useAddTransaction()
   const saveFav = useUpsertFavorite()
+  const toast = useToast()
 
   const [type, setType] = useState<TransactionType>('expense')
   const [amountStr, setAmountStr] = useState('')
@@ -84,9 +87,10 @@ export function AddPage() {
     if (!canSave) return
     try {
       await add.mutateAsync({ type, amount, categoryId, walletId })
+      toast.success('บันทึกรายการแล้ว')
       navigate('/')
-    } catch {
-      /* error surfaced below via add.error */
+    } catch (e) {
+      toast.error(translateError(e))
     }
   }
 
@@ -103,8 +107,9 @@ export function AddPage() {
         category_id: categoryId,
       })
       setFavSaved(true)
-    } catch {
-      /* non-blocking; favorites are optional */
+      toast.success('บันทึกเป็นรายการโปรดแล้ว')
+    } catch (e) {
+      toast.error(translateError(e))
     }
   }
 
@@ -283,7 +288,7 @@ export function AddPage() {
 
         {add.error && (
           <p className="px-4 pb-2 text-center text-[12px] text-expense">
-            บันทึกไม่สำเร็จ: {(add.error as Error).message}
+            {translateError(add.error)}
           </p>
         )}
 

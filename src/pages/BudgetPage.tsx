@@ -9,8 +9,11 @@ import {
   type BudgetRow,
 } from '@/hooks/useBudgets'
 import { useCategories } from '@/hooks/useLookups'
+import { useToast } from '@/components/Toast'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { monthBounds } from '@/lib/dates'
 import { formatBaht, formatMonthShort } from '@/lib/format'
+import { translateError } from '@/lib/errors'
 
 const RING_C = 2 * Math.PI * 17 // ≈ 107
 
@@ -26,8 +29,10 @@ export function BudgetPage() {
   const catsQ = useCategories()
   const upsert = useUpsertBudget()
   const del = useDeleteBudget()
+  const toast = useToast()
 
   const [editor, setEditor] = useState<EditorState | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const budgets = budgetsQ.data ?? []
   const spending = spendingQ.data ?? {}
@@ -129,21 +134,38 @@ export function BudgetPage() {
           saving={upsert.isPending}
           onChange={setEditor}
           onSave={async () => {
-            await upsert.mutateAsync({
-              categoryId: editor.categoryId,
-              amount: Number(editor.amount || '0'),
-            })
-            setEditor(null)
+            try {
+              await upsert.mutateAsync({
+                categoryId: editor.categoryId,
+                amount: Number(editor.amount || '0'),
+              })
+              toast.success('บันทึกงบแล้ว')
+              setEditor(null)
+            } catch (e) {
+              toast.error(translateError(e))
+            }
           }}
-          onDelete={
-            editor.budgetId
-              ? async () => {
-                  await del.mutateAsync(editor.budgetId!)
-                  setEditor(null)
-                }
-              : undefined
-          }
+          onDelete={editor.budgetId ? () => setConfirmingDelete(true) : undefined}
           onClose={() => setEditor(null)}
+        />
+      )}
+
+      {confirmingDelete && editor?.budgetId && (
+        <ConfirmDialog
+          title="ลบงบหมวดนี้?"
+          message="งบของหมวดนี้จะถูกลบ — ธุรกรรมที่บันทึกไว้ยังอยู่เหมือนเดิม"
+          busy={del.isPending}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={async () => {
+            try {
+              await del.mutateAsync(editor.budgetId!)
+              toast.success('ลบงบแล้ว')
+              setConfirmingDelete(false)
+              setEditor(null)
+            } catch (e) {
+              toast.error(translateError(e))
+            }
+          }}
         />
       )}
     </div>

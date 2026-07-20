@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
+import { translateError } from '@/lib/errors'
 
 export function LoginPage() {
   const { session, signInWithPassword } = useAuth()
@@ -21,7 +22,7 @@ export function LoginPage() {
     setBusy(true)
     const { error } = await signInWithPassword(email, password)
     setBusy(false)
-    if (error) setError(error)
+    if (error) setError(translateError(error))
   }
 
   return (
