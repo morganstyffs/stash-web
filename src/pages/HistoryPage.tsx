@@ -6,6 +6,7 @@ import {
   type HistoryFilter,
   type HistoryRow,
 } from '@/hooks/useHistory'
+import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 import { categoryIcon } from '@/lib/icons'
 import { formatBaht, formatSigned } from '@/lib/format'
 
@@ -20,6 +21,7 @@ export function HistoryPage() {
   const [filter, setFilter] = useState<HistoryFilter>('all')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   // debounce search → one query per pause, not per keystroke
   useEffect(() => {
@@ -90,7 +92,7 @@ export function HistoryPage() {
                   </span>
                 </div>
                 {g.rows.map((r) => (
-                  <LedgerRow key={r.id} row={r} />
+                  <LedgerRow key={r.id} row={r} onOpen={() => setEditingId(r.id)} />
                 ))}
               </div>
             ))}
@@ -109,6 +111,10 @@ export function HistoryPage() {
           <p className="py-10 text-center text-[13px] text-faint">ไม่พบรายการ</p>
         )}
       </div>
+
+      {editingId && (
+        <TransactionEditSheet id={editingId} onClose={() => setEditingId(null)} />
+      )}
     </div>
   )
 }
@@ -131,7 +137,7 @@ function HistorySkeleton() {
   )
 }
 
-function LedgerRow({ row }: { row: HistoryRow }) {
+function LedgerRow({ row, onOpen }: { row: HistoryRow; onOpen: () => void }) {
   const isStock = row.is_stock_purchase || row.stock_item_id != null
   const Icon = isStock ? IconBox : categoryIcon(row.category?.icon)
   const time = new Date(row.created_at).toLocaleTimeString('th-TH', {
@@ -139,7 +145,10 @@ function LedgerRow({ row }: { row: HistoryRow }) {
     minute: '2-digit',
   })
   return (
-    <div className="flex items-center gap-[11px] border-b-[0.5px] border-hairline py-2.5 last:border-b-0">
+    <button
+      onClick={onOpen}
+      className="flex w-full items-center gap-[11px] border-b-[0.5px] border-hairline py-2.5 text-left last:border-b-0"
+    >
       <div
         className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] ${
           isStock ? 'bg-mint-tint' : 'bg-fill'
@@ -160,6 +169,6 @@ function LedgerRow({ row }: { row: HistoryRow }) {
       >
         {formatSigned(row.amount, row.type)}
       </span>
-    </div>
+    </button>
   )
 }

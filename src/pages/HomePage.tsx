@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   IconArrowDownRight,
@@ -20,6 +20,7 @@ import {
 } from '@/hooks/useHome'
 import { Donut, TrendLine } from '@/components/charts'
 import { useMonthBudgetTotal } from '@/hooks/useBudgets'
+import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 import { categoryIcon } from '@/lib/icons'
 import { formatBaht, formatMonthLong, formatSigned } from '@/lib/format'
 
@@ -29,6 +30,7 @@ export function HomePage() {
   const catsQ = useCategories()
   const recentQ = useRecentTransactions()
   const budgetTotalQ = useMonthBudgetTotal()
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const summary = useMemo(
     () => computeHomeSummary(monthQ.data ?? [], catsQ.data ?? []),
@@ -180,13 +182,19 @@ export function HomePage() {
       <div className="mx-4 mb-4 mt-3.5 border-t-[0.5px] border-hairline pt-3.5">
         <p className="mb-1 text-[15px] font-medium">รายการล่าสุด</p>
         {recentQ.data && recentQ.data.length > 0 ? (
-          recentQ.data.map((t) => <RecentItem key={t.id} tx={t} />)
+          recentQ.data.map((t) => (
+            <RecentItem key={t.id} tx={t} onOpen={() => setEditingId(t.id)} />
+          ))
         ) : (
           <p className="py-3 text-[13px] text-faint">
             {recentQ.isLoading ? 'กำลังโหลด…' : 'ยังไม่มีรายการ — แตะ “เพิ่มเร็ว” เพื่อเริ่ม'}
           </p>
         )}
       </div>
+
+      {editingId && (
+        <TransactionEditSheet id={editingId} onClose={() => setEditingId(null)} />
+      )}
     </div>
   )
 }
@@ -247,14 +255,17 @@ function HeroAction({
   )
 }
 
-function RecentItem({ tx }: { tx: RecentRow }) {
+function RecentItem({ tx, onOpen }: { tx: RecentRow; onOpen: () => void }) {
   const Icon = categoryIcon(tx.category?.icon)
   const time = new Date(tx.created_at).toLocaleTimeString('th-TH', {
     hour: '2-digit',
     minute: '2-digit',
   })
   return (
-    <div className="flex items-center gap-[11px] border-b-[0.5px] border-hairline py-2.5 last:border-b-0">
+    <button
+      onClick={onOpen}
+      className="flex w-full items-center gap-[11px] border-b-[0.5px] border-hairline py-2.5 text-left last:border-b-0"
+    >
       <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] bg-fill">
         <Icon size={16} className="text-muted" />
       </div>
@@ -271,6 +282,6 @@ function RecentItem({ tx }: { tx: RecentRow }) {
       >
         {formatSigned(tx.amount, tx.type)}
       </span>
-    </div>
+    </button>
   )
 }
