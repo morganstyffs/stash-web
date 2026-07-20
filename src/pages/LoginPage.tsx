@@ -29,13 +29,8 @@ export function LoginPage() {
     <div className="flex min-h-full items-center justify-center px-6 py-10">
       <div className="w-full max-w-sm rounded-[26px] border-[0.5px] border-hairline bg-white p-7 shadow-card">
         <div className="mb-6 flex flex-col items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-[13px] bg-mint-deep text-lg font-medium text-white">
-            S
-          </div>
-          <div className="text-center">
-            <p className="text-lg font-medium">Stash</p>
-            <p className="mt-0.5 text-[13px] text-muted">บันทึกรายรับ-รายจ่าย + สต็อก</p>
-          </div>
+          <img src="/stash-logo.svg" alt="Stash" className="h-9 w-auto" />
+          <p className="text-[13px] text-muted">บันทึกรายรับ-รายจ่าย + สต็อก</p>
         </div>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-3">

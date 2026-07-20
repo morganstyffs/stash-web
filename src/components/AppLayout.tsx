@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   IconHome,
   IconList,
@@ -40,9 +40,9 @@ export function AppLayout() {
     <div className="mx-auto flex min-h-full max-w-3xl bg-white sm:my-4 sm:min-h-0 sm:rounded-[22px] sm:border-[0.5px] sm:border-hairline sm:shadow-card">
       {/* Nav rail — tablet/desktop only */}
       <nav className="hidden w-[66px] shrink-0 flex-col items-center border-r border-hairline py-4 sm:flex">
-        <div className="mb-6 flex h-8 w-8 items-center justify-center rounded-[9px] bg-mint-deep text-[15px] font-medium text-white">
-          S
-        </div>
+        <Link to="/" aria-label="Stash" className="mb-6">
+          <img src="/stash-mark.svg" alt="Stash" className="h-8 w-8" />
+        </Link>
         <div className="flex flex-1 flex-col items-center gap-6">
           {RAIL.map(({ to, icon: I }) => (
             <NavLink key={to} to={to} end={to === '/'} aria-label={to}>

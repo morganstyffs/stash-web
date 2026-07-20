@@ -45,9 +45,9 @@ export function HomePage() {
     <div className="flex min-h-full flex-col">
       {/* header */}
       <div className="flex items-center justify-between px-[18px] pb-2.5 pt-[18px]">
-        <div className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-mint-deep text-[15px] font-medium text-white">
-          S
-        </div>
+        <Link to="/" aria-label="Stash">
+          <img src="/stash-mark.svg" alt="Stash" className="h-[30px] w-[30px]" />
+        </Link>
         <p className="text-[17px] font-medium">ยินดีต้อนรับกลับ</p>
         <IconBell size={20} className="text-muted" />
       </div>

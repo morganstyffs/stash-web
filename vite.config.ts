@@ -19,11 +19,14 @@ export default defineConfig({
       manifestFilename: 'site.webmanifest',
       includeAssets: [
         'favicon.ico',
-        'favicon.svg',
         'favicon-16.png',
         'favicon-32.png',
         'favicon-48.png',
         'apple-touch-icon.png',
+        'stash-mark.svg',
+        'stash-mark-white.svg',
+        'stash-logo.svg',
+        'stash-logo-white.svg',
       ],
       manifest: {
         name: 'Stash',
