@@ -5,6 +5,10 @@
 @layer base {
   :root {
     color-scheme: light;
+
+    /* Stash brand tokens — reusable across the app */
+    --brand: #14b8a6;
+    --brand-deep: #0f766e;
   }
 
   html,
