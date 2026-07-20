@@ -1,0 +1,7 @@
+# Files here are copied into ./dist (Vite public dir) and then uploaded to
+# Cloudflare's asset store on deploy. This .assetsignore guards against ever
+# publishing sensitive or bulky paths as public assets. Gitignore-style syntax.
+node_modules
+.git
+.env
+.env.*

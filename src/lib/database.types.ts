@@ -10,12 +10,16 @@ export type WalletType = 'cash' | 'bank' | 'promptpay'
 export type ItemCondition = 'new' | 'used_good' | 'flawed'
 export type StockStatus = 'in_stock' | 'partial' | 'sold'
 
-interface Timestamps {
+// NB: these MUST be `type` aliases (not `interface`s). Only object-literal type
+// aliases are assignable to `Record<string, unknown>`, which is what the
+// Supabase/PostgREST `GenericTable` constraint requires — an interface would
+// silently fail that constraint and collapse insert/update typings to `never`.
+type Timestamps = {
   created_at: string
   updated_at: string
 }
 
-export interface Wallet extends Timestamps {
+export type Wallet = Timestamps & {
   id: string
   user_id: string
   name: string
@@ -23,7 +27,7 @@ export interface Wallet extends Timestamps {
   balance: number
 }
 
-export interface Category extends Timestamps {
+export type Category = Timestamps & {
   id: string
   user_id: string
   name: string
@@ -34,7 +38,7 @@ export interface Category extends Timestamps {
   sort_order: number
 }
 
-export interface Transaction extends Timestamps {
+export type Transaction = Timestamps & {
   id: string
   user_id: string
   type: TransactionType
@@ -47,7 +51,7 @@ export interface Transaction extends Timestamps {
   stock_item_id: string | null
 }
 
-export interface StockItem extends Timestamps {
+export type StockItem = Timestamps & {
   id: string
   user_id: string
   name: string
@@ -67,7 +71,7 @@ export interface StockItem extends Timestamps {
   source_transaction_id: string | null
 }
 
-export interface StockSale extends Timestamps {
+export type StockSale = Timestamps & {
   id: string
   user_id: string
   stock_item_id: string
@@ -77,7 +81,7 @@ export interface StockSale extends Timestamps {
   profit: number
 }
 
-export interface Favorite extends Timestamps {
+export type Favorite = Timestamps & {
   id: string
   user_id: string
   label: string
@@ -86,7 +90,7 @@ export interface Favorite extends Timestamps {
   category_id: string | null
 }
 
-export interface Recurring extends Timestamps {
+export type Recurring = Timestamps & {
   id: string
   user_id: string
   label: string
@@ -103,7 +107,7 @@ type Row<T> = T
 type Insert<T> = Partial<T>
 type Update<T> = Partial<T>
 
-interface TableShape<T> {
+type TableShape<T> = {
   Row: Row<T>
   Insert: Insert<T>
   Update: Update<T>
