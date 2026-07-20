@@ -10,6 +10,8 @@ export interface NewTransaction {
   categoryId: string | null
   walletId?: string | null
   note?: string | null
+  /** YYYY-MM-DD; defaults to today when omitted (supports backdating). */
+  date?: string
 }
 
 /**
@@ -36,7 +38,7 @@ export function useAddTransaction() {
           category_id: input.categoryId,
           wallet_id: input.walletId ?? null,
           note: input.note ?? null,
-          date: toISODate(new Date()),
+          date: input.date ?? toISODate(new Date()),
         })
         .select('id')
         .single()

@@ -1,20 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  IconArrowLeft,
   IconBackspace,
   IconCalendar,
   IconCheck,
   IconPlus,
   IconStar,
   IconWallet,
-  IconX,
 } from '@tabler/icons-react'
 import { useCategories, useFavorites, useUpsertFavorite } from '@/hooks/useLookups'
 import { useAddTransaction } from '@/hooks/useAddTransaction'
 import { useWallets } from '@/hooks/useSettings'
 import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
-import { formatBaht } from '@/lib/format'
+import { formatBaht, formatDayShort } from '@/lib/format'
+import { toISODate } from '@/lib/dates'
 import { translateError } from '@/lib/errors'
 import type { TransactionType } from '@/lib/database.types'
 
@@ -29,11 +30,15 @@ export function AddPage() {
   const saveFav = useUpsertFavorite()
   const toast = useToast()
 
+  const today = toISODate(new Date())
   const [type, setType] = useState<TransactionType>('expense')
   const [amountStr, setAmountStr] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [walletId, setWalletId] = useState<string | null>(null)
+  const [dateStr, setDateStr] = useState(today)
   const [favSaved, setFavSaved] = useState(false)
+
+  const dateLabel = dateStr === today ? 'วันนี้' : formatDayShort(new Date(dateStr + 'T00:00:00'))
 
   // Default the wallet to the first one once wallets load (wallet_id is optional
   // in the schema, so if the user has none we simply save without a wallet).
@@ -86,7 +91,7 @@ export function AddPage() {
   async function save() {
     if (!canSave) return
     try {
-      await add.mutateAsync({ type, amount, categoryId, walletId })
+      await add.mutateAsync({ type, amount, categoryId, walletId, date: dateStr })
       toast.success('บันทึกรายการแล้ว')
       navigate('/')
     } catch (e) {
@@ -122,14 +127,23 @@ export function AddPage() {
     <div className="mx-auto flex min-h-full max-w-md flex-col bg-white">
       {/* header */}
       <div className="flex items-center justify-between px-[18px] pb-3 pt-4">
-        <button aria-label="ปิด" onClick={() => navigate('/')}>
-          <IconX size={20} className="text-muted" />
+        <button aria-label="ย้อนกลับ" onClick={() => navigate('/')}>
+          <IconArrowLeft size={20} className="text-muted" />
         </button>
         <p className="text-[16px] font-medium">เพิ่มรายการ</p>
-        <span className="flex items-center gap-1 rounded-pill bg-mint-tint px-[11px] py-1 text-[12px] text-mint-text">
+        {/* date pill — opens the native date picker; backdating is allowed up to today */}
+        <label className="relative flex items-center gap-1 rounded-pill bg-mint-tint px-[11px] py-1 text-[12px] font-medium text-mint-text">
           <IconCalendar size={13} />
-          วันนี้
-        </span>
+          {dateLabel}
+          <input
+            type="date"
+            value={dateStr}
+            max={today}
+            onChange={(e) => setDateStr(e.target.value || today)}
+            aria-label="เลือกวันที่"
+            className="absolute inset-0 cursor-pointer opacity-0"
+          />
+        </label>
       </div>
 
       {/* input mode tabs — only "กดเร็ว" is wired for this slice */}

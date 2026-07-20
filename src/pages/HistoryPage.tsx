@@ -27,8 +27,12 @@ export function HistoryPage() {
     return () => clearTimeout(t)
   }, [searchInput])
 
-  const { data, isLoading } = useHistory(filter, search)
-  const groups = useMemo(() => groupByDay(data ?? []), [data])
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useHistory(
+    filter,
+    search,
+  )
+  const rows = useMemo(() => data?.pages.flat() ?? [], [data])
+  const groups = useMemo(() => groupByDay(rows), [rows])
 
   return (
     <div className="flex min-h-full flex-col">
@@ -69,30 +73,60 @@ export function HistoryPage() {
       </div>
 
       <div className="px-4 pb-4">
-        {groups.length > 0 ? (
-          groups.map((g) => (
-            <div key={g.key}>
-              <div className="flex items-baseline justify-between pb-1 pt-3">
-                <span className="text-[13px] font-medium">
-                  {g.label}
-                  {g.sub && <span className="font-normal text-faint"> · {g.sub}</span>}
-                </span>
-                <span className="text-[11px] text-faint">
-                  <span className="text-income">+{formatBaht(g.income)}</span> ·{' '}
-                  <span className="text-expense">-{formatBaht(g.expense)}</span>
-                </span>
+        {isLoading ? (
+          <HistorySkeleton />
+        ) : groups.length > 0 ? (
+          <>
+            {groups.map((g) => (
+              <div key={g.key}>
+                <div className="flex items-baseline justify-between pb-1 pt-3">
+                  <span className="text-[13px] font-medium">
+                    {g.label}
+                    {g.sub && <span className="font-normal text-faint"> · {g.sub}</span>}
+                  </span>
+                  <span className="text-[11px] text-faint">
+                    <span className="text-income">+{formatBaht(g.income)}</span> ·{' '}
+                    <span className="text-expense">-{formatBaht(g.expense)}</span>
+                  </span>
+                </div>
+                {g.rows.map((r) => (
+                  <LedgerRow key={r.id} row={r} />
+                ))}
               </div>
-              {g.rows.map((r) => (
-                <LedgerRow key={r.id} row={r} />
-              ))}
-            </div>
-          ))
+            ))}
+
+            {hasNextPage && (
+              <button
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="mt-4 w-full rounded-btn border-[0.5px] border-hairline py-2.5 text-[13px] font-medium text-muted disabled:opacity-50"
+              >
+                {isFetchingNextPage ? 'กำลังโหลด…' : 'โหลดเพิ่ม'}
+              </button>
+            )}
+          </>
         ) : (
-          <p className="py-10 text-center text-[13px] text-faint">
-            {isLoading ? 'กำลังโหลด…' : 'ไม่พบรายการ'}
-          </p>
+          <p className="py-10 text-center text-[13px] text-faint">ไม่พบรายการ</p>
         )}
       </div>
+    </div>
+  )
+}
+
+/** Placeholder rows shown while the first page loads (no ฿0 flash). */
+function HistorySkeleton() {
+  return (
+    <div className="animate-pulse pt-3">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="flex items-center gap-[11px] py-2.5">
+          <div className="h-[30px] w-[30px] shrink-0 rounded-[9px] bg-fill" />
+          <div className="flex-1">
+            <div className="h-3 w-1/2 rounded bg-fill" />
+            <div className="mt-1.5 h-2.5 w-1/3 rounded bg-fill" />
+          </div>
+          <div className="h-3 w-12 rounded bg-fill" />
+        </div>
+      ))}
     </div>
   )
 }
