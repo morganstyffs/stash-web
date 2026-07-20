@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   IconBox,
   IconCategory,
@@ -6,8 +7,10 @@ import {
   IconCurrencyBaht,
   IconInfoCircle,
   IconLogout,
+  IconReportMoney,
   IconRepeat,
   IconSparkles,
+  IconStar,
   IconTag,
   IconWallet,
   IconWand,
@@ -15,18 +18,21 @@ import {
 import { Toggle } from '@/components/ui'
 import { CategoriesManager } from '@/components/CategoriesManager'
 import { WalletsManager } from '@/components/WalletsManager'
+import { FavoritesManager } from '@/components/FavoritesManager'
 import { useAuth } from '@/hooks/useAuth'
-import { useCategories } from '@/hooks/useLookups'
+import { useCategories, useFavorites } from '@/hooks/useLookups'
 import { useRecurringCount, useWallets } from '@/hooks/useSettings'
 import { loadAiPrefs, saveAiPrefs, type AiPrefs } from '@/lib/prefs'
 
 export function SettingsPage() {
+  const navigate = useNavigate()
   const { signOut } = useAuth()
   const { data: categories } = useCategories()
   const { data: wallets } = useWallets()
+  const { data: favorites } = useFavorites()
   const { data: recurringCount } = useRecurringCount()
 
-  const [manager, setManager] = useState<'categories' | 'wallets' | null>(null)
+  const [manager, setManager] = useState<'categories' | 'wallets' | 'favorites' | null>(null)
   const [ai, setAi] = useState<AiPrefs>(() => loadAiPrefs())
 
   function setAiPref(patch: Partial<AiPrefs>) {
@@ -62,6 +68,17 @@ export function SettingsPage() {
           label="กระเป๋าเงิน"
           value={`${wallets?.length ?? 0} บัญชี`}
           onClick={() => setManager('wallets')}
+        />
+        <Row
+          icon={IconStar}
+          label="รายการโปรด"
+          value={`${favorites?.length ?? 0} รายการ`}
+          onClick={() => setManager('favorites')}
+        />
+        <Row
+          icon={IconReportMoney}
+          label="งบประมาณ"
+          onClick={() => navigate('/budget')}
         />
         <Row icon={IconCurrencyBaht} label="สกุลเงิน" value="บาท (฿)" last />
       </Group>
@@ -117,6 +134,7 @@ export function SettingsPage() {
 
       {manager === 'categories' && <CategoriesManager onClose={() => setManager(null)} />}
       {manager === 'wallets' && <WalletsManager onClose={() => setManager(null)} />}
+      {manager === 'favorites' && <FavoritesManager onClose={() => setManager(null)} />}
     </div>
   )
 }

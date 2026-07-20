@@ -8,6 +8,7 @@ export interface NewTransaction {
   type: TransactionType
   amount: number
   categoryId: string | null
+  walletId?: string | null
   note?: string | null
 }
 
@@ -33,6 +34,7 @@ export function useAddTransaction() {
           type: input.type,
           amount: input.amount,
           category_id: input.categoryId,
+          wallet_id: input.walletId ?? null,
           note: input.note ?? null,
           date: toISODate(new Date()),
         })
