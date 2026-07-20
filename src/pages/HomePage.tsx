@@ -37,6 +37,8 @@ export function HomePage() {
 
   const loading = monthQ.isLoading || catsQ.isLoading
 
+  if (loading) return <HomeSkeleton />
+
   return (
     <div className="flex min-h-full flex-col">
       {/* header */}
@@ -184,6 +186,41 @@ export function HomePage() {
             {recentQ.isLoading ? 'กำลังโหลด…' : 'ยังไม่มีรายการ — แตะ “เพิ่มเร็ว” เพื่อเริ่ม'}
           </p>
         )}
+      </div>
+    </div>
+  )
+}
+
+/** Loading placeholder that mirrors the home layout (no ฿0 flash on first load). */
+function HomeSkeleton() {
+  return (
+    <div className="flex min-h-full animate-pulse flex-col">
+      <div className="flex items-center justify-between px-[18px] pb-2.5 pt-[18px]">
+        <div className="h-[30px] w-[30px] rounded-[9px] bg-fill" />
+        <div className="h-4 w-32 rounded bg-fill" />
+        <div className="h-5 w-5 rounded bg-fill" />
+      </div>
+      <div className="px-4 pb-1 pt-1.5">
+        <div className="h-[38px] rounded-[14px] bg-fill" />
+        <div className="-mt-1.5 h-[38px] rounded-[14px] bg-fill" />
+        <div className="-mt-1.5 h-[38px] rounded-[14px] bg-fill" />
+        <div className="-mt-2 h-[118px] rounded-pocket bg-fill" />
+      </div>
+      <div className="mx-4 mt-3.5">
+        <div className="h-4 w-40 rounded bg-fill" />
+        <div className="mt-3 h-[60px] rounded bg-fill" />
+      </div>
+      <div className="mx-4 mt-4 space-y-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex items-center gap-[11px]">
+            <div className="h-[30px] w-[30px] rounded-[9px] bg-fill" />
+            <div className="flex-1">
+              <div className="h-3 w-1/2 rounded bg-fill" />
+              <div className="mt-1.5 h-2.5 w-1/3 rounded bg-fill" />
+            </div>
+            <div className="h-3 w-12 rounded bg-fill" />
+          </div>
+        ))}
       </div>
     </div>
   )

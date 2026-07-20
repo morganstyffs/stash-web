@@ -1,10 +1,13 @@
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { formatDayShort } from '@/lib/format'
 import type { TransactionType } from '@/lib/database.types'
 
 export type HistoryFilter = 'all' | 'income' | 'expense' | 'stock'
+
+/** Rows fetched per page — older rows load on demand via "โหลดเพิ่ม". */
+export const HISTORY_PAGE_SIZE = 50
 
 export interface HistoryRow {
   id: string
@@ -20,15 +23,17 @@ export interface HistoryRow {
 
 /**
  * Transactions for the current user, filtered server-side by the active chip
- * and search text (RLS scopes to auth.uid()).
+ * and search text (RLS scopes to auth.uid()). Paged with useInfiniteQuery so
+ * long histories load in chunks instead of being silently capped.
  */
 export function useHistory(filter: HistoryFilter, search: string) {
   const { user } = useAuth()
   const q = search.trim()
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['transactions', 'history', user?.id, filter, q],
     enabled: !!user,
-    queryFn: async (): Promise<HistoryRow[]> => {
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<HistoryRow[]> => {
       let query = supabase
         .from('transactions')
         .select(
@@ -43,15 +48,19 @@ export function useHistory(filter: HistoryFilter, search: string) {
 
       if (q) query = query.ilike('note', `%${q}%`)
 
+      const from = pageParam * HISTORY_PAGE_SIZE
       query = query
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
-        .limit(200)
+        .range(from, from + HISTORY_PAGE_SIZE - 1)
 
       const { data, error } = await query
       if (error) throw error
       return (data ?? []) as unknown as HistoryRow[]
     },
+    // A full-size page means there may be more; a short page is the end.
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === HISTORY_PAGE_SIZE ? allPages.length : undefined,
   })
 }
 
