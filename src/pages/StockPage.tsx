@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  IconAdjustmentsHorizontal,
   IconChevronRight,
   IconClipboardList,
   IconHanger,
@@ -72,7 +71,6 @@ export function StockPage() {
           >
             <IconSearch size={19} className={searchOpen ? 'text-mint-deep' : 'text-muted'} />
           </button>
-          <IconAdjustmentsHorizontal size={19} className="text-muted" />
           <button aria-label="รับเข้าสต็อก" onClick={() => navigate('/stock/intake')}>
             <IconPackageImport size={20} className="text-mint-deep" />
           </button>
