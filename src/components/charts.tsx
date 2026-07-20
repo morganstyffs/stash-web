@@ -1,4 +1,5 @@
 import type { DonutSlice } from '@/hooks/useHome'
+import { formatBaht } from '@/lib/format'
 
 /** Category donut — one arc per slice, sized by share of total expense. */
 export function Donut({ slices }: { slices: DonutSlice[] }) {
@@ -8,54 +9,142 @@ export function Donut({ slices }: { slices: DonutSlice[] }) {
 
   let offset = 0
   return (
-    <svg viewBox="0 0 80 80" className="h-[76px] w-[76px] shrink-0">
-      <circle cx="40" cy="40" r={R} fill="none" stroke="#F1F2F3" strokeWidth="11" />
-      {slices.map((s) => {
-        const dash = (s.total / total) * C
-        const el = (
-          <circle
-            key={s.categoryId}
-            cx="40"
-            cy="40"
-            r={R}
-            fill="none"
-            stroke={s.color}
-            strokeWidth="11"
-            strokeDasharray={`${dash} ${C - dash}`}
-            strokeDashoffset={-offset}
-            transform="rotate(-90 40 40)"
-          />
-        )
-        offset += dash
-        return el
-      })}
-    </svg>
+    <div className="relative shrink-0">
+      <svg viewBox="0 0 80 80" className="h-[76px] w-[76px]">
+        <circle cx="40" cy="40" r={R} fill="none" stroke="#F1F2F3" strokeWidth="11" />
+        {slices.map((s) => {
+          const dash = (s.total / total) * C
+          const el = (
+            <circle
+              key={s.categoryId}
+              cx="40"
+              cy="40"
+              r={R}
+              fill="none"
+              stroke={s.color}
+              strokeWidth="11"
+              strokeDasharray={`${dash} ${C - dash}`}
+              strokeDashoffset={-offset}
+              transform="rotate(-90 40 40)"
+            />
+          )
+          offset += dash
+          return el
+        })}
+      </svg>
+      {/* total spend in the middle of the ring */}
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[13px] font-medium leading-none tracking-[-0.3px]">
+          {formatBaht(slices.reduce((s, x) => s + x.total, 0))}
+        </span>
+        <span className="mt-0.5 text-[9px] leading-none text-faint">รวม</span>
+      </div>
+    </div>
   )
 }
 
-/** Cumulative-expense trend line for the month. */
-export function TrendLine({ data }: { data: number[] }) {
-  const W = 288
-  const max = Math.max(...data, 1)
-  const n = data.length
-  const points = data.map((v, i) => {
-    const x = n > 1 ? (i / (n - 1)) * W : 0
-    const y = 58 - (v / max) * 48
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  })
-  const last = points[points.length - 1]?.split(',') ?? ['0', '58']
+// trend-line geometry (viewBox units)
+const GUTTER = 38 // left space reserved for the y-axis money labels
+const PLOT_L = GUTTER + 2
+const PLOT_R = 316
+const PLOT_W = PLOT_R - PLOT_L
+const TOP = 10 // y for the highest gridline
+const BOTTOM = 128 // y for the 0 gridline
+const PLOT_H = BOTTOM - TOP
+const STEP = 10_000 // gridline every ฿10,000
+
+/**
+ * Month trend — cumulative income (mint) vs expense (red), on a fixed money
+ * scale with labelled horizontal gridlines. Pass `sparseLabels` to only label
+ * every ฿20,000 (a lighter look for tight mobile widths).
+ */
+export function TrendLine({
+  income,
+  expense,
+  sparseLabels = false,
+}: {
+  income: number[]
+  expense: number[]
+  sparseLabels?: boolean
+}) {
+  const n = Math.max(income.length, expense.length)
+  const dataMax = Math.max(...income, ...expense, 0)
+  // fixed 0–50,000 scale, but grow in ฿10,000 steps if a line runs higher
+  const niceMax = Math.max(50_000, Math.ceil(dataMax / STEP) * STEP)
+  const levels: number[] = []
+  for (let v = 0; v <= niceMax; v += STEP) levels.push(v)
+
+  const yOf = (v: number) => BOTTOM - (v / niceMax) * PLOT_H
+  const xOf = (i: number) => (n > 1 ? PLOT_L + (i / (n - 1)) * PLOT_W : PLOT_L)
+  const toPoints = (data: number[]) =>
+    data.map((v, i) => `${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`).join(' ')
+
+  const incLast = income.length ? { x: xOf(income.length - 1), y: yOf(income[income.length - 1]) } : null
+  const expLast = expense.length ? { x: xOf(expense.length - 1), y: yOf(expense[expense.length - 1]) } : null
+
+  // x-axis day markers (kept as before: 1 / 10 / 20 / last day)
+  const dayMarks = [1, 10, 20, n]
 
   return (
-    <svg viewBox="0 0 288 70" className="h-16 w-full">
+    <svg viewBox="0 0 320 150" className="w-full" role="img" aria-label="แนวโน้มเงินเข้าและเงินออกรายวัน">
+      {/* horizontal gridlines + money labels */}
+      {levels.map((v) => {
+        const y = yOf(v)
+        const labelled = !sparseLabels || v % 20_000 === 0
+        return (
+          <g key={v}>
+            <line x1={PLOT_L} y1={y} x2={PLOT_R} y2={y} stroke="#E6E8E7" strokeWidth="1" />
+            {labelled && (
+              <text
+                x={GUTTER - 4}
+                y={y + 3}
+                textAnchor="end"
+                fontSize="9"
+                fill="#9AA09C"
+              >
+                {v.toLocaleString('en-US')}
+              </text>
+            )}
+          </g>
+        )
+      })}
+
+      {/* expense line (red) */}
       <polyline
-        points={points.join(' ')}
+        points={toPoints(expense)}
+        fill="none"
+        stroke="#E24B4A"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* income line (mint) */}
+      <polyline
+        points={toPoints(income)}
         fill="none"
         stroke="#2CC0A0"
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx={last[0]} cy={last[1]} r="4" fill="#2CC0A0" />
+
+      {/* end-of-line value dots */}
+      {expLast && <circle cx={expLast.x} cy={expLast.y} r="4" fill="#E24B4A" />}
+      {incLast && <circle cx={incLast.x} cy={incLast.y} r="4" fill="#2CC0A0" />}
+
+      {/* x-axis day labels */}
+      {dayMarks.map((d, i) => (
+        <text
+          key={i}
+          x={xOf(d - 1)}
+          y={BOTTOM + 16}
+          textAnchor={i === 0 ? 'start' : i === dayMarks.length - 1 ? 'end' : 'middle'}
+          fontSize="10"
+          fill="#9AA09C"
+        >
+          {d}
+        </text>
+      ))}
     </svg>
   )
 }
