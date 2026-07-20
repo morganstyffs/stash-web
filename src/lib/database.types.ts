@@ -103,6 +103,30 @@ export type Recurring = Timestamps & {
   active: boolean
 }
 
+/** Named args for the stock_intake_create RPC (mirrors 0004_stock_intake_rpc.sql). */
+export type StockIntakeArgs = {
+  p_name: string
+  p_cost_per_unit: number
+  p_qty: number
+  p_category?: string | null
+  p_category_id?: string | null
+  p_wallet_id?: string | null
+  p_brand?: string | null
+  p_size?: string | null
+  p_color?: string | null
+  p_condition?: ItemCondition | null
+  p_target_price?: number | null
+  p_photos?: string[]
+  p_needs_details?: boolean
+  p_note?: string | null
+}
+
+export type StockIntakeResult = {
+  transaction_id: string
+  stock_item_id: string
+  sku: string
+}
+
 type Row<T> = T
 type Insert<T> = Partial<T>
 type Update<T> = Partial<T>
@@ -126,7 +150,12 @@ export interface Database {
       recurring: TableShape<Recurring>
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      stock_intake_create: {
+        Args: StockIntakeArgs
+        Returns: StockIntakeResult[]
+      }
+    }
     Enums: {
       transaction_type: TransactionType
       category_kind: CategoryKind
