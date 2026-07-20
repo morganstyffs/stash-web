@@ -37,6 +37,7 @@ export function AddPage() {
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [walletId, setWalletId] = useState<string | null>(null)
   const [dateStr, setDateStr] = useState(today)
+  const [note, setNote] = useState('')
   const [favSaved, setFavSaved] = useState(false)
   const [managingCats, setManagingCats] = useState(false)
 
@@ -93,7 +94,14 @@ export function AddPage() {
   async function save() {
     if (!canSave) return
     try {
-      await add.mutateAsync({ type, amount, categoryId, walletId, date: dateStr })
+      await add.mutateAsync({
+        type,
+        amount,
+        categoryId,
+        walletId,
+        date: dateStr,
+        note: note.trim() || null,
+      })
       toast.success('บันทึกรายการแล้ว')
       navigate('/')
     } catch (e) {
@@ -253,6 +261,16 @@ export function AddPage() {
           })}
         </div>
       )}
+
+      {/* optional note */}
+      <div className="px-4 pb-3">
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="โน้ต (ไม่ใส่ก็ได้)"
+          className="w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[9px] text-[13px] outline-none placeholder:text-faint focus:border-mint"
+        />
+      </div>
 
       {/* save current entry as a favorite */}
       {categoryId && (

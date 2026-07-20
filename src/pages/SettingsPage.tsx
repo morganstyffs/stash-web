@@ -19,6 +19,7 @@ import { Toggle } from '@/components/ui'
 import { CategoriesManager } from '@/components/CategoriesManager'
 import { WalletsManager } from '@/components/WalletsManager'
 import { FavoritesManager } from '@/components/FavoritesManager'
+import { RecurringManager } from '@/components/RecurringManager'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories, useFavorites } from '@/hooks/useLookups'
 import { useRecurringCount, useWallets } from '@/hooks/useSettings'
@@ -32,7 +33,9 @@ export function SettingsPage() {
   const { data: favorites } = useFavorites()
   const { data: recurringCount } = useRecurringCount()
 
-  const [manager, setManager] = useState<'categories' | 'wallets' | 'favorites' | null>(null)
+  const [manager, setManager] = useState<
+    'categories' | 'wallets' | 'favorites' | 'recurring' | null
+  >(null)
   const [ai, setAi] = useState<AiPrefs>(() => loadAiPrefs())
 
   function setAiPref(patch: Partial<AiPrefs>) {
@@ -99,6 +102,7 @@ export function SettingsPage() {
           icon={IconRepeat}
           label="รายการประจำ"
           value={`${recurringCount ?? 0} รายการ`}
+          onClick={() => setManager('recurring')}
         />
         <ToggleRow
           icon={IconSparkles}
@@ -135,6 +139,7 @@ export function SettingsPage() {
       {manager === 'categories' && <CategoriesManager onClose={() => setManager(null)} />}
       {manager === 'wallets' && <WalletsManager onClose={() => setManager(null)} />}
       {manager === 'favorites' && <FavoritesManager onClose={() => setManager(null)} />}
+      {manager === 'recurring' && <RecurringManager onClose={() => setManager(null)} />}
     </div>
   )
 }

@@ -168,6 +168,10 @@ export interface Database {
         Args: { p_item_id: string }
         Returns: undefined
       }
+      recurring_run_due: {
+        Args: Record<string, never>
+        Returns: number
+      }
     }
     Enums: {
       transaction_type: TransactionType
