@@ -86,6 +86,8 @@ export interface HomeSummary {
   incomeCount: number
   /** number of (non-stock) expense transactions this month */
   expenseCount: number
+  /** cumulative income per day of the month (index 0 = day 1) for the trend line */
+  dailyCumIncome: number[]
   /** cumulative expense per day of the month (index 0 = day 1) for the trend line */
   dailyCumExpense: number[]
   /** expense grouped by category, largest first */
@@ -113,6 +115,7 @@ export function computeHomeSummary(
   let prevSafe = 0
   let prevIncome = 0
   let prevExpense = 0
+  const dailyCumInc = new Array<number>(b.days).fill(0)
   const dailyCum = new Array<number>(b.days).fill(0)
   const byCat = new Map<string, number>()
 
@@ -123,6 +126,8 @@ export function computeHomeSummary(
       if (r.type === 'income') {
         income += amount
         incomeCount += 1
+        const dayIdx = new Date(r.date).getDate() - 1
+        if (dayIdx >= 0 && dayIdx < dailyCumInc.length) dailyCumInc[dayIdx] += amount
       } else if (!r.is_stock_purchase) {
         expense += amount
         expenseCount += 1
@@ -139,8 +144,9 @@ export function computeHomeSummary(
   }
   prevSafe = prevIncome - prevExpense
 
-  // running cumulative for the trend line
+  // running cumulative for the trend lines
   for (let i = 1; i < dailyCum.length; i++) dailyCum[i] += dailyCum[i - 1]
+  for (let i = 1; i < dailyCumInc.length; i++) dailyCumInc[i] += dailyCumInc[i - 1]
 
   const safeToSpend = income - expense
   const deltaPct =
@@ -165,6 +171,7 @@ export function computeHomeSummary(
     deltaPct,
     incomeCount,
     expenseCount,
+    dailyCumIncome: dailyCumInc,
     dailyCumExpense: dailyCum,
     donut,
   }

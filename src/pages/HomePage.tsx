@@ -112,13 +112,7 @@ export function HomePage() {
             </p>
           </div>
         </div>
-        <TrendLine data={summary.dailyCumExpense} />
-        <div className="mt-0.5 flex justify-between text-[10px] text-muted">
-          <span>1</span>
-          <span>10</span>
-          <span>20</span>
-          <span>30</span>
-        </div>
+        <TrendLine income={summary.dailyCumIncome} expense={summary.dailyCumExpense} />
       </div>
 
       {/* category donut */}
