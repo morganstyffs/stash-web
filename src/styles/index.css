@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: theme('colors.surface');
+    color: theme('colors.ink');
+    font-family: theme('fontFamily.sans');
+    /* tabular figures so money columns line up (design spec §2) */
+    font-feature-settings: 'tnum';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a {
+    color: theme('colors.mint.deep');
+    text-decoration: none;
+  }
+}
+
+@layer components {
+  /* dashed inner frame used on the mint "pocket" hero */
+  .pocket-dash {
+    border: 1.5px dashed rgba(255, 255, 255, 0.22);
+  }
+
+  /* ledger hairline separator (design spec §2) */
+  .hairline {
+    border-color: theme('colors.hairline');
+  }
+}
+
+/* hide scrollbars on horizontal chip rows while keeping scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

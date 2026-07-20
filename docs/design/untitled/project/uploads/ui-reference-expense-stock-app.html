@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI Reference — แอปบันทึกรายรับ-รายจ่าย + สต็อก</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+<style>
+  :root{
+    --surface-2:#FFFFFF; --surface-1:#F1F2F3; --surface-0:#F4F5F5;
+    --border:#E6E8E7; --border-strong:#D2D5D4;
+    --text-primary:#1A1D1C; --text-secondary:#5F6360; --text-muted:#9AA09C;
+    --text-success:#1D9E75; --text-danger:#E24B4A; --text-warning:#BA7517;
+    --font-sans:-apple-system,"Segoe UI",Roboto,sans-serif;
+    --font-mono:ui-monospace,"SFMono-Regular",Menlo,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--surface-0);color:var(--text-primary);
+    font-family:'Prompt',var(--font-sans);font-feature-settings:'tnum';
+    -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1120px;margin:0 auto;padding:36px 20px 72px;}
+  .brief h1{font-size:24px;font-weight:500;margin:0 0 6px;}
+  .brief p{font-size:14px;color:var(--text-secondary);margin:0 0 20px;line-height:1.6;}
+  .palette{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:8px;}
+  .sw{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:0.5px solid var(--border);
+    border-radius:10px;padding:7px 11px;}
+  .sw .chip{width:20px;height:20px;border-radius:6px;flex-shrink:0;}
+  .sw span{font-size:12px;color:var(--text-secondary);}
+  .sw code{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);}
+  .fontnote{font-size:13px;color:var(--text-secondary);margin:6px 0 34px;}
+  .fontnote b{font-weight:500;color:var(--text-primary);}
+  .sectitle{font-size:13px;font-weight:500;color:var(--text-muted);text-transform:uppercase;
+    letter-spacing:0.5px;margin:0 0 20px;}
+  .screens{display:flex;flex-wrap:wrap;gap:34px 30px;justify-content:center;align-items:flex-start;margin-bottom:44px;}
+  .frame{display:flex;flex-direction:column;align-items:center;gap:13px;}
+  .cap{font-size:14px;font-weight:500;color:var(--text-secondary);}
+  .device{box-shadow:0 3px 14px rgba(20,30,28,0.07);}
+
+  .kp{display:grid;grid-template-columns:repeat(3,1fr);text-align:center;}
+  .kp>div{padding:13px 0;font-size:23px;font-weight:500;border-radius:12px;}
+  .fld{background:var(--surface-1);border:0.5px solid var(--border);border-radius:10px;padding:9px 11px;font-size:13px;}
+  .lbl{font-size:11px;color:var(--text-muted);margin:0 0 4px 2px;}
+  .fld2{background:var(--surface-1);border:0.5px solid var(--border);border-radius:10px;padding:9px 11px;font-size:13px;}
+  .lbl2{font-size:11px;color:var(--text-muted);margin:0 0 4px 2px;}
+  .tx-row{display:flex;align-items:center;gap:10px;}
+  .tx-ic{width:30px;height:30px;border-radius:9px;background:var(--surface-1);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .inv-thumb{width:46px;height:46px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .inv-row{display:flex;gap:12px;align-items:center;padding:13px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brief">
+    <h1>แอปบันทึกรายรับ-รายจ่าย + กึ่งระบบสต็อก — UI Reference</h1>
+    <p>ชุดหน้าจอ hi-fi สำหรับใช้เป็น reference ให้ Claude Design ทำจอที่เหลือด้วย design system เดียวกัน · mobile/tablet-first · ผู้ใช้ส่วนตัว · หลักการ: บันทึกเร็วสุด, AI แชทด้านข้าง, ซื้อสินค้า→ลงสต็อกอัตโนมัติ</p>
+    <div class="palette">
+      <div class="sw"><span class="chip" style="background:#2CC0A0;"></span><span>มินต์สว่าง</span><code>#2CC0A0</code></div>
+      <div class="sw"><span class="chip" style="background:#0E7D66;"></span><span>มินต์เข้ม</span><code>#0E7D66</code></div>
+      <div class="sw"><span class="chip" style="background:#E1F6F0;"></span><span>มินต์อ่อน</span><code>#E1F6F0</code></div>
+      <div class="sw"><span class="chip" style="background:#1D9E75;"></span><span>รายรับ</span><code>#1D9E75</code></div>
+      <div class="sw"><span class="chip" style="background:#E24B4A;"></span><span>รายจ่าย</span><code>#E24B4A</code></div>
+      <div class="sw"><span class="chip" style="background:#F5C64C;"></span><span>เหลือง</span><code>#F5C64C</code></div>
+      <div class="sw"><span class="chip" style="background:#FB7A57;"></span><span>คอรัล</span><code>#FB7A57</code></div>
+    </div>
+    <p class="fontnote"><b>ฟอนต์:</b> Prompt (400/500) · ตัวเลขเงิน tabular figures · <b>สไตล์:</b> flat, ขอบบาง 0.5px, ฮีโร่ทรงกระเป๋าเส้นประ, แถวข้อมูลแบบ ledger (ไม่ใช้การ์ดลอย)</p>
+  </div>
+
+  <p class="sectitle">มือถือ · Mobile screens</p>
+  <div class="screens">
+
+    <!-- ============ 1. หน้าหลัก ============ -->
+    <div class="frame">
+      <div class="device" style="width:320px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:28px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 18px 10px;">
+          <div style="width:30px;height:30px;border-radius:9px;background:#0E7D66;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:500;font-size:15px;">S</div>
+          <p style="margin:0;font-size:17px;font-weight:500;">ยินดีต้อนรับกลับ</p>
+          <i class="ti ti-bell" style="font-size:20px;color:var(--text-secondary);"></i>
+        </div>
+        <div style="padding:6px 16px 4px;">
+          <div style="background:#34C471;border-radius:14px;padding:9px 16px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:13px;color:#0B3D22;font-weight:500;">รายรับเดือนนี้</span><span style="font-size:13px;color:#0B3D22;font-weight:500;">฿35,000</span>
+          </div>
+          <div style="background:#F5C64C;border-radius:14px;padding:9px 16px;margin-top:-6px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:13px;color:#4A3A08;font-weight:500;">งบที่ตั้งไว้</span><span style="font-size:13px;color:#4A3A08;font-weight:500;">฿30,000</span>
+          </div>
+          <div style="background:#171717;border-radius:14px;padding:9px 16px;margin-top:-6px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:13px;color:#E8E8E8;font-weight:500;">รายจ่ายเดือนนี้</span><span style="font-size:13px;color:#E8E8E8;font-weight:500;">฿22,550</span>
+          </div>
+          <div style="background:#0E7D66;border-radius:18px;margin-top:-8px;padding:18px 16px 14px;position:relative;">
+            <div style="border:1.5px dashed rgba(255,255,255,0.22);border-radius:12px;position:absolute;inset:6px;pointer-events:none;"></div>
+            <div style="position:relative;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+                <div>
+                  <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.72);">เหลือใช้ได้เดือนนี้</p>
+                  <p style="margin:4px 0 0;font-size:30px;font-weight:500;color:#fff;letter-spacing:-0.5px;">฿12,450 <i class="ti ti-eye" style="font-size:16px;color:rgba(255,255,255,0.6);"></i></p>
+                </div>
+                <span style="font-size:12px;color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:20px;padding:5px 12px;">เดือนนี้</span>
+              </div>
+              <span style="display:inline-block;margin-top:8px;font-size:11px;color:#0C5646;background:#C9F2E7;border-radius:20px;padding:3px 9px;font-weight:500;">▲ 8% ดีกว่าเดือนก่อน</span>
+              <div style="display:flex;gap:8px;margin-top:16px;">
+                <div style="flex:1;border:1px solid rgba(255,255,255,0.22);border-radius:12px;padding:10px 4px;text-align:center;"><i class="ti ti-bolt" style="font-size:19px;color:#fff;"></i><p style="margin:5px 0 0;font-size:11px;color:#fff;">เพิ่มเร็ว</p></div>
+                <div style="flex:1;border:1px solid rgba(255,255,255,0.22);border-radius:12px;padding:10px 4px;text-align:center;"><i class="ti ti-scan" style="font-size:19px;color:#fff;"></i><p style="margin:5px 0 0;font-size:11px;color:#fff;">สแกนสลิป</p></div>
+                <div style="flex:1;border:1px solid rgba(255,255,255,0.22);border-radius:12px;padding:10px 4px;text-align:center;"><i class="ti ti-microphone" style="font-size:19px;color:#fff;"></i><p style="margin:5px 0 0;font-size:11px;color:#fff;">พิมพ์/พูด</p></div>
+                <div style="flex:1;border:1px solid rgba(255,255,255,0.22);border-radius:12px;padding:10px 4px;text-align:center;"><i class="ti ti-dots" style="font-size:19px;color:#fff;"></i><p style="margin:5px 0 0;font-size:11px;color:#fff;">อื่นๆ</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="margin:14px 16px 0;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
+            <p style="margin:0;font-size:15px;font-weight:500;">กรกฎาคม 2569</p><span style="font-size:12px;color:var(--text-muted);">ดูทั้งหมด ›</span>
+          </div>
+          <div style="display:flex;gap:20px;margin-bottom:6px;">
+            <div><p style="margin:0;font-size:11px;color:var(--text-secondary);"><i class="ti ti-arrow-up-right" style="font-size:13px;color:#1D9E75;vertical-align:-1px;"></i> เงินเข้า</p><p style="margin:2px 0 0;font-size:15px;font-weight:500;color:#1D9E75;">฿35,000</p></div>
+            <div><p style="margin:0;font-size:11px;color:var(--text-secondary);"><i class="ti ti-arrow-down-right" style="font-size:13px;color:#E24B4A;vertical-align:-1px;"></i> เงินออก</p><p style="margin:2px 0 0;font-size:15px;font-weight:500;color:#E24B4A;">฿22,550</p></div>
+          </div>
+          <svg viewBox="0 0 288 70" style="width:100%;height:64px;"><polyline points="0,50 32,44 64,52 96,40 128,46 160,30 192,38 224,22 256,32 288,18" fill="none" stroke="#2CC0A0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="288" cy="18" r="4" fill="#2CC0A0"/></svg>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:2px;"><span>1</span><span>10</span><span>20</span><span>30</span></div>
+        </div>
+        <div style="border-top:0.5px solid var(--border);margin:14px 16px 0;padding-top:14px;">
+          <p style="margin:0 0 12px;font-size:15px;font-weight:500;">หมวดใช้จ่าย</p>
+          <div style="display:flex;align-items:center;gap:18px;">
+            <svg viewBox="0 0 80 80" style="width:76px;height:76px;flex-shrink:0;">
+              <circle cx="40" cy="40" r="32" fill="none" stroke="var(--surface-1)" stroke-width="11"/>
+              <circle cx="40" cy="40" r="32" fill="none" stroke="#2CC0A0" stroke-width="11" stroke-dasharray="100 101" stroke-dashoffset="0" transform="rotate(-90 40 40)"/>
+              <circle cx="40" cy="40" r="32" fill="none" stroke="#F5C64C" stroke-width="11" stroke-dasharray="60 141" stroke-dashoffset="-100" transform="rotate(-90 40 40)"/>
+              <circle cx="40" cy="40" r="32" fill="none" stroke="#FB7A57" stroke-width="11" stroke-dasharray="41 160" stroke-dashoffset="-160" transform="rotate(-90 40 40)"/>
+            </svg>
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><span style="font-size:13px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#2CC0A0;margin-right:8px;"></span>อาหาร</span><span style="font-size:13px;font-weight:500;">฿5,400</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><span style="font-size:13px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#F5C64C;margin-right:8px;"></span>ช้อปปิ้ง</span><span style="font-size:13px;font-weight:500;">฿3,100</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:13px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#FB7A57;margin-right:8px;"></span>เดินทาง</span><span style="font-size:13px;font-weight:500;">฿1,200</span></div>
+            </div>
+          </div>
+        </div>
+        <div style="position:relative;margin-top:18px;">
+          <div style="position:absolute;right:16px;top:-52px;background:#0E7D66;border-radius:22px;padding:9px 14px;display:flex;align-items:center;gap:6px;"><i class="ti ti-sparkles" style="font-size:16px;color:#fff;"></i><span style="font-size:12px;color:#fff;font-weight:500;">ถาม AI</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-around;border-top:0.5px solid var(--border);padding:12px 0 14px;">
+            <i class="ti ti-home" style="font-size:22px;color:#0E7D66;"></i><i class="ti ti-list" style="font-size:22px;color:var(--text-muted);"></i><i class="ti ti-chart-bar" style="font-size:22px;color:var(--text-muted);"></i><i class="ti ti-settings" style="font-size:22px;color:var(--text-muted);"></i>
+          </div>
+        </div>
+      </div>
+      <span class="cap">หน้าหลัก</span>
+    </div>
+
+    <!-- ============ 2. เพิ่มรายการ ============ -->
+    <div class="frame">
+      <div class="device" style="width:320px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:28px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;">
+          <i class="ti ti-x" style="font-size:20px;color:var(--text-secondary);"></i><p style="margin:0;font-size:16px;font-weight:500;">เพิ่มรายการ</p>
+          <span style="font-size:12px;color:#0C5646;background:#E1F6F0;border-radius:20px;padding:4px 11px;"><i class="ti ti-calendar" style="font-size:13px;vertical-align:-1px;"></i> วันนี้</span>
+        </div>
+        <div style="display:flex;margin:0 16px 14px;background:var(--surface-1);border-radius:11px;padding:3px;">
+          <div style="flex:1;text-align:center;background:#E1F6F0;color:#0C5646;border-radius:8px;padding:7px 0;font-size:12px;font-weight:500;">กดเร็ว</div>
+          <div style="flex:1;text-align:center;padding:7px 0;font-size:12px;color:var(--text-muted);">พิมพ์/พูด</div>
+          <div style="flex:1;text-align:center;padding:7px 0;font-size:12px;color:var(--text-muted);">สแกน</div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:6px;margin-bottom:8px;">
+          <span style="font-size:12px;font-weight:500;color:#0C5646;background:#E1F6F0;border-radius:20px;padding:5px 16px;">จ่าย</span>
+          <span style="font-size:12px;color:var(--text-muted);border:0.5px solid var(--border);border-radius:20px;padding:5px 16px;">รับ</span>
+        </div>
+        <div style="text-align:center;padding:2px 0 14px;">
+          <p style="margin:0;font-size:40px;font-weight:500;letter-spacing:-1px;"><span style="color:var(--text-muted);font-size:26px;">฿</span>120<span style="color:var(--text-muted);">.00</span></p>
+        </div>
+        <div style="display:flex;gap:7px;padding:0 16px 12px;overflow-x:auto;">
+          <span style="flex-shrink:0;font-size:12px;background:#E1F6F0;color:#0C5646;padding:7px 13px;border-radius:20px;font-weight:500;"><i class="ti ti-coffee" style="font-size:14px;vertical-align:-2px;margin-right:3px;"></i>อาหาร</span>
+          <span style="flex-shrink:0;font-size:12px;background:var(--surface-1);color:var(--text-secondary);padding:7px 13px;border-radius:20px;"><i class="ti ti-motorbike" style="font-size:14px;vertical-align:-2px;margin-right:3px;"></i>เดินทาง</span>
+          <span style="flex-shrink:0;font-size:12px;background:var(--surface-1);color:var(--text-secondary);padding:7px 13px;border-radius:20px;"><i class="ti ti-shopping-bag" style="font-size:14px;vertical-align:-2px;margin-right:3px;"></i>ช้อปปิ้ง</span>
+          <span style="flex-shrink:0;font-size:12px;background:var(--surface-1);color:var(--text-secondary);padding:7px 13px;border-radius:20px;"><i class="ti ti-plus" style="font-size:14px;vertical-align:-2px;"></i>เพิ่ม</span>
+        </div>
+        <div style="padding:0 16px 12px;">
+          <p style="margin:0 0 7px;font-size:11px;color:var(--text-muted);"><i class="ti ti-star" style="font-size:12px;vertical-align:-1px;"></i> รายการโปรด</p>
+          <div style="display:flex;gap:7px;">
+            <span style="font-size:12px;background:var(--surface-1);border:0.5px solid var(--border);padding:6px 11px;border-radius:9px;">กาแฟ ฿50</span>
+            <span style="font-size:12px;background:var(--surface-1);border:0.5px solid var(--border);padding:6px 11px;border-radius:9px;">ข้าว ฿60</span>
+            <span style="font-size:12px;background:var(--surface-1);border:0.5px solid var(--border);padding:6px 11px;border-radius:9px;">วิน ฿20</span>
+          </div>
+        </div>
+        <div class="kp" style="padding:0 12px 8px;">
+          <div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div><div>8</div><div>9</div>
+          <div style="color:var(--text-muted);">.</div><div>0</div>
+          <div style="display:flex;align-items:center;justify-content:center;"><i class="ti ti-backspace" style="font-size:21px;color:var(--text-secondary);"></i></div>
+        </div>
+        <div style="padding:4px 16px 18px;">
+          <div style="background:#0E7D66;border-radius:14px;padding:14px;text-align:center;"><span style="font-size:15px;color:#fff;font-weight:500;"><i class="ti ti-check" style="font-size:17px;vertical-align:-2px;margin-right:4px;"></i>บันทึก</span></div>
+        </div>
+      </div>
+      <span class="cap">เพิ่มรายการ (keypad-first)</span>
+    </div>
+
+    <!-- ============ 3. ซื้อเข้าสต็อก ============ -->
+    <div class="frame">
+      <div class="device" style="width:320px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:28px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;">
+          <i class="ti ti-arrow-left" style="font-size:20px;color:var(--text-secondary);"></i><p style="margin:0;font-size:16px;font-weight:500;">ซื้อเข้าสต็อก</p><span style="width:20px;"></span>
+        </div>
+        <div style="margin:0 16px 14px;background:#E1F6F0;border-radius:12px;padding:11px 13px;display:flex;align-items:center;gap:10px;">
+          <i class="ti ti-box" style="font-size:19px;color:#0C5646;"></i>
+          <div style="flex:1;"><p style="margin:0;font-size:13px;font-weight:500;color:#0C5646;">บันทึกเข้าสต็อก</p><p style="margin:1px 0 0;font-size:11px;color:#0E7D66;">รายจ่ายนี้จะสร้างสินค้าในคลังให้</p></div>
+          <div style="width:38px;height:22px;border-radius:20px;background:#0E7D66;position:relative;"><div style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:3px;right:3px;"></div></div>
+        </div>
+        <div style="padding:0 16px 14px;">
+          <p class="lbl">รูปสินค้า</p>
+          <div style="display:flex;gap:8px;">
+            <div style="width:62px;height:62px;border-radius:11px;background:#E1F6F0;display:flex;align-items:center;justify-content:center;"><i class="ti ti-shirt" style="font-size:26px;color:#0E7D66;"></i></div>
+            <div style="width:62px;height:62px;border-radius:11px;border:1.5px dashed var(--border-strong);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;"><i class="ti ti-camera-plus" style="font-size:20px;color:var(--text-muted);"></i><span style="font-size:9px;color:var(--text-muted);">เพิ่มรูป</span></div>
+          </div>
+        </div>
+        <div style="padding:0 16px;">
+          <div style="margin-bottom:12px;"><p class="lbl">ชื่อสินค้า</p><div class="fld">เสื้อวินเทจ Nike Big Swoosh</div></div>
+          <div style="display:flex;gap:10px;margin-bottom:12px;">
+            <div style="flex:1;"><p class="lbl">ประเภท</p><div class="fld">เสื้อยืด</div></div>
+            <div style="flex:1;"><p class="lbl">แบรนด์</p><div class="fld">Nike</div></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:12px;">
+            <div style="flex:1;"><p class="lbl">ไซซ์</p><div class="fld">L</div></div>
+            <div style="flex:1;"><p class="lbl">สี</p><div class="fld">เขียว</div></div>
+          </div>
+          <div style="margin-bottom:12px;">
+            <p class="lbl">สภาพ</p>
+            <div style="display:flex;gap:7px;">
+              <span style="font-size:12px;color:var(--text-muted);border:0.5px solid var(--border);border-radius:20px;padding:6px 14px;">ของใหม่</span>
+              <span style="font-size:12px;font-weight:500;color:#0C5646;background:#E1F6F0;border-radius:20px;padding:6px 14px;">มือสอง · ดี</span>
+              <span style="font-size:12px;color:var(--text-muted);border:0.5px solid var(--border);border-radius:20px;padding:6px 14px;">มีตำหนิ</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:12px;">
+            <div style="flex:1;"><p class="lbl">จำนวน</p><div class="fld">3</div></div>
+            <div style="flex:1;"><p class="lbl">ต้นทุน/ชิ้น</p><div class="fld">฿400</div></div>
+          </div>
+          <div style="margin-bottom:10px;">
+            <p class="lbl">ราคาตั้งขาย/ชิ้น</p>
+            <div class="fld" style="display:flex;align-items:center;justify-content:space-between;"><span>฿890</span><span style="font-size:11px;font-weight:500;color:#0C5646;background:#E1F6F0;border-radius:20px;padding:3px 10px;">กำไร ฿490 · 55%</span></div>
+          </div>
+          <div style="margin-bottom:14px;">
+            <p class="lbl">SKU <span style="color:#0E7D66;">(สร้างอัตโนมัติ)</span></p>
+            <div class="fld" style="font-family:var(--font-mono);color:var(--text-secondary);">STZ-NIK-0042</div>
+          </div>
+        </div>
+        <div style="padding:2px 16px 18px;">
+          <div style="background:#0E7D66;border-radius:14px;padding:14px;text-align:center;">
+            <p style="margin:0;font-size:15px;color:#fff;font-weight:500;"><i class="ti ti-check" style="font-size:17px;vertical-align:-2px;margin-right:4px;"></i>บันทึกรายจ่าย ฿1,200 + เพิ่มเข้าสต็อก</p>
+            <p style="margin:3px 0 0;font-size:11px;color:rgba(255,255,255,0.7);">3 ชิ้น · ต้นทุนรวม ฿1,200</p>
+          </div>
+        </div>
+      </div>
+      <span class="cap">ซื้อเข้าสต็อก (ฟอร์มสินค้า)</span>
+    </div>
+
+    <!-- ============ 4. คลังสินค้า ============ -->
+    <div class="frame">
+      <div class="device" style="width:320px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:28px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 18px 14px;">
+          <p style="margin:0;font-size:17px;font-weight:500;">คลังสินค้า</p>
+          <div style="display:flex;gap:14px;"><i class="ti ti-search" style="font-size:19px;color:var(--text-secondary);"></i><i class="ti ti-adjustments-horizontal" style="font-size:19px;color:var(--text-secondary);"></i></div>
+        </div>
+        <div style="margin:0 16px 14px;background:#0E7D66;border-radius:16px;padding:15px 16px;position:relative;">
+          <div style="border:1.5px dashed rgba(255,255,255,0.2);border-radius:11px;position:absolute;inset:5px;pointer-events:none;"></div>
+          <div style="position:relative;display:flex;justify-content:space-between;align-items:flex-end;">
+            <div><p style="margin:0;font-size:11px;color:rgba(255,255,255,0.72);">มูลค่าสต็อก (ต้นทุน)</p><p style="margin:3px 0 0;font-size:26px;font-weight:500;color:#fff;letter-spacing:-0.5px;">฿24,500</p></div>
+            <div style="text-align:right;"><p style="margin:0;font-size:11px;color:rgba(255,255,255,0.72);">กำไรที่รอขาย</p><p style="margin:3px 0 0;font-size:17px;font-weight:500;color:#C9F2E7;">+฿18,200</p></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:7px;padding:0 16px 6px;">
+          <span style="font-size:12px;font-weight:500;color:#0C5646;background:#E1F6F0;border-radius:20px;padding:6px 14px;">ทั้งหมด</span>
+          <span style="font-size:12px;color:var(--text-secondary);border:0.5px solid var(--border);border-radius:20px;padding:6px 14px;">ในสต็อก</span>
+          <span style="font-size:12px;color:var(--text-secondary);border:0.5px solid var(--border);border-radius:20px;padding:6px 14px;">ขายแล้ว</span>
+        </div>
+        <div style="padding:0 16px;">
+          <div class="inv-row" style="border-bottom:0.5px solid var(--border);">
+            <div class="inv-thumb" style="background:#E1F6F0;"><i class="ti ti-shirt" style="font-size:22px;color:#0E7D66;"></i></div>
+            <div style="flex:1;min-width:0;">
+              <p style="margin:0;font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">เสื้อวินเทจ Nike Big Swoosh</p>
+              <p style="margin:2px 0 0;font-size:11px;color:var(--text-muted);">Nike · L · เขียว</p>
+              <p style="margin:3px 0 0;font-size:11px;color:var(--text-secondary);">฿400 → <span style="color:var(--text-primary);">฿890</span></p>
+            </div>
+            <div style="text-align:right;flex-shrink:0;"><span style="font-size:11px;font-weight:500;color:#0C5646;background:#E1F6F0;border-radius:20px;padding:3px 9px;">ในสต็อก 3</span><p style="margin:6px 0 0;font-size:12px;color:#0E7D66;">+฿490/ชิ้น</p></div>
+          </div>
+          <div class="inv-row" style="border-bottom:0.5px solid var(--border);">
+            <div class="inv-thumb" style="background:var(--surface-1);"><i class="ti ti-hanger" style="font-size:22px;color:var(--text-muted);"></i></div>
+            <div style="flex:1;min-width:0;">
+              <p style="margin:0;font-size:13.5px;font-weight:500;">ฮู้ดดี้ Stussy</p>
+              <p style="margin:2px 0 0;font-size:11px;color:var(--text-muted);">Stussy · M · ดำ</p>
+              <p style="margin:3px 0 0;font-size:11px;color:var(--text-secondary);">฿650 → <span style="color:var(--text-primary);">฿1,290</span></p>
+            </div>
+            <div style="text-align:right;flex-shrink:0;"><span style="font-size:11px;font-weight:500;color:#0C5646;background:#E1F6F0;border-radius:20px;padding:3px 9px;">ในสต็อก 1</span><p style="margin:6px 0 0;font-size:12px;color:#0E7D66;">+฿640/ชิ้น</p></div>
+          </div>
+          <div class="inv-row">
+            <div class="inv-thumb" style="background:var(--surface-1);opacity:0.7;"><i class="ti ti-shirt" style="font-size:22px;color:var(--text-muted);"></i></div>
+            <div style="flex:1;min-width:0;">
+              <p style="margin:0;font-size:13.5px;font-weight:500;color:var(--text-secondary);">เสื้อ Adidas Originals</p>
+              <p style="margin:2px 0 0;font-size:11px;color:var(--text-muted);">Adidas · L · ขาว</p>
+              <p style="margin:3px 0 0;font-size:11px;color:var(--text-secondary);">฿380 → ขายได้ ฿900</p>
+            </div>
+            <div style="text-align:right;flex-shrink:0;"><span style="font-size:11px;font-weight:500;color:var(--text-secondary);background:var(--surface-1);border-radius:20px;padding:3px 9px;">ขายแล้ว</span><p style="margin:6px 0 0;font-size:12px;color:#1D9E75;">กำไร +฿520</p></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-around;border-top:0.5px solid var(--border);padding:11px 0 13px;margin-top:6px;">
+          <i class="ti ti-home" style="font-size:21px;color:var(--text-muted);"></i><i class="ti ti-list" style="font-size:21px;color:var(--text-muted);"></i><i class="ti ti-box" style="font-size:21px;color:#0E7D66;"></i><i class="ti ti-chart-bar" style="font-size:21px;color:var(--text-muted);"></i><i class="ti ti-settings" style="font-size:21px;color:var(--text-muted);"></i>
+        </div>
+      </div>
+      <span class="cap">คลังสินค้า</span>
+    </div>
+
+    <!-- ============ 5. รับเข้าสต็อก (โหมดรวบรวม) ============ -->
+    <div class="frame">
+      <div class="device" style="width:320px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:28px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;">
+          <i class="ti ti-arrow-left" style="font-size:20px;color:var(--text-secondary);"></i><p style="margin:0;font-size:16px;font-weight:500;">รับเข้าสต็อก</p>
+          <span style="font-size:12px;color:#0C5646;background:#E1F6F0;border-radius:20px;padding:4px 11px;font-weight:500;">โหมดรวบรวม</span>
+        </div>
+        <div style="margin:0 16px 14px;background:#0E7D66;border-radius:14px;padding:12px 15px;display:flex;justify-content:space-between;align-items:center;position:relative;">
+          <div style="border:1.5px dashed rgba(255,255,255,0.2);border-radius:10px;position:absolute;inset:5px;pointer-events:none;"></div>
+          <div style="position:relative;"><p style="margin:0;font-size:11px;color:rgba(255,255,255,0.72);">รอบนี้เพิ่มแล้ว</p><p style="margin:2px 0 0;font-size:21px;font-weight:500;color:#fff;">5 ชิ้น</p></div>
+          <div style="position:relative;text-align:right;"><p style="margin:0;font-size:11px;color:rgba(255,255,255,0.72);">ต้นทุนรวม</p><p style="margin:2px 0 0;font-size:21px;font-weight:500;color:#fff;">฿2,150</p></div>
+        </div>
+        <div style="padding:0 16px;">
+          <div style="display:flex;gap:10px;margin-bottom:12px;">
+            <div style="width:58px;height:58px;border-radius:11px;border:1.5px dashed var(--border-strong);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex-shrink:0;"><i class="ti ti-camera-plus" style="font-size:19px;color:var(--text-muted);"></i><span style="font-size:9px;color:var(--text-muted);">รูป</span></div>
+            <div style="flex:1;"><p class="lbl2">ชื่อสินค้า</p><div class="fld2" style="height:58px;display:flex;align-items:center;color:var(--text-muted);">เช่น เสื้อ Carhartt น้ำตาล</div></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:12px;">
+            <div style="flex:1.3;"><p class="lbl2">หมวด</p><div class="fld2" style="display:flex;align-items:center;justify-content:space-between;">เสื้อเข้าร้าน <i class="ti ti-chevron-down" style="font-size:14px;color:var(--text-muted);"></i></div></div>
+            <div style="flex:1;"><p class="lbl2">จำนวน</p><div class="fld2">1</div></div>
+          </div>
+          <div style="margin-bottom:12px;">
+            <p class="lbl2">ต้นทุน/ชิ้น</p>
+            <div class="fld2" style="display:flex;align-items:center;justify-content:space-between;"><span>฿450</span><span style="font-size:11px;color:var(--text-muted);"><i class="ti ti-arrow-down-right" style="font-size:13px;color:#E24B4A;vertical-align:-1px;"></i> ลงรายจ่ายอัตโนมัติ</span></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 2px 14px;">
+            <span style="font-size:12.5px;color:var(--text-secondary);"><i class="ti ti-plus" style="font-size:14px;vertical-align:-2px;"></i> รายละเอียดเพิ่มเติม (ไซซ์ · สี · สภาพ · ราคาขาย)</span>
+            <i class="ti ti-chevron-down" style="font-size:16px;color:var(--text-muted);"></i>
+          </div>
+        </div>
+        <div style="display:flex;gap:9px;padding:0 16px 16px;">
+          <div style="flex:1;background:#0E7D66;border-radius:13px;padding:13px;text-align:center;"><span style="font-size:14px;color:#fff;font-weight:500;"><i class="ti ti-plus" style="font-size:16px;vertical-align:-2px;margin-right:3px;"></i>บันทึก + เพิ่มต่อ</span></div>
+          <div style="flex-shrink:0;border:0.5px solid var(--border-strong);border-radius:13px;padding:13px 18px;text-align:center;"><span style="font-size:14px;color:var(--text-primary);font-weight:500;">เสร็จ</span></div>
+        </div>
+        <div style="border-top:0.5px solid var(--border);padding:12px 16px 18px;">
+          <p style="margin:0 0 10px;font-size:12px;color:var(--text-secondary);">เพิ่มล่าสุดรอบนี้</p>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:11px;">
+            <div style="width:34px;height:34px;border-radius:9px;background:#E1F6F0;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="ti ti-shirt" style="font-size:17px;color:#0E7D66;"></i></div>
+            <div style="flex:1;min-width:0;"><p style="margin:0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">เสื้อวินเทจ Nike Big Swoosh</p><p style="margin:1px 0 0;font-size:10.5px;color:var(--text-muted);">฿400 · ลงสต็อก + รายจ่ายแล้ว</p></div>
+            <i class="ti ti-check" style="font-size:16px;color:#0E7D66;flex-shrink:0;"></i>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:34px;height:34px;border-radius:9px;background:var(--surface-1);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="ti ti-hanger" style="font-size:17px;color:var(--text-muted);"></i></div>
+            <div style="flex:1;min-width:0;"><p style="margin:0;font-size:12.5px;">ฮู้ดดี้ Stussy</p><p style="margin:1px 0 0;font-size:10.5px;color:#BA7517;"><i class="ti ti-alert-circle" style="font-size:12px;vertical-align:-1px;"></i> รอเติมรูป/รายละเอียด</p></div>
+            <i class="ti ti-check" style="font-size:16px;color:#0E7D66;flex-shrink:0;"></i>
+          </div>
+        </div>
+      </div>
+      <span class="cap">รับเข้าสต็อก (โหมดรวบรวม)</span>
+    </div>
+
+  </div>
+
+  <p class="sectitle">แท็บเล็ต · Tablet — แชท AI ด้านข้าง</p>
+  <div class="screens">
+    <div class="frame">
+      <div class="device" style="width:664px;max-width:100%;height:476px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:22px;overflow:hidden;display:flex;">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;border-right:0.5px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;">
+            <div style="display:flex;align-items:center;gap:9px;"><div style="width:28px;height:28px;border-radius:8px;background:#0E7D66;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:500;font-size:14px;">S</div><span style="font-size:15px;font-weight:500;">ยินดีต้อนรับกลับ</span></div>
+            <i class="ti ti-bell" style="font-size:19px;color:var(--text-secondary);"></i>
+          </div>
+          <div style="margin:0 18px;background:#0E7D66;border-radius:16px;padding:15px 16px;position:relative;">
+            <div style="border:1.5px dashed rgba(255,255,255,0.2);border-radius:11px;position:absolute;inset:5px;pointer-events:none;"></div>
+            <div style="position:relative;">
+              <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.72);">เหลือใช้ได้เดือนนี้</p>
+              <p style="margin:3px 0 10px;font-size:27px;font-weight:500;color:#fff;letter-spacing:-0.5px;">฿12,450</p>
+              <div style="display:flex;gap:7px;">
+                <div style="flex:1;border:1px solid rgba(255,255,255,0.22);border-radius:10px;padding:7px 0;text-align:center;"><i class="ti ti-bolt" style="font-size:17px;color:#fff;"></i></div>
+                <div style="flex:1;border:1px solid rgba(255,255,255,0.22);border-radius:10px;padding:7px 0;text-align:center;"><i class="ti ti-scan" style="font-size:17px;color:#fff;"></i></div>
+                <div style="flex:1;border:1px solid rgba(255,255,255,0.22);border-radius:10px;padding:7px 0;text-align:center;"><i class="ti ti-microphone" style="font-size:17px;color:#fff;"></i></div>
+                <div style="flex:1;border:1px solid rgba(255,255,255,0.22);border-radius:10px;padding:7px 0;text-align:center;"><i class="ti ti-dots" style="font-size:17px;color:#fff;"></i></div>
+              </div>
+            </div>
+          </div>
+          <p style="margin:16px 18px 10px;font-size:12px;color:var(--text-secondary);">รายการล่าสุด</p>
+          <div style="flex:1;padding:0 18px;display:flex;flex-direction:column;gap:13px;">
+            <div class="tx-row"><div class="tx-ic"><i class="ti ti-coffee" style="font-size:16px;color:var(--text-secondary);"></i></div><div style="flex:1;"><p style="margin:0;font-size:13px;">กาแฟเช้า</p><p style="margin:0;font-size:11px;color:var(--text-muted);">อาหาร · เมื่อกี้</p></div><span style="font-size:13px;color:#E24B4A;">-฿50</span></div>
+            <div class="tx-row"><div class="tx-ic"><i class="ti ti-bowl" style="font-size:16px;color:var(--text-secondary);"></i></div><div style="flex:1;"><p style="margin:0;font-size:13px;">ข้าวเที่ยง</p><p style="margin:0;font-size:11px;color:var(--text-muted);">อาหาร · เมื่อกี้</p></div><span style="font-size:13px;color:#E24B4A;">-฿40</span></div>
+            <div class="tx-row"><div class="tx-ic"><i class="ti ti-shopping-bag" style="font-size:16px;color:var(--text-secondary);"></i></div><div style="flex:1;"><p style="margin:0;font-size:13px;">7-Eleven</p><p style="margin:0;font-size:11px;color:var(--text-muted);">ช้อปปิ้ง · จากสลิป</p></div><span style="font-size:13px;color:#E24B4A;">-฿189</span></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-around;border-top:0.5px solid var(--border);padding:10px 0 12px;">
+            <i class="ti ti-home" style="font-size:20px;color:#0E7D66;"></i><i class="ti ti-list" style="font-size:20px;color:var(--text-muted);"></i><i class="ti ti-box" style="font-size:20px;color:var(--text-muted);"></i><i class="ti ti-chart-bar" style="font-size:20px;color:var(--text-muted);"></i><i class="ti ti-settings" style="font-size:20px;color:var(--text-muted);"></i>
+          </div>
+        </div>
+        <div style="width:288px;flex-shrink:0;display:flex;flex-direction:column;background:var(--surface-2);">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);">
+            <div style="display:flex;align-items:center;gap:8px;"><i class="ti ti-sparkles" style="font-size:18px;color:#0E7D66;"></i><span style="font-size:14px;font-weight:500;">ผู้ช่วย AI</span></div>
+            <i class="ti ti-layout-sidebar-right-collapse" style="font-size:18px;color:var(--text-muted);"></i>
+          </div>
+          <div style="flex:1;padding:14px 14px 8px;display:flex;flex-direction:column;gap:12px;overflow:hidden;">
+            <div style="align-self:flex-start;max-width:88%;background:var(--surface-1);border-radius:14px 14px 14px 4px;padding:9px 12px;"><p style="margin:0;font-size:12.5px;line-height:1.5;">สวัสดีครับ อยากบันทึกอะไร หรือถามเรื่องการเงินก็พิมพ์มาได้เลย</p></div>
+            <div style="align-self:flex-end;max-width:88%;background:#0E7D66;border-radius:14px 14px 4px 14px;padding:9px 12px;"><p style="margin:0;font-size:12.5px;line-height:1.5;color:#fff;">จ่ายค่ากาแฟกับข้าวเที่ยงไป 90 บาท</p></div>
+            <div style="align-self:flex-start;max-width:92%;">
+              <div style="background:var(--surface-1);border-radius:14px 14px 14px 4px;padding:9px 12px;">
+                <p style="margin:0 0 8px;font-size:12.5px;line-height:1.5;">บันทึกให้แล้ว 2 รายการ</p>
+                <div style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:9px;padding:8px 10px;display:flex;flex-direction:column;gap:7px;">
+                  <div style="display:flex;align-items:center;gap:8px;"><i class="ti ti-coffee" style="font-size:14px;color:var(--text-secondary);"></i><span style="flex:1;font-size:12px;">กาแฟ · อาหาร</span><span style="font-size:12px;font-weight:500;">฿50</span><i class="ti ti-check" style="font-size:14px;color:#0E7D66;"></i></div>
+                  <div style="display:flex;align-items:center;gap:8px;"><i class="ti ti-bowl" style="font-size:14px;color:var(--text-secondary);"></i><span style="flex:1;font-size:12px;">ข้าวเที่ยง · อาหาร</span><span style="font-size:12px;font-weight:500;">฿40</span><i class="ti ti-check" style="font-size:14px;color:#0E7D66;"></i></div>
+                </div>
+              </div>
+            </div>
+            <div style="align-self:flex-end;max-width:88%;background:#0E7D66;border-radius:14px 14px 4px 14px;padding:8px 8px 9px;">
+              <div style="background:rgba(255,255,255,0.14);border-radius:8px;padding:14px 0;text-align:center;margin-bottom:6px;"><i class="ti ti-receipt" style="font-size:22px;color:#fff;"></i></div>
+              <p style="margin:0;font-size:12.5px;line-height:1.4;color:#fff;">สแกนสลิปนี้ให้หน่อย</p>
+            </div>
+          </div>
+          <div style="padding:10px 12px 14px;border-top:0.5px solid var(--border);">
+            <div style="display:flex;align-items:center;gap:8px;background:var(--surface-1);border-radius:22px;padding:6px 8px 6px 12px;">
+              <i class="ti ti-paperclip" style="font-size:18px;color:var(--text-secondary);"></i>
+              <span style="flex:1;font-size:12.5px;color:var(--text-muted);">พิมพ์บอกสิ่งที่ต้องการ...</span>
+              <i class="ti ti-microphone" style="font-size:18px;color:var(--text-secondary);"></i>
+              <div style="width:30px;height:30px;border-radius:50%;background:#0E7D66;display:flex;align-items:center;justify-content:center;"><i class="ti ti-arrow-up" style="font-size:17px;color:#fff;"></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <span class="cap">แชท AI ด้านข้าง (แท็บเล็ต 2 คอลัมน์ · มือถือ = slide-over)</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
