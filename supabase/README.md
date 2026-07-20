@@ -13,6 +13,7 @@
 1. `migrations/0001_init.sql` — enums, 7 ตาราง, index, trigger `updated_at`, และ **RLS policy ครบทุกตาราง**
 2. `migrations/0002_seed_defaults.sql` — หมวด/กระเป๋าเริ่มต้น + trigger seed ตอนสมัคร
 3. `migrations/0003_storage.sql` — bucket `stock-photos` (private) + RLS ตาม user
+4. `migrations/0004_stock_intake_rpc.sql` — RPC `stock_intake_create` เขียนแบบ atomic (สร้าง `transactions` + `stock_items` + ลิงก์ 2 ทางในครั้งเดียว, gen SKU) · `security invoker` → RLS ยังบังคับ `auth.uid() = user_id`
 
 ทุกไฟล์เป็น **additive-only** และ **รันซ้ำได้** (idempotent) — รันใหม่ไม่พังของเดิม
 
@@ -39,8 +40,8 @@
   เพื่อไม่ให้กราฟเพี้ยนตอนลงของเยอะ
 - รับรู้ **กำไรตอนขายจริง** ผ่าน `stock_sales.profit = (sale_price − cost_per_unit) × qty_sold`
 
-> ตรรกะการเขียนข้อมูลแบบ atomic (ซื้อเข้า → สร้าง stock_item + ลิงก์ธุรกรรม, ขายออก → ตัด qty + สร้าง stock_sales)
-> จะทำเป็น Postgres RPC ในส่วนที่ 4 (คนละ migration, ยังไม่รวมในชุดนี้)
+> ซื้อเข้า → สร้าง `stock_item` + ลิงก์ธุรกรรม แบบ atomic ทำแล้วใน `0004_stock_intake_rpc.sql`
+> (RPC `stock_intake_create`). ส่วนขายออก (ตัด qty + สร้าง `stock_sales`) จะทำใน migration ถัดไป
 
 ## หมายเหตุความปลอดภัย
 - ทุก policy จำกัดเฉพาะ role `authenticated` และ `auth.uid() = user_id`
