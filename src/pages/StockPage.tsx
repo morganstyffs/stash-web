@@ -9,6 +9,7 @@ import {
   IconSearch,
   IconShirt,
   IconShoe,
+  IconX,
 } from '@tabler/icons-react'
 import { computeStockHero, useStockItems } from '@/hooks/useStock'
 import { StockEditSheet } from '@/components/StockEditSheet'
@@ -32,6 +33,8 @@ function thumbIcon(it: StockItem) {
 export function StockPage() {
   const navigate = useNavigate()
   const [filter, setFilter] = useState<StockFilter>('all')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<StockItem | null>(null)
   const { data, isLoading } = useStockItems()
 
@@ -39,9 +42,18 @@ export function StockPage() {
   const hero = useMemo(() => computeStockHero(items), [items])
   const queueCount = items.filter((it) => it.needs_details).length
 
+  // Client-side search over already-loaded items (name · brand · category · SKU
+  // · size · color), combined with the status filter chips.
+  const q = search.trim().toLowerCase()
   const visible = items.filter((it) => {
-    if (filter === 'in_stock') return it.status !== 'sold'
-    if (filter === 'sold') return it.status === 'sold'
+    if (filter === 'in_stock' && it.status === 'sold') return false
+    if (filter === 'sold' && it.status !== 'sold') return false
+    if (q) {
+      const hay = `${it.name} ${it.brand ?? ''} ${it.category ?? ''} ${it.sku ?? ''} ${
+        it.size ?? ''
+      } ${it.color ?? ''}`.toLowerCase()
+      if (!hay.includes(q)) return false
+    }
     return true
   })
 
@@ -50,13 +62,43 @@ export function StockPage() {
       <div className="flex items-center justify-between px-[18px] pb-3.5 pt-[18px]">
         <p className="text-[17px] font-medium">คลังสินค้า</p>
         <div className="flex items-center gap-3.5">
-          <IconSearch size={19} className="text-muted" />
+          <button
+            aria-label="ค้นหา"
+            aria-pressed={searchOpen}
+            onClick={() => {
+              setSearchOpen((v) => !v)
+              if (searchOpen) setSearch('')
+            }}
+          >
+            <IconSearch size={19} className={searchOpen ? 'text-mint-deep' : 'text-muted'} />
+          </button>
           <IconAdjustmentsHorizontal size={19} className="text-muted" />
           <button aria-label="รับเข้าสต็อก" onClick={() => navigate('/stock/intake')}>
             <IconPackageImport size={20} className="text-mint-deep" />
           </button>
         </div>
       </div>
+
+      {/* search box — toggled from the header search icon */}
+      {searchOpen && (
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-2 rounded-[11px] border-[0.5px] border-hairline bg-fill px-3 py-[9px]">
+            <IconSearch size={16} className="text-faint" />
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ค้นหาสินค้า (ชื่อ · แบรนด์ · SKU)..."
+              className="w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
+            />
+            {search && (
+              <button aria-label="ล้างคำค้นหา" onClick={() => setSearch('')}>
+                <IconX size={15} className="text-faint" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* value hero */}
       <div className="relative mx-4 mb-3.5 rounded-card bg-mint-deep px-4 py-[15px]">
@@ -124,7 +166,11 @@ export function StockPage() {
           ))
         ) : (
           <p className="py-10 text-center text-[13px] text-faint">
-            {isLoading ? 'กำลังโหลด…' : 'ยังไม่มีสินค้าในคลัง — แตะไอคอนรับเข้าสต็อกด้านบน'}
+            {isLoading
+              ? 'กำลังโหลด…'
+              : q
+                ? 'ไม่พบสินค้าที่ค้นหา'
+                : 'ยังไม่มีสินค้าในคลัง — แตะไอคอนรับเข้าสต็อกด้านบน'}
           </p>
         )}
       </div>

@@ -12,6 +12,7 @@ import {
 import { useCategories, useFavorites, useUpsertFavorite } from '@/hooks/useLookups'
 import { useAddTransaction } from '@/hooks/useAddTransaction'
 import { useWallets } from '@/hooks/useSettings'
+import { CategoriesManager } from '@/components/CategoriesManager'
 import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
 import { formatBaht, formatDayShort } from '@/lib/format'
@@ -37,6 +38,7 @@ export function AddPage() {
   const [walletId, setWalletId] = useState<string | null>(null)
   const [dateStr, setDateStr] = useState(today)
   const [favSaved, setFavSaved] = useState(false)
+  const [managingCats, setManagingCats] = useState(false)
 
   const dateLabel = dateStr === today ? 'วันนี้' : formatDayShort(new Date(dateStr + 'T00:00:00'))
 
@@ -146,24 +148,29 @@ export function AddPage() {
         </label>
       </div>
 
-      {/* input mode tabs — only "กดเร็ว" is wired for this slice */}
-      <div className="mx-4 mb-3.5 flex rounded-[11px] bg-fill p-[3px]">
+      {/* input mode tabs — only "กดเร็ว" is wired; พิมพ์/พูด + สแกน รอฟีเจอร์ AI */}
+      <div className="mx-4 mb-1.5 flex rounded-[11px] bg-fill p-[3px]">
         <div className="flex-1 rounded-lg bg-mint-tint py-[7px] text-center text-[12px] font-medium text-mint-text">
           กดเร็ว
         </div>
         <button
           disabled
-          className="flex-1 py-[7px] text-center text-[12px] text-faint disabled:opacity-100"
+          title="เร็วๆ นี้"
+          aria-label="พิมพ์/พูด (เร็วๆ นี้)"
+          className="flex-1 cursor-not-allowed py-[7px] text-center text-[12px] text-faint disabled:opacity-100"
         >
           พิมพ์/พูด
         </button>
         <button
           disabled
-          className="flex-1 py-[7px] text-center text-[12px] text-faint disabled:opacity-100"
+          title="เร็วๆ นี้"
+          aria-label="สแกน (เร็วๆ นี้)"
+          className="flex-1 cursor-not-allowed py-[7px] text-center text-[12px] text-faint disabled:opacity-100"
         >
           สแกน
         </button>
       </div>
+      <p className="mb-3 px-4 text-[10px] text-faint">โหมด “พิมพ์/พูด” และ “สแกน” — เร็วๆ นี้</p>
 
       {/* จ่าย / รับ */}
       <div className="mb-2 flex justify-center gap-1.5">
@@ -211,10 +218,14 @@ export function AddPage() {
             </button>
           )
         })}
-        <span className="flex shrink-0 items-center gap-1 rounded-pill bg-fill px-[13px] py-[7px] text-[12px] text-faint">
+        <button
+          type="button"
+          onClick={() => setManagingCats(true)}
+          className="flex shrink-0 items-center gap-1 rounded-pill bg-fill px-[13px] py-[7px] text-[12px] text-faint"
+        >
           <IconPlus size={14} />
           เพิ่ม
-        </span>
+        </button>
       </div>
 
       {/* wallet selector (only when the user has wallets) */}
@@ -317,6 +328,8 @@ export function AddPage() {
           </button>
         </div>
       </div>
+
+      {managingCats && <CategoriesManager onClose={() => setManagingCats(false)} />}
     </div>
   )
 }

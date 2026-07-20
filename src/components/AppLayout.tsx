@@ -60,8 +60,10 @@ export function AppLayout() {
           </button>
         </div>
         <button
-          aria-label="ถาม AI"
-          className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-mint-tint"
+          disabled
+          aria-label="ถาม AI (เร็วๆ นี้)"
+          title="เร็วๆ นี้"
+          className="flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-[13px] bg-mint-tint opacity-50"
         >
           <IconSparkles size={20} className="text-mint-deep" />
         </button>
@@ -75,10 +77,18 @@ export function AppLayout() {
       {/* Bottom nav — mobile only */}
       <div className="fixed inset-x-0 bottom-0 z-20 sm:hidden">
         <div className="relative mx-auto max-w-3xl">
-          {/* ถาม AI floating pill */}
-          <button className="absolute -top-[52px] right-4 flex items-center gap-1.5 rounded-pill bg-mint-deep px-3.5 py-2 shadow-card">
+          {/* ถาม AI floating pill — AI ยังไม่เปิดใช้ (ทำให้ดู disabled + บอก "เร็วๆ นี้") */}
+          <button
+            disabled
+            aria-label="ถาม AI (เร็วๆ นี้)"
+            title="เร็วๆ นี้"
+            className="absolute -top-[52px] right-4 flex cursor-not-allowed items-center gap-1.5 rounded-pill bg-mint-deep/60 px-3.5 py-2 shadow-card"
+          >
             <IconSparkles size={16} className="text-white" />
             <span className="text-xs font-medium text-white">ถาม AI</span>
+            <span className="rounded-pill bg-white/25 px-1.5 py-px text-[9px] font-medium text-white">
+              เร็วๆ นี้
+            </span>
           </button>
 
           <div className="flex items-center justify-between border-t border-hairline bg-white px-6 pb-[max(13px,env(safe-area-inset-bottom))] pt-2.5">
