@@ -14,21 +14,34 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      // Emit as /site.webmanifest and inject its <link> automatically (a single
+      // source of truth — no separate static manifest to drift out of sync).
+      manifestFilename: 'site.webmanifest',
+      includeAssets: [
+        'favicon.ico',
+        'favicon-16.png',
+        'favicon-32.png',
+        'favicon-48.png',
+        'apple-touch-icon.png',
+        'stash-mark.svg',
+        'stash-mark-white.svg',
+        'stash-logo.svg',
+        'stash-logo-white.svg',
+      ],
       manifest: {
-        name: 'Stash — บันทึกรายรับรายจ่าย + สต็อก',
+        name: 'Stash',
         short_name: 'Stash',
         description: 'บันทึกรายรับ-รายจ่ายส่วนตัว + กึ่งระบบสต็อกสินค้า (ขายต่อ)',
         lang: 'th',
-        theme_color: '#0E7D66',
-        background_color: '#F4F5F5',
+        theme_color: '#14B8A6',
+        background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
         icons: [
-          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
