@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "stash-web",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2025-07-01",
+  "assets": {
+    // Vite build output. `npm run build` must run before `wrangler deploy`.
+    "directory": "./dist",
+    // Binding used by the Worker to serve static files (env.ASSETS.fetch).
+    "binding": "ASSETS",
+    // Rewrite unknown paths to /index.html so the SPA (react-router) handles
+    // client-side routing instead of returning 404.
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
