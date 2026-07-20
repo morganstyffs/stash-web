@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { IconAdjustmentsHorizontal, IconBox, IconSearch } from '@tabler/icons-react'
 import {
   groupByDay,
@@ -17,8 +18,19 @@ const FILTERS: { key: HistoryFilter; label: string }[] = [
   { key: 'stock', label: 'สต็อก' },
 ]
 
+const FILTER_KEYS = FILTERS.map((f) => f.key)
+
+function isFilter(v: string | null): v is HistoryFilter {
+  return v != null && (FILTER_KEYS as string[]).includes(v)
+}
+
 export function HistoryPage() {
-  const [filter, setFilter] = useState<HistoryFilter>('all')
+  // Allow deep-linking a filter, e.g. /history?filter=income from the home hero.
+  const [searchParams] = useSearchParams()
+  const initialFilter = searchParams.get('filter')
+  const [filter, setFilter] = useState<HistoryFilter>(
+    isFilter(initialFilter) ? initialFilter : 'all',
+  )
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)

@@ -1,17 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import {
-  IconArrowDownRight,
-  IconArrowUpRight,
-  IconBell,
-  IconBolt,
-  IconChevronRight,
-  IconDots,
-  IconEye,
-  IconEyeOff,
-  IconMicrophone,
-  IconScan,
-} from '@tabler/icons-react'
+import { IconArrowDownRight, IconArrowUpRight, IconBell } from '@tabler/icons-react'
 import { useCategories } from '@/hooks/useLookups'
 import {
   computeHomeSummary,
@@ -20,6 +9,7 @@ import {
   type RecentRow,
 } from '@/hooks/useHome'
 import { Donut, TrendLine } from '@/components/charts'
+import { WalletHero } from '@/components/WalletHero'
 import { useMonthBudgetTotal } from '@/hooks/useBudgets'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 import { categoryIcon } from '@/lib/icons'
@@ -31,6 +21,7 @@ export function HomePage() {
   const catsQ = useCategories()
   const recentQ = useRecentTransactions()
   const budgetTotalQ = useMonthBudgetTotal()
+  const headerRef = useRef<HTMLDivElement>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [hideBalance, setHideBalance] = useState(() => {
     try {
@@ -64,7 +55,10 @@ export function HomePage() {
   return (
     <div className="flex min-h-full flex-col">
       {/* header */}
-      <div className="flex items-center justify-between px-[18px] pb-2.5 pt-[18px]">
+      <div
+        ref={headerRef}
+        className="flex items-center justify-between px-[18px] pb-2.5 pt-[18px]"
+      >
         <Link to="/" aria-label="Stash">
           <img src="/stash-mark.svg" alt="Stash" className="h-[30px] w-[30px]" />
         </Link>
@@ -72,74 +66,22 @@ export function HomePage() {
         <IconBell size={20} className="text-muted" />
       </div>
 
-      {/* summary strips + safe-to-spend hero */}
+      {/* wallet / card-holder hero */}
       <div className="px-4 pb-1 pt-1.5">
-        <div className="flex items-center justify-between rounded-[14px] bg-cat-green px-4 py-[9px]">
-          <span className="text-[13px] font-medium text-cat-green-ink">รายรับเดือนนี้</span>
-          <span className="text-[13px] font-medium text-cat-green-ink">
-            {formatBaht(summary.income)}
-          </span>
-        </div>
-        <Link
-          to="/budget"
-          className="-mt-1.5 flex items-center justify-between rounded-[14px] bg-cat-yellow px-4 py-[9px]"
-        >
-          <span className="text-[13px] font-medium text-cat-yellow-ink">งบที่ตั้งไว้</span>
-          <span className="flex items-center gap-1 text-[13px] font-medium text-cat-yellow-ink">
-            {formatBaht(budgetTotalQ.data ?? 0)}
-            <IconChevronRight size={14} className="opacity-60" />
-          </span>
-        </Link>
-        <div className="-mt-1.5 flex items-center justify-between rounded-[14px] bg-cat-black px-4 py-[9px]">
-          <span className="text-[13px] font-medium text-cat-black-ink">รายจ่ายเดือนนี้</span>
-          <span className="text-[13px] font-medium text-cat-black-ink">
-            {formatBaht(summary.expense)}
-          </span>
-        </div>
-
-        <div className="relative -mt-2 rounded-pocket bg-mint-deep px-4 pb-3.5 pt-[18px]">
-          <div className="pointer-events-none absolute inset-1.5 rounded-[12px] border-[1.5px] border-dashed border-white/[0.22]" />
-          <div className="relative">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[12px] text-white/70">เหลือใช้ได้เดือนนี้</p>
-                <p className="mt-1 flex items-center gap-1.5 text-[30px] font-medium tracking-[-0.5px] text-white">
-                  {hideBalance ? '฿ ••••••' : formatBaht(summary.safeToSpend)}
-                  <button
-                    type="button"
-                    onClick={toggleHideBalance}
-                    aria-label={hideBalance ? 'แสดงยอดเงิน' : 'ซ่อนยอดเงิน'}
-                    aria-pressed={hideBalance}
-                    className="p-0.5"
-                  >
-                    {hideBalance ? (
-                      <IconEyeOff size={16} className="text-white/60" />
-                    ) : (
-                      <IconEye size={16} className="text-white/60" />
-                    )}
-                  </button>
-                </p>
-              </div>
-              <span className="rounded-pill border border-white/30 px-3 py-[5px] text-[12px] text-white">
-                เดือนนี้
-              </span>
-            </div>
-
-            {summary.deltaPct != null && (
-              <span className="mt-2 inline-block rounded-pill bg-mint-hero px-[9px] py-[3px] text-[11px] font-medium text-mint-text">
-                {summary.deltaPct >= 0 ? '▲' : '▼'} {Math.abs(summary.deltaPct)}%{' '}
-                {summary.deltaPct >= 0 ? 'ดีกว่า' : 'ต่ำกว่า'}เดือนก่อน
-              </span>
-            )}
-
-            <div className="mt-4 flex gap-2">
-              <HeroAction icon={IconBolt} label="เพิ่มเร็ว" onClick={() => navigate('/add')} />
-              <HeroAction icon={IconScan} label="สแกนสลิป" soon />
-              <HeroAction icon={IconMicrophone} label="พิมพ์/พูด" soon />
-              <HeroAction icon={IconDots} label="อื่นๆ" />
-            </div>
-          </div>
-        </div>
+        <WalletHero
+          income={summary.income}
+          incomeCount={summary.incomeCount}
+          budgetTotal={budgetTotalQ.data ?? 0}
+          expense={summary.expense}
+          expenseCount={summary.expenseCount}
+          topCategory={summary.donut[0] ?? null}
+          safeToSpend={summary.safeToSpend}
+          deltaPct={summary.deltaPct}
+          hideBalance={hideBalance}
+          onToggleHide={toggleHideBalance}
+          onQuickAdd={() => navigate('/add')}
+          getSafeTopY={() => headerRef.current?.getBoundingClientRect().bottom ?? 0}
+        />
       </div>
 
       {/* month trend */}
@@ -241,10 +183,7 @@ function HomeSkeleton() {
         <div className="h-5 w-5 rounded bg-fill" />
       </div>
       <div className="px-4 pb-1 pt-1.5">
-        <div className="h-[38px] rounded-[14px] bg-fill" />
-        <div className="-mt-1.5 h-[38px] rounded-[14px] bg-fill" />
-        <div className="-mt-1.5 h-[38px] rounded-[14px] bg-fill" />
-        <div className="-mt-2 h-[118px] rounded-pocket bg-fill" />
+        <div className="h-[362px] rounded-pocket bg-fill" />
       </div>
       <div className="mx-4 mt-3.5">
         <div className="h-4 w-40 rounded bg-fill" />
@@ -263,35 +202,6 @@ function HomeSkeleton() {
         ))}
       </div>
     </div>
-  )
-}
-
-function HeroAction({
-  icon: Icon,
-  label,
-  onClick,
-  soon,
-}: {
-  icon: typeof IconBolt
-  label: string
-  onClick?: () => void
-  soon?: boolean
-}) {
-  const disabled = !onClick
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title={soon ? 'เร็วๆ นี้' : undefined}
-      aria-label={soon ? `${label} (เร็วๆ นี้)` : label}
-      className={`flex-1 rounded-[12px] border border-white/[0.22] px-1 py-2.5 text-center ${
-        disabled ? 'cursor-not-allowed opacity-45' : ''
-      }`}
-    >
-      <Icon size={19} className="mx-auto text-white" />
-      <p className="mt-1.5 text-[11px] text-white">{label}</p>
-      {soon && <p className="text-[9px] leading-tight text-white/60">เร็วๆ นี้</p>}
-    </button>
   )
 }
 
