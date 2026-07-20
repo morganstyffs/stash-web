@@ -84,66 +84,71 @@ export function HomePage() {
         />
       </div>
 
-      {/* month trend */}
-      <div className="mx-4 mt-3.5">
-        <div className="mb-1.5 flex items-baseline justify-between">
-          <p className="text-[15px] font-medium">{formatMonthLong(new Date())}</p>
-          <Link to="/history" className="text-[12px] text-muted">
-            ดูทั้งหมด ›
-          </Link>
-        </div>
-        <div className="mb-1.5 flex gap-5">
-          <div>
-            <p className="text-[11px] text-muted">
-              <IconArrowUpRight size={13} className="-mb-0.5 mr-0.5 inline text-income" />
-              เงินเข้า
-            </p>
-            <p className="mt-0.5 text-[15px] font-medium text-income">
-              {formatBaht(summary.income)}
-            </p>
+      {/* month trend (left) + category donut (right), one row on wider screens */}
+      <div className="mx-4 mt-3.5 flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
+        {/* left — cumulative in/out trend */}
+        <div className="min-w-0 sm:flex-1">
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <p className="text-[15px] font-medium">{formatMonthLong(new Date())}</p>
+            <Link to="/history" className="text-[12px] text-muted">
+              ดูทั้งหมด ›
+            </Link>
           </div>
-          <div>
-            <p className="text-[11px] text-muted">
-              <IconArrowDownRight size={13} className="-mb-0.5 mr-0.5 inline text-expense" />
-              เงินออก
-            </p>
-            <p className="mt-0.5 text-[15px] font-medium text-expense">
-              {formatBaht(summary.expense)}
-            </p>
-          </div>
-        </div>
-        <TrendLine income={summary.dailyCumIncome} expense={summary.dailyCumExpense} />
-      </div>
-
-      {/* category donut */}
-      <div className="mx-4 mt-3.5 border-t-[0.5px] border-hairline pt-3.5">
-        <p className="mb-3 text-[15px] font-medium">หมวดใช้จ่าย</p>
-        {summary.donut.length > 0 ? (
-          <div className="flex items-center gap-[18px]">
-            <Donut slices={summary.donut} />
-            <div className="flex-1">
-              {summary.donut.slice(0, 3).map((s) => (
-                <div
-                  key={s.categoryId}
-                  className="mb-[9px] flex items-center justify-between last:mb-0"
-                >
-                  <span className="text-[13px]">
-                    <span
-                      className="mr-2 inline-block h-2 w-2 rounded-full align-middle"
-                      style={{ background: s.color }}
-                    />
-                    {s.name}
-                  </span>
-                  <span className="text-[13px] font-medium">{formatBaht(s.total)}</span>
-                </div>
-              ))}
+          <div className="mb-1.5 flex gap-5">
+            <div>
+              <p className="text-[11px] text-muted">
+                <IconArrowUpRight size={13} className="-mb-0.5 mr-0.5 inline text-income" />
+                เงินเข้า
+              </p>
+              <p className="mt-0.5 text-[15px] font-medium text-income">
+                {formatBaht(summary.income)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] text-muted">
+                <IconArrowDownRight size={13} className="-mb-0.5 mr-0.5 inline text-expense" />
+                เงินออก
+              </p>
+              <p className="mt-0.5 text-[15px] font-medium text-expense">
+                {formatBaht(summary.expense)}
+              </p>
             </div>
           </div>
-        ) : (
-          <p className="py-3 text-[13px] text-faint">
-            {loading ? 'กำลังโหลด…' : 'ยังไม่มีรายจ่ายเดือนนี้'}
-          </p>
-        )}
+          <TrendLine income={summary.dailyCumIncome} expense={summary.dailyCumExpense} />
+        </div>
+
+        {/* right — category donut (divider above on mobile, beside on wider) */}
+        <div className="border-t-[0.5px] border-hairline pt-3.5 sm:w-[250px] sm:shrink-0 sm:border-l-[0.5px] sm:border-t-0 sm:pl-6 sm:pt-0">
+          <p className="mb-3 text-[15px] font-medium">หมวดใช้จ่าย</p>
+          {summary.donut.length > 0 ? (
+            <div className="flex items-center gap-[18px]">
+              <Donut slices={summary.donut} />
+              <div className="min-w-0 flex-1">
+                {summary.donut.slice(0, 3).map((s) => (
+                  <div
+                    key={s.categoryId}
+                    className="mb-[9px] flex items-center justify-between gap-2 last:mb-0"
+                  >
+                    <span className="flex min-w-0 items-center text-[13px]">
+                      <span
+                        className="mr-2 inline-block h-2 w-2 shrink-0 rounded-full"
+                        style={{ background: s.color }}
+                      />
+                      <span className="truncate">{s.name}</span>
+                    </span>
+                    <span className="shrink-0 text-[13px] font-medium">
+                      {formatBaht(s.total)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="py-3 text-[13px] text-faint">
+              {loading ? 'กำลังโหลด…' : 'ยังไม่มีรายจ่ายเดือนนี้'}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* recent transactions */}
