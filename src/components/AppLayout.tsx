@@ -9,6 +9,7 @@ import {
   IconSparkles,
 } from '@tabler/icons-react'
 import type { Icon } from '@tabler/icons-react'
+import { useRunRecurringOnLoad } from '@/hooks/useRecurring'
 
 interface Tab {
   to: string
@@ -35,6 +36,10 @@ const RAIL: Tab[] = [
 
 export function AppLayout() {
   const navigate = useNavigate()
+
+  // Materialize any due recurring rules once per app load (backfills missed
+  // periods server-side; no-op until the 0007 migration is applied).
+  useRunRecurringOnLoad()
 
   return (
     <div className="mx-auto flex min-h-full max-w-3xl bg-white sm:my-4 sm:min-h-0 sm:rounded-[22px] sm:border-[0.5px] sm:border-hairline sm:shadow-card">
