@@ -82,6 +82,10 @@ export interface HomeSummary {
   safeToSpend: number
   /** % change of safe-to-spend vs last month, or null when last month is empty */
   deltaPct: number | null
+  /** number of income transactions this month */
+  incomeCount: number
+  /** number of (non-stock) expense transactions this month */
+  expenseCount: number
   /** cumulative income per day of the month (index 0 = day 1) for the trend line */
   dailyCumIncome: number[]
   /** cumulative expense per day of the month (index 0 = day 1) for the trend line */
@@ -106,6 +110,8 @@ export function computeHomeSummary(
 
   let income = 0
   let expense = 0
+  let incomeCount = 0
+  let expenseCount = 0
   let prevSafe = 0
   let prevIncome = 0
   let prevExpense = 0
@@ -119,10 +125,12 @@ export function computeHomeSummary(
     if (inThisMonth) {
       if (r.type === 'income') {
         income += amount
+        incomeCount += 1
         const dayIdx = new Date(r.date).getDate() - 1
         if (dayIdx >= 0 && dayIdx < dailyCumInc.length) dailyCumInc[dayIdx] += amount
       } else if (!r.is_stock_purchase) {
         expense += amount
+        expenseCount += 1
         const dayIdx = new Date(r.date).getDate() - 1
         if (dayIdx >= 0 && dayIdx < dailyCum.length) dailyCum[dayIdx] += amount
         const key = r.category_id ?? 'none'
@@ -161,6 +169,8 @@ export function computeHomeSummary(
     expense,
     safeToSpend,
     deltaPct,
+    incomeCount,
+    expenseCount,
     dailyCumIncome: dailyCumInc,
     dailyCumExpense: dailyCum,
     donut,
