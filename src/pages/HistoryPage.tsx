@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { IconAdjustmentsHorizontal, IconBox, IconSearch } from '@tabler/icons-react'
+import { IconBox, IconSearch } from '@tabler/icons-react'
 import {
   groupByDay,
   useHistory,
@@ -38,9 +38,8 @@ export function HistoryPage() {
 
   return (
     <div className="flex min-h-full flex-col">
-      <div className="flex items-center justify-between px-[18px] pb-3.5 pt-[18px]">
+      <div className="flex items-center px-[18px] pb-3.5 pt-[18px]">
         <p className="text-[17px] font-medium">ประวัติ</p>
-        <IconAdjustmentsHorizontal size={19} className="text-muted" />
       </div>
 
       <div className="px-4 pb-3">

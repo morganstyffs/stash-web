@@ -3,10 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   IconArrowDownRight,
   IconArrowUpRight,
-  IconBell,
   IconBolt,
   IconChevronRight,
-  IconDots,
   IconEye,
   IconEyeOff,
   IconMicrophone,
@@ -69,7 +67,8 @@ export function HomePage() {
           <img src="/stash-mark.svg" alt="Stash" className="h-[30px] w-[30px]" />
         </Link>
         <p className="text-[17px] font-medium">ยินดีต้อนรับกลับ</p>
-        <IconBell size={20} className="text-muted" />
+        {/* spacer keeps the greeting centred against the brand mark */}
+        <span className="w-[30px]" aria-hidden />
       </div>
 
       {/* summary strips + safe-to-spend hero */}
@@ -136,7 +135,6 @@ export function HomePage() {
               <HeroAction icon={IconBolt} label="เพิ่มเร็ว" onClick={() => navigate('/add')} />
               <HeroAction icon={IconScan} label="สแกนสลิป" soon />
               <HeroAction icon={IconMicrophone} label="พิมพ์/พูด" soon />
-              <HeroAction icon={IconDots} label="อื่นๆ" />
             </div>
           </div>
         </div>
