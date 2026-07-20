@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { IconPencil, IconPlus, IconTrash, IconWallet } from '@tabler/icons-react'
 import { Overlay } from '@/components/ui'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useToast } from '@/components/Toast'
 import { useDeleteWallet, useUpsertWallet, useWallets } from '@/hooks/useSettings'
+import { translateError } from '@/lib/errors'
 import type { Wallet, WalletType } from '@/lib/database.types'
 
 const TYPES: { key: WalletType; label: string }[] = [
@@ -20,15 +23,19 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
   const { data: wallets } = useWallets()
   const upsert = useUpsertWallet()
   const del = useDeleteWallet()
+  const toast = useToast()
   const [form, setForm] = useState<FormState | null>(null)
-  const [err, setErr] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<Wallet | null>(null)
 
-  async function remove(w: Wallet) {
-    setErr(null)
+  async function confirmRemove() {
+    if (!confirming) return
     try {
-      await del.mutateAsync(w.id)
+      await del.mutateAsync(confirming.id)
+      toast.success('ลบกระเป๋าแล้ว')
+      setConfirming(null)
     } catch (e) {
-      setErr((e as Error).message)
+      toast.error(translateError(e))
+      setConfirming(null)
     }
   }
 
@@ -42,8 +49,6 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
         </button>
       }
     >
-      {err && <p className="mb-2 text-[12px] text-expense">{err}</p>}
-
       {form && (
         <div className="mb-4 rounded-card border-[0.5px] border-hairline p-3.5">
           <input
@@ -78,8 +83,17 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
             <button
               disabled={!form.name.trim() || upsert.isPending}
               onClick={async () => {
-                await upsert.mutateAsync({ id: form.id, name: form.name.trim(), type: form.type })
-                setForm(null)
+                try {
+                  await upsert.mutateAsync({
+                    id: form.id,
+                    name: form.name.trim(),
+                    type: form.type,
+                  })
+                  toast.success(form.id ? 'บันทึกกระเป๋าแล้ว' : 'เพิ่มกระเป๋าแล้ว')
+                  setForm(null)
+                } catch (e) {
+                  toast.error(translateError(e))
+                }
               }}
               className="flex-1 rounded-btn bg-mint-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
             >
@@ -109,11 +123,21 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
           >
             <IconPencil size={16} className="text-faint" />
           </button>
-          <button aria-label="ลบ" onClick={() => remove(w)}>
+          <button aria-label="ลบ" disabled={del.isPending} onClick={() => setConfirming(w)}>
             <IconTrash size={16} className="text-faint" />
           </button>
         </div>
       ))}
+
+      {confirming && (
+        <ConfirmDialog
+          title={`ลบกระเป๋า “${confirming.name}” ?`}
+          message="ถ้ากระเป๋านี้ยังมีรายการอยู่จะลบไม่ได้"
+          busy={del.isPending}
+          onCancel={() => setConfirming(null)}
+          onConfirm={confirmRemove}
+        />
+      )}
     </Overlay>
   )
 }

@@ -8,8 +8,10 @@ import {
 } from '@tabler/icons-react'
 import { useAuth } from '@/hooks/useAuth'
 import { missingTags, useQueueItems, useUpdateStockItem } from '@/hooks/useQueue'
+import { useToast } from '@/components/Toast'
 import { signStockPhotos, uploadStockPhotos } from '@/lib/storage'
 import { formatBaht } from '@/lib/format'
+import { translateError } from '@/lib/errors'
 import {
   ConditionChips,
   Label,
@@ -118,6 +120,7 @@ function QueueRow({
 function QueueEditSheet({ item, onClose }: { item: StockItem; onClose: () => void }) {
   const { user } = useAuth()
   const update = useUpdateStockItem()
+  const toast = useToast()
 
   const [name, setName] = useState(item.name)
   const [type, setType] = useState(item.category ?? '')
@@ -151,26 +154,31 @@ function QueueEditSheet({ item, onClose }: { item: StockItem; onClose: () => voi
         ...prev,
         ...paths.map((p, i) => ({ path: p, preview: URL.createObjectURL(files[i]) })),
       ])
-    } catch {
-      /* surfaced below */
+    } catch (e) {
+      toast.error(translateError(e))
     } finally {
       setUploading(false)
     }
   }
 
   async function save() {
-    await update.mutateAsync({
-      id: item.id,
-      name: name.trim(),
-      category: type.trim() || null,
-      brand: brand.trim() || null,
-      size: size.trim() || null,
-      color: color.trim() || null,
-      condition: (condition || null) as ItemCondition | null,
-      target_price: target ? Number(target) : null,
-      photos: photos.map((p) => p.path),
-    })
-    onClose()
+    try {
+      await update.mutateAsync({
+        id: item.id,
+        name: name.trim(),
+        category: type.trim() || null,
+        brand: brand.trim() || null,
+        size: size.trim() || null,
+        color: color.trim() || null,
+        condition: (condition || null) as ItemCondition | null,
+        target_price: target ? Number(target) : null,
+        photos: photos.map((p) => p.path),
+      })
+      toast.success('บันทึกรายละเอียดแล้ว')
+      onClose()
+    } catch (e) {
+      toast.error(translateError(e))
+    }
   }
 
   return (
@@ -242,9 +250,7 @@ function QueueEditSheet({ item, onClose }: { item: StockItem; onClose: () => voi
           </div>
 
           {update.error && (
-            <p className="pb-2 text-[12px] text-expense">
-              บันทึกไม่สำเร็จ: {(update.error as Error).message}
-            </p>
+            <p className="pb-2 text-[12px] text-expense">{translateError(update.error)}</p>
           )}
         </div>
 

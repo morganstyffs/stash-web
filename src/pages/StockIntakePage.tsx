@@ -12,9 +12,11 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useLookups'
 import { useStockCount } from '@/hooks/useStock'
 import { useCreateStockIntake } from '@/hooks/useStockIntake'
+import { useToast } from '@/components/Toast'
 import { uploadStockPhotos } from '@/lib/storage'
 import { previewSku } from '@/lib/sku'
 import { formatBaht } from '@/lib/format'
+import { translateError } from '@/lib/errors'
 import {
   ConditionChips,
   Label,
@@ -39,6 +41,7 @@ export function StockIntakePage() {
   const catsQ = useCategories()
   const stockCountQ = useStockCount()
   const intake = useCreateStockIntake()
+  const toast = useToast()
 
   const stockCategories = useMemo(
     () => (catsQ.data ?? []).filter((c) => c.is_stock_category),
@@ -86,8 +89,8 @@ export function StockIntakePage() {
         ...prev,
         ...paths.map((p, i) => ({ path: p, preview: URL.createObjectURL(files[i]) })),
       ])
-    } catch {
-      /* surfaced via generic error text below */
+    } catch (e) {
+      toast.error(translateError(e))
     } finally {
       setUploading(false)
     }
@@ -136,9 +139,10 @@ export function StockIntakePage() {
         ...prev,
       ])
       resetItem()
+      toast.success(done ? 'บันทึกเข้าสต็อกแล้ว' : 'บันทึกแล้ว — เพิ่มชิ้นต่อได้เลย')
       if (done) navigate('/stock')
-    } catch {
-      /* intake.error rendered below */
+    } catch (e) {
+      toast.error(translateError(e))
     }
   }
 
@@ -312,9 +316,7 @@ export function StockIntakePage() {
       </div>
 
       {intake.error && (
-        <p className="px-4 pt-1 text-[12px] text-expense">
-          บันทึกไม่สำเร็จ: {(intake.error as Error).message}
-        </p>
+        <p className="px-4 pt-1 text-[12px] text-expense">{translateError(intake.error)}</p>
       )}
 
       {/* actions */}
