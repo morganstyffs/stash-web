@@ -8,6 +8,7 @@ import {
   IconChevronRight,
   IconDots,
   IconEye,
+  IconEyeOff,
   IconMicrophone,
   IconScan,
 } from '@tabler/icons-react'
@@ -31,6 +32,25 @@ export function HomePage() {
   const recentQ = useRecentTransactions()
   const budgetTotalQ = useMonthBudgetTotal()
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [hideBalance, setHideBalance] = useState(() => {
+    try {
+      return localStorage.getItem('stash.hideBalance') === '1'
+    } catch {
+      return false
+    }
+  })
+
+  function toggleHideBalance() {
+    setHideBalance((v) => {
+      const next = !v
+      try {
+        localStorage.setItem('stash.hideBalance', next ? '1' : '0')
+      } catch {
+        /* ignore quota / privacy-mode errors */
+      }
+      return next
+    })
+  }
 
   const summary = useMemo(
     () => computeHomeSummary(monthQ.data ?? [], catsQ.data ?? []),
@@ -84,8 +104,20 @@ export function HomePage() {
               <div>
                 <p className="text-[12px] text-white/70">เหลือใช้ได้เดือนนี้</p>
                 <p className="mt-1 flex items-center gap-1.5 text-[30px] font-medium tracking-[-0.5px] text-white">
-                  {formatBaht(summary.safeToSpend)}
-                  <IconEye size={16} className="text-white/60" />
+                  {hideBalance ? '฿ ••••••' : formatBaht(summary.safeToSpend)}
+                  <button
+                    type="button"
+                    onClick={toggleHideBalance}
+                    aria-label={hideBalance ? 'แสดงยอดเงิน' : 'ซ่อนยอดเงิน'}
+                    aria-pressed={hideBalance}
+                    className="p-0.5"
+                  >
+                    {hideBalance ? (
+                      <IconEyeOff size={16} className="text-white/60" />
+                    ) : (
+                      <IconEye size={16} className="text-white/60" />
+                    )}
+                  </button>
                 </p>
               </div>
               <span className="rounded-pill border border-white/30 px-3 py-[5px] text-[12px] text-white">
@@ -102,8 +134,8 @@ export function HomePage() {
 
             <div className="mt-4 flex gap-2">
               <HeroAction icon={IconBolt} label="เพิ่มเร็ว" onClick={() => navigate('/add')} />
-              <HeroAction icon={IconScan} label="สแกนสลิป" />
-              <HeroAction icon={IconMicrophone} label="พิมพ์/พูด" />
+              <HeroAction icon={IconScan} label="สแกนสลิป" soon />
+              <HeroAction icon={IconMicrophone} label="พิมพ์/พูด" soon />
               <HeroAction icon={IconDots} label="อื่นๆ" />
             </div>
           </div>
@@ -238,19 +270,27 @@ function HeroAction({
   icon: Icon,
   label,
   onClick,
+  soon,
 }: {
   icon: typeof IconBolt
   label: string
   onClick?: () => void
+  soon?: boolean
 }) {
+  const disabled = !onClick
   return (
     <button
       onClick={onClick}
-      disabled={!onClick}
-      className="flex-1 rounded-[12px] border border-white/[0.22] px-1 py-2.5 text-center disabled:opacity-90"
+      disabled={disabled}
+      title={soon ? 'เร็วๆ นี้' : undefined}
+      aria-label={soon ? `${label} (เร็วๆ นี้)` : label}
+      className={`flex-1 rounded-[12px] border border-white/[0.22] px-1 py-2.5 text-center ${
+        disabled ? 'cursor-not-allowed opacity-45' : ''
+      }`}
     >
       <Icon size={19} className="mx-auto text-white" />
       <p className="mt-1.5 text-[11px] text-white">{label}</p>
+      {soon && <p className="text-[9px] leading-tight text-white/60">เร็วๆ นี้</p>}
     </button>
   )
 }
