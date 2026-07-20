@@ -90,6 +90,14 @@ export type Favorite = Timestamps & {
   category_id: string | null
 }
 
+export type Budget = Timestamps & {
+  id: string
+  user_id: string
+  category_id: string
+  month: string
+  amount: number
+}
+
 export type Recurring = Timestamps & {
   id: string
   user_id: string
@@ -144,6 +152,7 @@ export interface Database {
       wallets: TableShape<Wallet>
       categories: TableShape<Category>
       transactions: TableShape<Transaction>
+      budgets: TableShape<Budget>
       stock_items: TableShape<StockItem>
       stock_sales: TableShape<StockSale>
       favorites: TableShape<Favorite>
