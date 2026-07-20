@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { signStockPhotos } from '@/lib/storage'
@@ -44,6 +44,33 @@ export function useStockCount() {
         .select('id', { count: 'exact', head: true })
       if (error) throw error
       return count ?? 0
+    },
+  })
+}
+
+/**
+ * Deletes a stock item and its paired stock-purchase expense atomically via the
+ * stock_item_delete RPC (0006). Blocked server-side when the item has sales
+ * history — we translate that into a plain-language message. Invalidates both
+ * stock and transaction queries since a ledger row may have been removed too.
+ */
+export function useDeleteStockItem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc('stock_item_delete', { p_item_id: id })
+      if (error) {
+        // restrict_violation (23001) from our guard, or the FK RESTRICT (23503)
+        // as a fallback — both mean the item has recorded sales.
+        if (error.code === '23001' || error.code === '23503') {
+          throw new Error('ลบไม่ได้ — สินค้านี้มีประวัติการขายแล้ว ต้องย้อนรายการขายก่อน')
+        }
+        throw error
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['stock_items'] })
+      qc.invalidateQueries({ queryKey: ['transactions'] })
     },
   })
 }

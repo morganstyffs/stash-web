@@ -164,6 +164,10 @@ export interface Database {
         Args: StockIntakeArgs
         Returns: StockIntakeResult[]
       }
+      stock_item_delete: {
+        Args: { p_item_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       transaction_type: TransactionType
