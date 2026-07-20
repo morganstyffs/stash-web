@@ -11,6 +11,7 @@ import {
   IconShoe,
 } from '@tabler/icons-react'
 import { computeStockHero, useStockItems } from '@/hooks/useStock'
+import { StockEditSheet } from '@/components/StockEditSheet'
 import { formatBaht } from '@/lib/format'
 import type { StockItem } from '@/lib/database.types'
 
@@ -31,6 +32,7 @@ function thumbIcon(it: StockItem) {
 export function StockPage() {
   const navigate = useNavigate()
   const [filter, setFilter] = useState<StockFilter>('all')
+  const [editing, setEditing] = useState<StockItem | null>(null)
   const { data, isLoading } = useStockItems()
 
   const items = data?.items ?? []
@@ -113,7 +115,12 @@ export function StockPage() {
       <div className="px-4 pb-4">
         {visible.length > 0 ? (
           visible.map((it) => (
-            <StockRow key={it.id} item={it} thumb={data?.thumbs[it.photos?.[0] ?? '']} />
+            <StockRow
+              key={it.id}
+              item={it}
+              thumb={data?.thumbs[it.photos?.[0] ?? '']}
+              onOpen={() => setEditing(it)}
+            />
           ))
         ) : (
           <p className="py-10 text-center text-[13px] text-faint">
@@ -121,11 +128,21 @@ export function StockPage() {
           </p>
         )}
       </div>
+
+      {editing && <StockEditSheet item={editing} onClose={() => setEditing(null)} />}
     </div>
   )
 }
 
-function StockRow({ item, thumb }: { item: StockItem; thumb?: string }) {
+function StockRow({
+  item,
+  thumb,
+  onOpen,
+}: {
+  item: StockItem
+  thumb?: string
+  onOpen: () => void
+}) {
   const sold = item.status === 'sold'
   const Icon = thumbIcon(item)
   const meta = [item.brand, item.size, item.color].filter(Boolean).join(' · ')
@@ -133,7 +150,10 @@ function StockRow({ item, thumb }: { item: StockItem; thumb?: string }) {
     item.target_price != null ? Number(item.target_price) - Number(item.cost_per_unit) : null
 
   return (
-    <div className="flex items-center gap-3 border-b-[0.5px] border-hairline py-[13px] last:border-b-0">
+    <button
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 border-b-[0.5px] border-hairline py-[13px] text-left last:border-b-0"
+    >
       <div
         className={`flex h-[46px] w-[46px] shrink-0 items-center justify-center overflow-hidden rounded-[11px] ${
           sold ? 'bg-fill opacity-70' : thumb ? 'bg-fill' : 'bg-mint-tint'
@@ -178,6 +198,6 @@ function StockRow({ item, thumb }: { item: StockItem; thumb?: string }) {
           <p className="mt-1.5 text-[12px] text-mint-deep">+{formatBaht(profitPer)}/ชิ้น</p>
         )}
       </div>
-    </div>
+    </button>
   )
 }
