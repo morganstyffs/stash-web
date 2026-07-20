@@ -12,7 +12,7 @@ create or replace function public.seed_defaults(uid uuid)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
   -- Only seed once: bail if this user already has categories.
@@ -50,7 +50,7 @@ create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
   perform public.seed_defaults(new.id);

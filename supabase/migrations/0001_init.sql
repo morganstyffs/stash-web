@@ -45,9 +45,10 @@ exception when duplicate_object then null; end $$;
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
-  new.updated_at = now();
+  new.updated_at = now();   -- now() is in pg_catalog, always resolvable
   return new;
 end;
 $$;
@@ -117,8 +118,12 @@ create table if not exists public.transactions (
   user_id           uuid not null default auth.uid() references auth.users (id) on delete cascade,
   type              public.transaction_type not null,
   amount            numeric(14, 2) not null check (amount >= 0),
-  category_id       uuid references public.categories (id) on delete set null,
-  wallet_id         uuid references public.wallets (id) on delete set null,
+  -- RESTRICT (ledger integrity): a category/wallet that still has transactions
+  -- cannot be deleted. This protects historical spending-by-category and
+  -- per-wallet balance reports from silently losing their grouping. The app is
+  -- expected to offer a "merge / reassign then delete" flow in settings.
+  category_id       uuid references public.categories (id) on delete restrict,
+  wallet_id         uuid references public.wallets (id) on delete restrict,
   date              date not null default current_date,
   note              text,
   -- true => this expense is a stock purchase. Per the chosen accounting model,
@@ -126,12 +131,16 @@ create table if not exists public.transactions (
   -- budgets should EXCLUDE rows where is_stock_purchase = true. Profit is
   -- recognised later at sale time via stock_sales.
   is_stock_purchase boolean not null default false,
+  -- SET NULL: deleting a stock item must never destroy the money record. The
+  -- purchase expense (or sale income) stays; only the link is cleared.
   stock_item_id     uuid references public.stock_items (id) on delete set null,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
 
--- now that transactions exists, wire the reverse FK on stock_items
+-- now that transactions exists, wire the reverse FK on stock_items.
+-- SET NULL: if the source purchase transaction is deleted, the stock item
+-- survives as standalone inventory and just loses the back-link.
 do $$ begin
   alter table public.stock_items
     add constraint stock_items_source_transaction_fk
@@ -145,7 +154,12 @@ exception when duplicate_object then null; end $$;
 create table if not exists public.stock_sales (
   id                  uuid primary key default gen_random_uuid(),
   user_id             uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  stock_item_id       uuid not null references public.stock_items (id) on delete cascade,
+  -- RESTRICT: an item with sales history (realised profit) cannot be deleted —
+  -- that would corrupt profit reporting. Delete the sale first (which the app
+  -- treats as a reversal, restoring qty_remaining), or archive the item instead.
+  stock_item_id       uuid not null references public.stock_items (id) on delete restrict,
+  -- SET NULL: keep the sale record if its income transaction is removed; the
+  -- app handles proper sale reversal (qty restore) explicitly.
   sale_transaction_id uuid references public.transactions (id) on delete set null,
   qty_sold            integer not null default 1 check (qty_sold > 0),
   sale_price          numeric(14, 2) not null default 0,        -- per unit
