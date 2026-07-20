@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { IconFlame, IconAlertCircle, IconPlus } from '@tabler/icons-react'
+import { IconFlame, IconAlertCircle, IconPlus, IconX } from '@tabler/icons-react'
 import {
   computePace,
   useBudgets,
@@ -257,7 +257,12 @@ function BudgetEditor({
         className="w-full max-w-md rounded-t-[22px] bg-white p-5 sm:rounded-[22px]"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="mb-4 text-[15px] font-medium">{isEdit ? 'แก้งบหมวด' : 'ตั้งงบหมวด'}</p>
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-[15px] font-medium">{isEdit ? 'แก้งบหมวด' : 'ตั้งงบหมวด'}</p>
+          <button aria-label="ปิด" onClick={onClose}>
+            <IconX size={20} className="text-muted" />
+          </button>
+        </div>
 
         <p className="mb-1 ml-0.5 text-[11px] text-faint">หมวด</p>
         {isEdit ? (

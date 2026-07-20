@@ -59,7 +59,7 @@ export function SettingsPage() {
       <Group title="ทั่วไป">
         <Row
           icon={IconCategory}
-          label="หมวดหมู่"
+          label="หมวด"
           value={`${categories?.length ?? 0} หมวด`}
           onClick={() => setManager('categories')}
         />

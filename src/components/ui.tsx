@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { IconArrowLeft } from '@tabler/icons-react'
+import { IconX } from '@tabler/icons-react'
 
 /** Mint pill toggle matching the settings mockup. */
 export function Toggle({
@@ -30,7 +30,11 @@ export function Toggle({
   )
 }
 
-/** Full-screen sheet with a back header — used for settings sub-managers. */
+/**
+ * Bottom-sheet container — the app's single modal pattern. Slides up from the
+ * bottom, closes on the X or a backdrop tap, and scrolls internally. On tablet/
+ * desktop it centres as a card. Used for the settings sub-managers.
+ */
 export function Overlay({
   title,
   onClose,
@@ -43,16 +47,24 @@ export function Overlay({
   action?: ReactNode
 }) {
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-surface">
-      <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-white">
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-t-[22px] bg-white sm:rounded-[22px]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-[18px] pb-3 pt-4">
-          <button aria-label="ย้อนกลับ" onClick={onClose}>
-            <IconArrowLeft size={20} className="text-muted" />
-          </button>
           <p className="text-[16px] font-medium">{title}</p>
-          <span className="flex min-w-[20px] justify-end">{action}</span>
+          <span className="flex items-center gap-2">
+            {action}
+            <button aria-label="ปิด" onClick={onClose}>
+              <IconX size={20} className="text-muted" />
+            </button>
+          </span>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 pb-8">{children}</div>
+        <div className="flex-1 overflow-y-auto px-4 pb-6">{children}</div>
       </div>
     </div>
   )

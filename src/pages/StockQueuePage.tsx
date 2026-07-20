@@ -5,6 +5,7 @@ import {
   IconChevronRight,
   IconClipboardList,
   IconPhoto,
+  IconX,
 } from '@tabler/icons-react'
 import { useAuth } from '@/hooks/useAuth'
 import { missingTags, useQueueItems, useUpdateStockItem } from '@/hooks/useQueue'
@@ -182,14 +183,19 @@ function QueueEditSheet({ item, onClose }: { item: StockItem; onClose: () => voi
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-surface">
-      <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-white">
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-t-[22px] bg-white sm:rounded-[22px]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-[18px] pb-3 pt-4">
-          <button aria-label="ปิด" onClick={onClose}>
-            <IconArrowLeft size={20} className="text-muted" />
-          </button>
           <p className="text-[16px] font-medium">เติมรายละเอียด</p>
-          <span className="w-5" />
+          <button aria-label="ปิด" onClick={onClose}>
+            <IconX size={20} className="text-muted" />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-6">
