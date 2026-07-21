@@ -12,6 +12,7 @@
 
 import { handleAi } from './ai'
 import { json } from './json'
+import { withSecurityHeaders } from './security'
 
 export interface Env {
   /** Static assets binding (see wrangler.jsonc → assets.binding). */
@@ -25,17 +26,30 @@ export interface Env {
 
 export default {
   async fetch(request, env): Promise<Response> {
-    const url = new URL(request.url)
-
-    // Server-side API routes.
-    if (url.pathname.startsWith('/api/')) {
-      if (url.pathname === '/api/ai') {
-        return handleAi(request, env)
-      }
-      return json({ error: 'ไม่พบเส้นทาง API ที่ร้องขอ' }, 404)
-    }
-
-    // Everything else → static assets (the SPA).
-    return env.ASSETS.fetch(request)
+    // Single exit point so security headers are applied to every response
+    // (assets, API routes, and the error fallback alike).
+    return withSecurityHeaders(await route(request, env))
   },
 } satisfies ExportedHandler<Env>
+
+async function route(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url)
+
+  // Server-side API routes.
+  if (url.pathname.startsWith('/api/')) {
+    try {
+      if (url.pathname === '/api/ai') {
+        return await handleAi(request, env)
+      }
+      return json({ error: 'ไม่พบเส้นทาง API ที่ร้องขอ' }, 404)
+    } catch (err) {
+      // Log the real error to Cloudflare (Workers Logs / `wrangler tail`), but
+      // never leak internals (stack traces, upstream messages) to the client.
+      console.error('API route error:', url.pathname, err)
+      return json({ error: 'เกิดข้อผิดพลาดภายในระบบ' }, 500)
+    }
+  }
+
+  // Everything else → static assets (the SPA).
+  return env.ASSETS.fetch(request)
+}
