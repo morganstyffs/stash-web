@@ -10,6 +10,7 @@ import {
   IconScan,
 } from '@tabler/icons-react'
 import { formatBaht } from '@/lib/format'
+import stashLogo from '@/assets/stash-logo-emboss.png'
 
 /**
  * Home "wallet / card-holder" hero.
@@ -270,6 +271,18 @@ export function WalletHero({
         onClick={() => setSelected(null)}
         className="absolute inset-x-0 bottom-0"
         style={{ top: Y_SHOULDER, zIndex: 22 }}
+      />
+
+      {/* STASH deboss, pressed into the top of the mint pocket face — the emboss
+          is baked into the PNG (transparent centre), so add no shadow/filter here.
+          Absolutely positioned so it never nudges the balance/actions below. */}
+      <img
+        src={stashLogo}
+        alt="STASH"
+        aria-hidden
+        draggable={false}
+        className="pointer-events-none absolute left-1/2 h-auto w-[58%] max-w-[260px] -translate-x-1/2 select-none"
+        style={{ top: 104, zIndex: 21 }}
       />
 
       {/* balance + quick actions, printed on the pocket face */}
