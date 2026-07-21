@@ -1,0 +1,31 @@
+# Dependabot — automated dependency-update PRs + security alerts.
+# Note: this file enables version-update PRs. "Dependabot security updates" and
+# the vulnerability *alerts* are a separate repo toggle in
+# GitHub → Settings → Code security → enable "Dependabot alerts" and
+# "Dependabot security updates".
+version: 2
+updates:
+  # App + tooling dependencies (npm).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # Bundle routine minor/patch bumps into one PR to cut review noise;
+      # majors still come as individual PRs so breaking changes are reviewed.
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+
+  # Keep GitHub Actions pinned versions fresh (harmless even before any
+  # workflows exist; applies once you add some under .github/workflows).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
