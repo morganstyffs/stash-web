@@ -2,6 +2,8 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { RequireAuth } from './components/RequireAuth'
 import { LoginPage } from './pages/LoginPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { HomePage } from './pages/HomePage'
 import { HistoryPage } from './pages/HistoryPage'
 import { AddPage } from './pages/AddPage'
@@ -18,6 +20,10 @@ import { SettingsPage } from './pages/SettingsPage'
  */
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  // Public auth-recovery routes — /reset-password must be reachable while the
+  // recovery session is being established from the email link's URL fragment.
+  { path: '/forgot-password', element: <ForgotPasswordPage /> },
+  { path: '/reset-password', element: <ResetPasswordPage /> },
   {
     element: <RequireAuth />,
     children: [
