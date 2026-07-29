@@ -62,6 +62,19 @@
       rgba(255, 255, 255, 0.14) 2px 4px
     );
   }
+
+  /* brushed-steel clothing rail behind every pair of hangers in the rack view
+     (StockPage). A shared utility so the rail's metal gradient lives in one
+     place, not inlined per-row. Purely decorative — carries no meaning. */
+  .rack-rail {
+    background: linear-gradient(
+      180deg,
+      #cfd3d2 0%,
+      #f3f4f4 42%,
+      #d9dcdb 60%,
+      #b9bebc 100%
+    );
+  }
 }
 
 /* hide scrollbars on horizontal chip rows while keeping scroll */

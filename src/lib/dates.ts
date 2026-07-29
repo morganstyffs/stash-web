@@ -131,6 +131,29 @@ export function daysLeftInMonth(now: Date = new Date()): number {
   return monthBounds(now).days - dayOfMonthISO(todayISO(now)) + 1
 }
 
+/**
+ * Whole days elapsed from the Bangkok-calendar day of `isoTimestamp` to the
+ * Bangkok-calendar day of `now` (min 0). Both sides are reduced to their
+ * Asia/Bangkok Y/M/D *first*, then compared — so an item created at 01:00 ICT
+ * (which is the previous evening in UTC) ages by the Bangkok day it was
+ * recorded on, never the UTC day. Never `(a.getTime() - b.getTime())/86400000`
+ * (drifts across a DST/offset boundary) and never `new Date('YYYY-MM-DD')`
+ * (parses as UTC midnight and shifts a day in negative-offset zones) — F-25/F-26.
+ *
+ * `isoTimestamp` is a full timestamptz (e.g. stock_items.created_at); it is a
+ * real instant, so `new Date(isoTimestamp)` is correct here — the ban is on
+ * date-*only* strings, which this never is.
+ */
+export function daysSince(isoTimestamp: string, now: Date = new Date()): number {
+  const from = bangkokYMD(new Date(isoTimestamp))
+  const to = bangkokYMD(now)
+  // Re-anchor each Bangkok date at UTC midnight in the SAME (UTC) frame, so the
+  // difference is a pure calendar-day count with no timezone offset left in it.
+  const fromDay = Date.UTC(from.y, from.m - 1, from.d)
+  const toDay = Date.UTC(to.y, to.m - 1, to.d)
+  return Math.max(0, Math.round((toDay - fromDay) / 86400000))
+}
+
 export function monthBounds(now: Date = new Date()): MonthBounds {
   // Seed from the Bangkok calendar; the rest is pure month arithmetic. Building
   // via new Date(y, m, …) then toISODate keeps both construction and read in the

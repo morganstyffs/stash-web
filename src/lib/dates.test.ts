@@ -7,6 +7,7 @@ import {
   currentMonthAnchor,
   toISODate,
   formatRecentDayLabel,
+  daysSince,
 } from '@/lib/dates'
 
 // All instants below carry an explicit +07:00 offset, so these assertions hold
@@ -84,6 +85,35 @@ describe('daysLeftInMonth — days remaining including today (Bangkok)', () => {
   it('reckons the day against the Bangkok calendar at the boundary', () => {
     // 00:30 ICT on Aug 1 is the 1st in Bangkok (a UTC device would say Jul 31).
     expect(daysLeftInMonth(new Date('2026-08-01T00:30:00+07:00'))).toBe(31)
+  })
+})
+
+describe('daysSince — age in Bangkok calendar days', () => {
+  it('is 0 for two instants on the same Bangkok day', () => {
+    const now = new Date('2026-07-29T20:00:00+07:00')
+    expect(daysSince('2026-07-29T05:00:00+07:00', now)).toBe(0)
+  })
+
+  it('counts whole days across a month boundary', () => {
+    const now = new Date('2026-07-02T12:00:00+07:00')
+    expect(daysSince('2026-06-30T12:00:00+07:00', now)).toBe(2)
+  })
+
+  it('ages by the BANGKOK day, not the UTC day, when the timestamp falls at night in UTC', () => {
+    // 2026-07-28T18:00Z === 2026-07-29T01:00 ICT → recorded on the 29th in Bangkok.
+    // Comparing UTC calendar dates would wrongly say 1 day; the Bangkok day is the same.
+    const now = new Date('2026-07-29T10:00:00+07:00')
+    expect(daysSince('2026-07-28T18:00:00Z', now)).toBe(0)
+  })
+
+  it('clamps a future timestamp to 0', () => {
+    const now = new Date('2026-07-29T10:00:00+07:00')
+    expect(daysSince('2026-08-05T10:00:00+07:00', now)).toBe(0)
+  })
+
+  it('counts a full year (365 days) without drifting', () => {
+    const now = new Date('2026-07-29T09:00:00+07:00')
+    expect(daysSince('2025-07-29T09:00:00+07:00', now)).toBe(365)
   })
 })
 
