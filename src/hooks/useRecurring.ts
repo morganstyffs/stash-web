@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { useToast } from '@/components/Toast'
+import { translateError } from '@/lib/errors'
 import type { Recurring, TransactionType } from '@/lib/database.types'
 
 /** All recurring rules for the current user (active + paused). */
@@ -94,22 +96,31 @@ export function useDeleteRecurring() {
  * Fire the recurring_run_due() RPC once per app load: it materializes every due
  * occurrence (backfilling missed periods with their correct dates) and advances
  * next_run server-side. On success we refresh transactions + recurring so the
- * new rows appear immediately. Errors are swallowed on purpose — until the 0007
- * migration is applied the function doesn't exist, and the app must still work.
+ * new rows appear immediately.
+ *
+ * Error handling (F-14): every failure surfaces as a toast — no silent swallow.
+ * The old code hid errors "in case migration 0007 isn't applied yet", but 0007/
+ * 0008 are long applied and the function exists, so that guard was dead and only
+ * risked re-hiding real failures. If a fresh environment ever lacks the RPC, the
+ * resulting toast is the correct signal, not something to suppress.
  */
 export function useRunRecurringOnLoad() {
   const qc = useQueryClient()
   const { user } = useAuth()
+  const toast = useToast()
   const ran = useRef(false)
   useEffect(() => {
     if (!user || ran.current) return
     ran.current = true
     void supabase.rpc('recurring_run_due').then(({ data, error }) => {
-      if (error) return // RPC not present until 0007 is run — ignore silently
+      if (error) {
+        toast.error(`รายการประจำไม่ทำงาน: ${translateError(error)}`)
+        return
+      }
       if ((data ?? 0) > 0) {
         qc.invalidateQueries({ queryKey: ['transactions'] })
         qc.invalidateQueries({ queryKey: ['recurring'] })
       }
     })
-  }, [user, qc])
+  }, [user, qc, toast])
 }
