@@ -28,6 +28,21 @@ export function resetRequestOutcome(error: AuthError | null): { ok: boolean; mes
   return { ok: false, message: translateError(error) }
 }
 
+export type ResetPageState = 'checking' | 'invalid_link' | 'form'
+
+/**
+ * Gate for the reset-password screen. The new-password form must appear ONLY for
+ * a genuine recovery session — one that arrived via the email link and fired a
+ * `PASSWORD_RECOVERY` event (`isRecovery`). A normal signed-in session must NOT
+ * reach the form: otherwise anyone holding an already-unlocked session (a
+ * borrowed phone) could change the password without knowing the current one.
+ * So `isRecovery === false` always blocks, even when a session exists.
+ */
+export function resetPageState(s: { loading: boolean; isRecovery: boolean }): ResetPageState {
+  if (s.loading) return 'checking'
+  return s.isRecovery ? 'form' : 'invalid_link'
+}
+
 /** Supabase Auth's minimum password length. Keep in sync with the dashboard. */
 export const MIN_PASSWORD_LENGTH = 6
 

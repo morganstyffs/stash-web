@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { AuthError } from '@supabase/supabase-js'
 import {
   resetRequestOutcome,
+  resetPageState,
   validateNewPassword,
   RESET_EMAIL_SENT_MESSAGE,
 } from '@/lib/auth'
@@ -38,6 +39,22 @@ describe('resetRequestOutcome — enumeration-safe (Convention 17)', () => {
     const offline = resetRequestOutcome(authErr({ name: 'AuthRetryableFetchError', message: 'Failed to fetch' }))
     expect(offline.ok).toBe(false)
     expect(offline.message).toMatch(/เชื่อมต่อเซิร์ฟเวอร์ไม่ได้/)
+  })
+})
+
+describe('resetPageState — form is recovery-only (borrowed-phone guard)', () => {
+  it('waits while auth is still loading', () => {
+    expect(resetPageState({ loading: true, isRecovery: false })).toBe('checking')
+    expect(resetPageState({ loading: true, isRecovery: true })).toBe('checking')
+  })
+
+  it('shows the form ONLY for a genuine recovery session', () => {
+    expect(resetPageState({ loading: false, isRecovery: true })).toBe('form')
+  })
+
+  it('blocks a normal signed-in session (no recovery event) from the form', () => {
+    // The security-critical case: a normal session must NEVER reach the form.
+    expect(resetPageState({ loading: false, isRecovery: false })).toBe('invalid_link')
   })
 })
 

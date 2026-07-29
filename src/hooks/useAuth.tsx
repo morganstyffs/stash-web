@@ -13,6 +13,11 @@ interface AuthState {
   session: Session | null
   user: User | null
   loading: boolean
+  /** True only after a PASSWORD_RECOVERY event (arrived via a reset link). Gates
+   *  the reset-password form so a normal session can't change the password. */
+  isRecovery: boolean
+  /** Clears the recovery flag once the reset flow is done (or abandoned). */
+  clearRecovery: () => void
   signInWithPassword: (email: string, password: string) => Promise<{ error: AuthError | null }>
   signUpWithPassword: (email: string, password: string) => Promise<{ error: AuthError | null }>
   /** Sends the reset-password email. Redirects back to /reset-password. */
@@ -27,6 +32,7 @@ const AuthContext = createContext<AuthState | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isRecovery, setIsRecovery] = useState(false)
 
   useEffect(() => {
     supabase.auth
@@ -44,7 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false)
       })
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
+      // Fired when the reset-link's URL fragment is exchanged for a session.
+      // detectSessionInUrl also strips the token from the address bar here.
+      if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
       setSession(next)
     })
 
@@ -56,6 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       user: session?.user ?? null,
       loading,
+      isRecovery,
+      clearRecovery: () => setIsRecovery(false),
       async signInWithPassword(email, password) {
         // Return the full AuthError (not just its message) so translateError can
         // read `code` / `status` / `name` and tell apart wrong-password vs.
@@ -83,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await supabase.auth.signOut()
       },
     }),
-    [session, loading],
+    [session, loading, isRecovery],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

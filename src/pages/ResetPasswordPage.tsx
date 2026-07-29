@@ -2,23 +2,28 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/Toast'
-import { validateNewPassword } from '@/lib/auth'
+import { resetPageState, validateNewPassword } from '@/lib/auth'
 import { translateError } from '@/lib/errors'
 
 /**
  * Lands here from the reset-password email link. Supabase's detectSessionInUrl
- * exchanges the URL fragment for a temporary recovery session (handled in
- * AuthProvider), so by the time loading settles a valid link means `session` is
- * set. No session after loading → the link was missing/expired/used.
+ * exchanges the URL fragment for a recovery session AND strips the token from
+ * the address bar, firing a PASSWORD_RECOVERY event (tracked as `isRecovery`).
+ *
+ * SECURITY: the form is gated on `isRecovery`, NOT merely on having a session —
+ * a normal signed-in user (e.g. someone on a borrowed, already-unlocked phone)
+ * must not be able to set a new password here without the recovery link.
  */
 export function ResetPasswordPage() {
-  const { session, loading, updatePassword } = useAuth()
+  const { loading, isRecovery, updatePassword, clearRecovery } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const view = resetPageState({ loading, isRecovery })
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -35,6 +40,8 @@ export function ResetPasswordPage() {
       setError(translateError(updErr))
       return
     }
+    // Consume the recovery flag so the form can't be reused on this session.
+    clearRecovery()
     toast.success('ตั้งรหัสผ่านใหม่แล้ว')
     navigate('/', { replace: true })
   }
@@ -47,12 +54,12 @@ export function ResetPasswordPage() {
           <p className="text-[13px] text-muted">ตั้งรหัสผ่านใหม่</p>
         </div>
 
-        {loading ? (
+        {view === 'checking' ? (
           <p className="py-4 text-center text-[13px] text-muted">กำลังตรวจสอบลิงก์…</p>
-        ) : !session ? (
+        ) : view === 'invalid_link' ? (
           <div className="flex flex-col gap-4">
             <p className="rounded-input bg-fill px-3 py-3 text-[13px] leading-relaxed text-ink">
-              ลิงก์ตั้งรหัสผ่านไม่ถูกต้องหรือหมดอายุแล้ว — ขอลิงก์ใหม่อีกครั้ง
+              ลิงก์ตั้งรหัสผ่านไม่ถูกต้องหรือหมดอายุแล้ว — เปิดหน้านี้ได้จากลิงก์ในอีเมลเท่านั้น ขอลิงก์ใหม่อีกครั้ง
             </p>
             <Link
               to="/forgot-password"
