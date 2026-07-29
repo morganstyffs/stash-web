@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import type { Category, Favorite, TransactionType } from '@/lib/database.types'
+import type { Category, Favorite, TransactionType } from '@/lib/db'
 
 /**
  * Categories for the signed-in user, ordered as in the design.

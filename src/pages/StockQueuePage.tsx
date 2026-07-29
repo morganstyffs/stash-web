@@ -20,7 +20,7 @@ import {
   TextInput,
   type EditablePhoto,
 } from '@/components/StockFields'
-import type { ItemCondition, StockItem } from '@/lib/database.types'
+import type { ItemCondition, StockItem } from '@/lib/db'
 
 export function StockQueuePage() {
   const navigate = useNavigate()

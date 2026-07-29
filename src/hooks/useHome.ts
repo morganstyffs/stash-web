@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { dayOfMonthISO, monthBounds } from '@/lib/dates'
 import { isIncomeRow, isSpendingRow } from '@/lib/ledger'
-import type { Category, TransactionType } from '@/lib/database.types'
+import type { Category, TransactionType } from '@/lib/db'
 
 /** Minimal transaction shape used by the home aggregates. */
 interface MonthRow {
@@ -43,7 +43,7 @@ export function useMonthTransactions() {
         .gte('date', b.prevStart)
         .lt('date', b.next)
       if (error) throw error
-      return (data ?? []) as MonthRow[]
+      return data ?? []
     },
   })
 }
@@ -64,7 +64,7 @@ export function useRecentTransactions(limit = 8) {
         .order('created_at', { ascending: false })
         .limit(limit)
       if (error) throw error
-      return (data ?? []) as unknown as RecentRow[]
+      return data ?? []
     },
   })
 }

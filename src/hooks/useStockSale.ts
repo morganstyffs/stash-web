@@ -1,24 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-
-export interface StockSaleArgs {
-  p_item_id: string
-  p_qty: number
-  p_sale_price: number
-  p_wallet_id?: string | null
-  /** YYYY-MM-DD (Asia/Bangkok); null → today. Must not be in the future. */
-  p_sale_date?: string | null
-  p_note?: string | null
-}
-
-export interface StockSaleResult {
-  sale_id: string
-  income_transaction_id: string
-  cogs_transaction_id: string
-  qty_remaining: number
-  status: 'in_stock' | 'partial' | 'sold'
-  profit: number
-}
+import type { StockSaleArgs, StockSaleResult } from '@/lib/db'
 
 /**
  * Records a sale atomically (income + COGS + stock deduction + stock_sales row)
@@ -31,7 +13,7 @@ export function useCreateStockSale() {
     mutationFn: async (args: StockSaleArgs): Promise<StockSaleResult> => {
       const { data, error } = await supabase.rpc('stock_sale_create', args)
       if (error) throw error
-      const row = (data as StockSaleResult[])?.[0]
+      const row = data?.[0]
       if (!row) throw new Error('ไม่พบผลลัพธ์จากการขาย')
       return row
     },

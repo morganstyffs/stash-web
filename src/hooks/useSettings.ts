@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import type { CategoryKind, Wallet } from '@/lib/database.types'
+import type { CategoryKind, Wallet } from '@/lib/db'
 
 /** Wallets for the current user. */
 export function useWallets() {

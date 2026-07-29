@@ -15,7 +15,7 @@ import { computeStockHero, useStockItems } from '@/hooks/useStock'
 import { useStockSalesSummary } from '@/hooks/useStockSales'
 import { StockEditSheet } from '@/components/StockEditSheet'
 import { formatBaht } from '@/lib/format'
-import type { StockItem } from '@/lib/database.types'
+import type { StockItem } from '@/lib/db'
 
 type StockFilter = 'all' | 'in_stock' | 'sold'
 const FILTERS: { key: StockFilter; label: string }[] = [

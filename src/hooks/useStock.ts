@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { signStockPhotos } from '@/lib/storage'
-import type { StockItem } from '@/lib/database.types'
+import type { StockItem } from '@/lib/db'
 
 export interface StockData {
   items: StockItem[]
@@ -15,9 +15,8 @@ export interface StockData {
 /**
  * All stock items for the user, newest first, with signed first-photo URLs and
  * a per-item sales count. Two parallel queries (items + the sale rows' item ids)
- * — NOT N+1, and it avoids a typed embed that the hand-authored database.types
- * can't resolve (empty Relationships). Sales rows are tiny, so a plain id list
- * counted in JS is cheap and keeps the types honest (no `as unknown as`).
+ * — NOT N+1, and a deliberate perf choice over a `stock_sales(count)` embed
+ * (see F-21). Sales rows are tiny, so a plain id list counted in JS is cheap.
  */
 export function useStockItems() {
   const { user } = useAuth()
@@ -32,7 +31,7 @@ export function useStockItems() {
       if (itemsRes.error) throw itemsRes.error
       if (salesRes.error) throw salesRes.error
 
-      const items = (itemsRes.data ?? []) as StockItem[]
+      const items = itemsRes.data ?? []
       const salesCount: Record<string, number> = {}
       for (const row of salesRes.data ?? []) {
         salesCount[row.stock_item_id] = (salesCount[row.stock_item_id] ?? 0) + 1

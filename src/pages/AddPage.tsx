@@ -18,7 +18,7 @@ import { categoryIcon } from '@/lib/icons'
 import { formatBaht, formatDayShort } from '@/lib/format'
 import { todayISO } from '@/lib/dates'
 import { translateError } from '@/lib/errors'
-import type { TransactionType } from '@/lib/database.types'
+import type { TransactionType } from '@/lib/db'
 
 const intFmt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 })
 

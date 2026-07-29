@@ -18,7 +18,7 @@ import {
   TextInput,
   type EditablePhoto,
 } from '@/components/StockFields'
-import type { ItemCondition, StockItem } from '@/lib/database.types'
+import type { ItemCondition, StockItem } from '@/lib/db'
 
 /**
  * Edit / sell / delete a single stock item. Selling and reversing go through the
@@ -151,7 +151,7 @@ export function StockEditSheet({
         p_item_id: item.id,
         p_qty: sellQtyNum,
         p_sale_price: sellPriceNum,
-        p_wallet_id: sellWallet,
+        p_wallet_id: sellWallet ?? undefined,
         p_sale_date: sellDate || today,
       })
       toast.success('บันทึกการขายแล้ว')

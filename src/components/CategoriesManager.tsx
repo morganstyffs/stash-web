@@ -11,7 +11,7 @@ import {
   useUpsertCategory,
 } from '@/hooks/useSettings'
 import { translateError } from '@/lib/errors'
-import type { Category, CategoryKind } from '@/lib/database.types'
+import type { Category, CategoryKind } from '@/lib/db'
 
 interface FormState {
   id?: string

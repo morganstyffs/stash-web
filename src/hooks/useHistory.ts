@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { formatDayShort } from '@/lib/format'
 import { todayISO } from '@/lib/dates'
-import type { TransactionType } from '@/lib/database.types'
+import type { TransactionType } from '@/lib/db'
 
 export type HistoryFilter = 'all' | 'income' | 'expense' | 'stock'
 
@@ -57,7 +57,7 @@ export function useHistory(filter: HistoryFilter, search: string) {
 
       const { data, error } = await query
       if (error) throw error
-      return (data ?? []) as unknown as HistoryRow[]
+      return data ?? []
     },
     // A full-size page means there may be more; a short page is the end.
     getNextPageParam: (lastPage, allPages) =>

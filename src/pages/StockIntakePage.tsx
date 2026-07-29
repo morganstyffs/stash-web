@@ -24,7 +24,7 @@ import {
   computeNeedsDetails,
   type EditablePhoto,
 } from '@/components/StockFields'
-import type { ItemCondition } from '@/lib/database.types'
+import type { ItemCondition } from '@/lib/db'
 
 interface SessionItem {
   id: string
@@ -122,13 +122,13 @@ export function StockIntakePage() {
         p_name: name.trim(),
         p_cost_per_unit: costNum,
         p_qty: qtyNum,
-        p_category: type.trim() || null,
+        p_category: type.trim() || undefined,
         p_category_id: categoryId,
-        p_brand: brand.trim() || null,
-        p_size: size.trim() || null,
-        p_color: color.trim() || null,
-        p_condition: (condition || null) as ItemCondition | null,
-        p_target_price: targetNum,
+        p_brand: brand.trim() || undefined,
+        p_size: size.trim() || undefined,
+        p_color: color.trim() || undefined,
+        p_condition: condition || undefined,
+        p_target_price: targetNum ?? undefined,
         p_photos: photos.map((p) => p.path),
         p_needs_details: needsDetails,
       })

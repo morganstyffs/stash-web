@@ -14,7 +14,7 @@ import {
 import { todayISO } from '@/lib/dates'
 import { formatBaht } from '@/lib/format'
 import { translateError } from '@/lib/errors'
-import type { Recurring, TransactionType } from '@/lib/database.types'
+import type { Recurring, TransactionType } from '@/lib/db'
 
 type Freq = 'daily' | 'weekly' | 'monthly'
 const FREQS: { key: Freq; label: string }[] = [

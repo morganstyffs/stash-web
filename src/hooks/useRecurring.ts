@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/Toast'
 import { translateError } from '@/lib/errors'
-import type { Recurring, TransactionType } from '@/lib/database.types'
+import type { Recurring, TransactionType } from '@/lib/db'
 
 /** All recurring rules for the current user (active + paused). */
 export function useRecurringList() {
