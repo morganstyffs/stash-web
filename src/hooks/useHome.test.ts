@@ -16,6 +16,7 @@ function row(over: Partial<Rows[number]>): Rows[number] {
     date: '2026-07-15',
     category_id: null,
     is_stock_purchase: false,
+    is_stock_cogs: false,
     ...over,
   }
 }
@@ -96,5 +97,65 @@ describe('computeHomeSummary — month membership at the Asia/Bangkok boundary',
     expect(s.incomeCount).toBe(1)
     // it lands in the previous month instead → drives deltaPct (prevSafe = 500)
     expect(s.deltaPct).toBe(900) // (5000 − 500) / 500 × 100
+  })
+})
+
+describe('computeHomeSummary — budgetSpending excludes COGS but expense keeps it', () => {
+  it('a COGS row counts toward expense but NOT toward budgetSpending', () => {
+    const rows: Rows = [
+      row({ type: 'income', amount: 1_500, category_id: 'c-sale' }), // sale income
+      row({ type: 'expense', amount: 1_000, is_stock_cogs: true }), // COGS leg
+      row({ type: 'expense', amount: 200 }), // a normal budgeted expense
+    ]
+    const s = computeHomeSummary(rows, noCategories, julyAnchor)
+    expect(s.expense).toBe(1_200) // COGS is part of the money-out headline (rule 4)
+    expect(s.budgetSpending).toBe(200) // …but the resale cost is not budgeted spending
+  })
+
+  it('a stock purchase counts toward neither expense nor budgetSpending', () => {
+    const rows: Rows = [
+      row({ type: 'expense', amount: 3_000, is_stock_purchase: true }), // intake
+      row({ type: 'expense', amount: 200 }), // a normal budgeted expense
+    ]
+    const s = computeHomeSummary(rows, noCategories, julyAnchor)
+    expect(s.expense).toBe(200) // intake is inventory, excluded from spending
+    expect(s.budgetSpending).toBe(200) // and likewise excluded from budget spending
+  })
+})
+
+describe('computeHomeSummary — daysLeft counts today through end of month (Bangkok)', () => {
+  it('mid-month leaves the remaining days including today', () => {
+    // 29 July 2026, Bangkok; July has 31 days → 31 − 29 + 1 = 3 days left.
+    const s = computeHomeSummary([], noCategories, new Date('2026-07-29T12:00:00+07:00'))
+    expect(s.daysLeft).toBe(3)
+  })
+
+  it('the last day of the month leaves exactly one day', () => {
+    const s = computeHomeSummary([], noCategories, new Date('2026-07-31T12:00:00+07:00'))
+    expect(s.daysLeft).toBe(1)
+  })
+})
+
+describe('computeHomeSummary — dailyAllowance splits safe-to-spend over the days left', () => {
+  it('is safeToSpend / daysLeft when safe-to-spend is positive', () => {
+    // 29 July → 3 days left. income 10,000 − expense 1,000 = 9,000 → 3,000/day.
+    const rows: Rows = [
+      row({ type: 'income', amount: 10_000 }),
+      row({ type: 'expense', amount: 1_000 }),
+    ]
+    const s = computeHomeSummary(rows, noCategories, new Date('2026-07-29T12:00:00+07:00'))
+    expect(s.safeToSpend).toBe(9_000)
+    expect(s.daysLeft).toBe(3)
+    expect(s.dailyAllowance).toBe(3_000)
+  })
+
+  it('is 0 when safe-to-spend is negative (nothing left to allow)', () => {
+    const rows: Rows = [
+      row({ type: 'income', amount: 500 }),
+      row({ type: 'expense', amount: 2_000 }),
+    ]
+    const s = computeHomeSummary(rows, noCategories, new Date('2026-07-29T12:00:00+07:00'))
+    expect(s.safeToSpend).toBe(-1_500)
+    expect(s.dailyAllowance).toBe(0)
   })
 })
