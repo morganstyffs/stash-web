@@ -108,6 +108,57 @@ export function useDeleteBudget() {
   })
 }
 
+export interface BudgetSummary {
+  /** sum of every category budget set this month */
+  totalBudget: number
+  /** spending that lands in a budgeted category (the hero's used figure) */
+  usedInBudgeted: number
+  /** spending in categories with no budget set (money spent off-budget) */
+  offBudget: number
+  /** how many off-budget keys actually have spending > 0 */
+  offBudgetCount: number
+  /** totalBudget − usedInBudgeted, shown as-is (negative when over budget) */
+  remaining: number
+}
+
+/**
+ * Reduce this month's budgets + per-category spending into the budget-page hero
+ * figures. The fix (B5, sibling of B1): "remaining" must compare like with like
+ * — budgeted spend against the budget total — not the *whole* month's spend
+ * against a partial budget total, which painted the hero permanently red the
+ * moment you set one budget and spent in an un-budgeted category. Off-budget
+ * spend is surfaced separately instead of silently dragging the headline down.
+ * `remaining` is never clamped: an over-budget month shows the real negative.
+ */
+export function computeBudgetSummary(
+  budgets: { category_id: string; amount: number | string }[],
+  spending: Record<string, number>,
+): BudgetSummary {
+  const budgetedIds = new Set(budgets.map((b) => b.category_id))
+  const totalBudget = budgets.reduce((s, b) => s + (Number(b.amount) || 0), 0)
+
+  let usedInBudgeted = 0
+  let offBudget = 0
+  let offBudgetCount = 0
+  for (const [categoryId, amount] of Object.entries(spending)) {
+    const value = Number(amount) || 0
+    if (budgetedIds.has(categoryId)) {
+      usedInBudgeted += value
+    } else {
+      offBudget += value
+      if (value > 0) offBudgetCount += 1
+    }
+  }
+
+  return {
+    totalBudget,
+    usedInBudgeted,
+    offBudget,
+    offBudgetCount,
+    remaining: totalBudget - usedInBudgeted,
+  }
+}
+
 export type PaceState = 'over' | 'fast' | 'on_track'
 
 export interface Pace {
