@@ -45,6 +45,9 @@ export function StockIntakePage() {
     () => (catsQ.data ?? []).filter((c) => c.is_stock_category),
     [catsQ.data],
   )
+  // F-16: intake needs at least one stock category. Without one the dropdown is
+  // empty and saving is impossible with no explanation — show a way out instead.
+  const noStockCategory = !catsQ.isLoading && stockCategories.length === 0
 
   // form
   const [name, setName] = useState('')
@@ -142,6 +145,36 @@ export function StockIntakePage() {
     } catch (e) {
       toast.error(translateError(e))
     }
+  }
+
+  if (noStockCategory) {
+    return (
+      <div className="mx-auto flex min-h-full max-w-md flex-col bg-white">
+        <div className="flex items-center justify-between px-[18px] pb-3 pt-4">
+          <button aria-label="ย้อนกลับ" onClick={() => navigate('/stock')}>
+            <IconArrowLeft size={20} className="text-muted" />
+          </button>
+          <p className="text-[16px] font-medium">รับเข้าสต็อก</p>
+          <span className="w-5" />
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center px-8 pb-16 text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-mint-tint">
+            <IconAlertCircle size={26} className="text-mint-deep" />
+          </div>
+          <p className="text-[15px] font-medium">ยังไม่มีหมวดสต็อก</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-muted">
+            ต้องมีอย่างน้อย 1 หมวดที่ตั้งเป็น “หมวดสต็อก” ก่อนถึงจะรับของเข้าคลังได้ — ไปที่หน้าตั้งค่า
+            สร้างหมวดใหม่ แล้วติ๊ก “หมวดสต็อก”
+          </p>
+          <button
+            onClick={() => navigate('/settings')}
+            className="mt-5 rounded-btn bg-mint-deep px-6 py-3 text-[14px] font-medium text-white"
+          >
+            ไปสร้างหมวดสต็อก
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -15,6 +15,10 @@ interface AuthState {
   loading: boolean
   signInWithPassword: (email: string, password: string) => Promise<{ error: AuthError | null }>
   signUpWithPassword: (email: string, password: string) => Promise<{ error: AuthError | null }>
+  /** Sends the reset-password email. Redirects back to /reset-password. */
+  resetPasswordForEmail: (email: string) => Promise<{ error: AuthError | null }>
+  /** Sets a new password for the currently-authenticated (recovery) session. */
+  updatePassword: (password: string) => Promise<{ error: AuthError | null }>
   signOut: () => Promise<void>
 }
 
@@ -61,6 +65,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signUpWithPassword(email, password) {
         const { error } = await supabase.auth.signUp({ email, password })
+        return { error }
+      },
+      async resetPasswordForEmail(email) {
+        // The recovery link lands the user on /reset-password, where the URL
+        // fragment is exchanged for a temporary session (detectSessionInUrl).
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        })
+        return { error }
+      },
+      async updatePassword(password) {
+        const { error } = await supabase.auth.updateUser({ password })
         return { error }
       },
       async signOut() {

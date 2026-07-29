@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { translateError } from '@/lib/errors'
 
@@ -69,6 +69,13 @@ export function LoginPage() {
           >
             {busy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}
           </button>
+
+          <Link
+            to="/forgot-password"
+            className="mt-1 text-center text-[12.5px] text-muted"
+          >
+            ลืมรหัสผ่าน?
+          </Link>
         </form>
       </div>
     </div>
