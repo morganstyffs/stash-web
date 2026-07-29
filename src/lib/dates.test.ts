@@ -5,6 +5,7 @@ import {
   dayOfMonthISO,
   currentMonthAnchor,
   toISODate,
+  formatRecentDayLabel,
 } from '@/lib/dates'
 
 // All instants below carry an explicit +07:00 offset, so these assertions hold
@@ -61,5 +62,51 @@ describe('dayOfMonthISO / currentMonthAnchor / toISODate', () => {
 
   it('toISODate stringifies a local calendar date', () => {
     expect(toISODate(new Date(2026, 7, 9))).toBe('2026-08-09')
+  })
+})
+
+describe('formatRecentDayLabel — grouped ledger day labels', () => {
+  // Format the expected day/month the same way the helper does (local build →
+  // device-local Intl), so assertions hold regardless of the CI runner's ICU.
+  const fmt = (iso: string, withYear = false) => {
+    const y = Number(iso.slice(0, 4))
+    const m = Number(iso.slice(5, 7))
+    const d = Number(iso.slice(8, 10))
+    return new Intl.DateTimeFormat('th-TH', {
+      day: 'numeric',
+      month: 'short',
+      ...(withYear ? { year: 'numeric' as const } : {}),
+    }).format(new Date(y, m - 1, d))
+  }
+
+  const now = new Date('2026-07-29T10:00:00+07:00') // today = 2026-07-29 (Bangkok)
+
+  it('prefixes today with วันนี้ and no year', () => {
+    expect(formatRecentDayLabel('2026-07-29', now)).toBe(`วันนี้ · ${fmt('2026-07-29')}`)
+  })
+
+  it('prefixes yesterday with เมื่อวาน', () => {
+    expect(formatRecentDayLabel('2026-07-28', now)).toBe(`เมื่อวาน · ${fmt('2026-07-28')}`)
+  })
+
+  it('shows a bare day/month for older same-year dates', () => {
+    expect(formatRecentDayLabel('2026-07-20', now)).toBe(fmt('2026-07-20'))
+  })
+
+  it('appends the Buddhist-era year for a different year', () => {
+    const label = formatRecentDayLabel('2025-01-09', now)
+    expect(label).toBe(fmt('2025-01-09', true))
+    expect(label).toContain('2568') // 2025 CE === 2568 BE
+  })
+
+  it('reckons today/yesterday against the Bangkok calendar at the day boundary', () => {
+    const lateNight = new Date('2026-07-29T23:30:00+07:00') // still the 29th in Bangkok
+    expect(formatRecentDayLabel('2026-07-29', lateNight).startsWith('วันนี้')).toBe(true)
+    expect(formatRecentDayLabel('2026-07-28', lateNight).startsWith('เมื่อวาน')).toBe(true)
+  })
+
+  it('handles yesterday across a month boundary', () => {
+    const aug1 = new Date('2026-08-01T00:30:00+07:00') // today = 2026-08-01 (Bangkok)
+    expect(formatRecentDayLabel('2026-07-31', aug1).startsWith('เมื่อวาน')).toBe(true)
   })
 })
