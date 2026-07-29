@@ -12,6 +12,7 @@ import {
   IconX,
 } from '@tabler/icons-react'
 import { computeStockHero, useStockItems } from '@/hooks/useStock'
+import { useStockSalesSummary } from '@/hooks/useStockSales'
 import { StockEditSheet } from '@/components/StockEditSheet'
 import { formatBaht } from '@/lib/format'
 import type { StockItem } from '@/lib/database.types'
@@ -37,6 +38,7 @@ export function StockPage() {
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<StockItem | null>(null)
   const { data, isLoading } = useStockItems()
+  const salesQ = useStockSalesSummary()
 
   const items = data?.items ?? []
   const hero = useMemo(() => computeStockHero(items), [items])
@@ -119,6 +121,32 @@ export function StockPage() {
         </div>
       </div>
 
+      {/* realised sales this month */}
+      {(salesQ.data?.sale_count ?? 0) > 0 && (
+        <div className="mx-4 mb-3.5 flex items-center justify-between rounded-card border-[0.5px] border-hairline px-4 py-3">
+          <div>
+            <p className="text-[11px] text-muted">ขายเดือนนี้</p>
+            <p className="mt-[2px] text-[16px] font-medium">
+              {formatBaht(salesQ.data!.revenue)}
+              <span className="ml-1.5 text-[11px] text-faint">
+                {salesQ.data!.qty_sold} ชิ้น
+              </span>
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] text-muted">กำไรที่รับรู้แล้ว</p>
+            <p
+              className={`mt-[2px] text-[16px] font-medium ${
+                salesQ.data!.profit >= 0 ? 'text-mint-deep' : 'text-expense'
+              }`}
+            >
+              {salesQ.data!.profit >= 0 ? '+' : '-'}
+              {formatBaht(Math.abs(salesQ.data!.profit))}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* queue banner */}
       {queueCount > 0 && (
         <button
@@ -175,7 +203,13 @@ export function StockPage() {
         )}
       </div>
 
-      {editing && <StockEditSheet item={editing} onClose={() => setEditing(null)} />}
+      {editing && (
+        <StockEditSheet
+          item={editing}
+          hasSales={(data?.salesCount?.[editing.id] ?? 0) > 0}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   )
 }

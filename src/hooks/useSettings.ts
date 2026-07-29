@@ -80,10 +80,13 @@ export function useDeleteCategory() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('categories').delete().eq('id', id)
-      // FK RESTRICT: a category with transactions can't be deleted — surface it.
       if (error) {
+        // FK RESTRICT: a category with transactions can't be deleted.
         if (error.code === '23503')
           throw new Error('ลบไม่ได้ — หมวดนี้มีรายการอยู่ ย้ายรายการก่อนแล้วค่อยลบ')
+        // restrict_violation from the system-category guard trigger (0012).
+        if (error.code === '23001')
+          throw new Error('ลบไม่ได้ — หมวดระบบ (ขายสต็อก / ต้นทุนขายสต็อก) ลบไม่ได้')
         throw error
       }
     },

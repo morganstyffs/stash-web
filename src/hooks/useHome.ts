@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { monthBounds } from '@/lib/dates'
+import { isIncomeRow, isSpendingRow } from '@/lib/ledger'
 import type { Category, TransactionType } from '@/lib/database.types'
 
 /** Minimal transaction shape used by the home aggregates. */
@@ -123,12 +124,12 @@ export function computeHomeSummary(
     const inThisMonth = r.date >= b.start && r.date < b.next
     const amount = Number(r.amount) || 0
     if (inThisMonth) {
-      if (r.type === 'income') {
+      if (isIncomeRow(r)) {
         income += amount
         incomeCount += 1
         const dayIdx = new Date(r.date).getDate() - 1
         if (dayIdx >= 0 && dayIdx < dailyCumInc.length) dailyCumInc[dayIdx] += amount
-      } else if (!r.is_stock_purchase) {
+      } else if (isSpendingRow(r)) {
         expense += amount
         expenseCount += 1
         const dayIdx = new Date(r.date).getDate() - 1
@@ -138,8 +139,8 @@ export function computeHomeSummary(
       }
     } else {
       // previous month
-      if (r.type === 'income') prevIncome += amount
-      else if (!r.is_stock_purchase) prevExpense += amount
+      if (isIncomeRow(r)) prevIncome += amount
+      else if (isSpendingRow(r)) prevExpense += amount
     }
   }
   prevSafe = prevIncome - prevExpense

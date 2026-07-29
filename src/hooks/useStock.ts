@@ -8,26 +8,41 @@ export interface StockData {
   items: StockItem[]
   /** object-path → signed URL for each item's first photo */
   thumbs: Record<string, string>
+  /** item id → number of recorded sales (drives "has sales" / locked fields) */
+  salesCount: Record<string, number>
 }
 
-/** All stock items for the user, newest first, with signed first-photo URLs. */
+/**
+ * All stock items for the user, newest first, with signed first-photo URLs and
+ * a per-item sales count. Two parallel queries (items + the sale rows' item ids)
+ * — NOT N+1, and it avoids a typed embed that the hand-authored database.types
+ * can't resolve (empty Relationships). Sales rows are tiny, so a plain id list
+ * counted in JS is cheap and keeps the types honest (no `as unknown as`).
+ */
 export function useStockItems() {
   const { user } = useAuth()
   return useQuery({
     queryKey: ['stock_items', 'list', user?.id],
     enabled: !!user,
     queryFn: async (): Promise<StockData> => {
-      const { data, error } = await supabase
-        .from('stock_items')
-        .select('*')
-        .order('created_at', { ascending: false })
-      if (error) throw error
-      const items = (data ?? []) as StockItem[]
+      const [itemsRes, salesRes] = await Promise.all([
+        supabase.from('stock_items').select('*').order('created_at', { ascending: false }),
+        supabase.from('stock_sales').select('stock_item_id'),
+      ])
+      if (itemsRes.error) throw itemsRes.error
+      if (salesRes.error) throw salesRes.error
+
+      const items = (itemsRes.data ?? []) as StockItem[]
+      const salesCount: Record<string, number> = {}
+      for (const row of salesRes.data ?? []) {
+        salesCount[row.stock_item_id] = (salesCount[row.stock_item_id] ?? 0) + 1
+      }
+
       const firstPhotos = items
         .map((i) => i.photos?.[0])
         .filter((p): p is string => !!p)
       const thumbs = await signStockPhotos(firstPhotos)
-      return { items, thumbs }
+      return { items, thumbs, salesCount }
     },
   })
 }

@@ -55,7 +55,12 @@ export function AddPage() {
   // (those have their own intake flow).
   const categories = useMemo(
     () =>
-      (catsQ.data ?? []).filter((c) => c.kind === type && !c.is_stock_category),
+      // Hide stock-intake categories and the COGS system category from manual
+      // entry. 'ขายสต็อก' income (system_key stock_sale_income) stays selectable
+      // so off-book resale income can be logged by hand.
+      (catsQ.data ?? []).filter(
+        (c) => c.kind === type && !c.is_stock_category && c.system_key !== 'stock_cogs',
+      ),
     [catsQ.data, type],
   )
 

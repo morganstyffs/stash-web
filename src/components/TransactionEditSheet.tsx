@@ -6,6 +6,7 @@ import { useToast } from '@/components/Toast'
 import { useCategories } from '@/hooks/useLookups'
 import { useWallets } from '@/hooks/useSettings'
 import {
+  isSaleLinked,
   isStockLinked,
   useDeleteTransaction,
   useTransaction,
@@ -40,6 +41,9 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
 
   const tx = txQ.data
   const stockLinked = tx ? isStockLinked(tx) : false
+  // Sale-linked rows (income/COGS of a sale) are stricter: a DB trigger blocks
+  // changing the date too, so lock it and route deletion to the reverse flow.
+  const saleLinked = tx ? isSaleLinked(tx) : false
   const today = toISODate(new Date())
 
   // seed the form once the row loads
@@ -64,16 +68,19 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
     if (!tx) return
     try {
       await update.mutateAsync(
-        stockLinked
-          ? { id: tx.id, wallet_id: walletId, date: dateStr, note: note.trim() || null }
-          : {
-              id: tx.id,
-              amount,
-              category_id: categoryId,
-              wallet_id: walletId,
-              date: dateStr,
-              note: note.trim() || null,
-            },
+        saleLinked
+          ? // sale rows: only wallet + note are editable (trigger blocks the rest)
+            { id: tx.id, wallet_id: walletId, note: note.trim() || null }
+          : stockLinked
+            ? { id: tx.id, wallet_id: walletId, date: dateStr, note: note.trim() || null }
+            : {
+                id: tx.id,
+                amount,
+                category_id: categoryId,
+                wallet_id: walletId,
+                date: dateStr,
+                note: note.trim() || null,
+              },
       )
       toast.success('บันทึกการแก้ไขแล้ว')
       onClose()
@@ -122,8 +129,9 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                 <div className="mb-3 flex items-start gap-2 rounded-card bg-mint-tint px-3 py-2.5">
                   <IconBox size={15} className="mt-px shrink-0 text-mint-deep" />
                   <p className="text-[11.5px] leading-relaxed text-mint-text">
-                    รายการนี้มาจากการซื้อเข้าสต็อก — ยอดเงินและหมวดแก้ที่หน้าคลังสินค้า
-                    ที่นี่แก้ได้เฉพาะกระเป๋า วันที่ และโน้ต
+                    {saleLinked
+                      ? 'รายการนี้มาจากการขายสต็อก — ยอด หมวด และวันที่ล็อกไว้ ที่นี่แก้ได้เฉพาะกระเป๋าและโน้ต ถ้าจะแก้ต้องย้อนการขายที่หน้าคลังสินค้า'
+                      : 'รายการนี้มาจากการซื้อเข้าสต็อก — ยอดเงินและหมวดแก้ที่หน้าคลังสินค้า ที่นี่แก้ได้เฉพาะกระเป๋า วันที่ และโน้ต'}
                   </p>
                 </div>
               )}
@@ -199,24 +207,30 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                 </>
               )}
 
-              {/* date */}
+              {/* date — locked for sale rows (DB trigger blocks changing it) */}
               <p className="mb-1 ml-0.5 text-[11px] text-faint">วันที่</p>
-              <label className="mb-3 flex items-center justify-between rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] text-[13px]">
-                <span>
+              <label
+                className={`mb-3 flex items-center justify-between rounded-input border-[0.5px] border-hairline px-[11px] py-[10px] text-[13px] ${
+                  saleLinked ? 'bg-fill/60' : 'bg-fill'
+                }`}
+              >
+                <span className={saleLinked ? 'text-muted' : undefined}>
                   {dateStr === today
                     ? 'วันนี้'
                     : dateStr
                       ? formatDayShort(new Date(dateStr + 'T00:00:00'))
                       : '—'}
                 </span>
-                <input
-                  type="date"
-                  value={dateStr}
-                  max={today}
-                  onChange={(e) => setDateStr(e.target.value || today)}
-                  aria-label="เลือกวันที่"
-                  className="cursor-pointer bg-transparent text-right text-[12px] text-muted outline-none"
-                />
+                {!saleLinked && (
+                  <input
+                    type="date"
+                    value={dateStr}
+                    max={today}
+                    onChange={(e) => setDateStr(e.target.value || today)}
+                    aria-label="เลือกวันที่"
+                    className="cursor-pointer bg-transparent text-right text-[12px] text-muted outline-none"
+                  />
+                )}
               </label>
 
               {/* note */}
@@ -238,7 +252,7 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                   className="flex items-center gap-1.5 text-[13px] font-medium text-mint-deep"
                 >
                   <IconBox size={15} />
-                  ไปที่คลังสินค้าเพื่อลบ
+                  {saleLinked ? 'ไปที่คลังสินค้าเพื่อย้อนการขาย' : 'ไปที่คลังสินค้าเพื่อลบ'}
                 </button>
               ) : (
                 <button
