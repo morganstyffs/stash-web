@@ -167,7 +167,7 @@ erDiagram
         uuid id PK
         text name
         enum type "cash|bank|promptpay"
-        numeric balance "(14,2) ⚠️ ไม่เคยถูกอ่าน/เขียน"
+        numeric balance "(14,2) — ลบใน 0011 (F-05)"
     }
     budgets {
         uuid id PK
@@ -188,7 +188,7 @@ erDiagram
 
 **ประเด็น data model**
 - **`stock_items.sku` ไม่มี unique constraint** (0001:102) — เปิดช่องให้ SKU ซ้ำ (F-02)
-- **`wallets.balance numeric(14,2)`** มีอยู่แต่ **ไม่มีโค้ดใดอ่านหรือเขียน** (grep ทั้ง repo เจอแต่ type definition) — ยอดต่อกระเป๋าไม่เคยถูกคำนวณ; รายการผูก `wallet_id` เป็นแค่ป้ายกำกับ (F-05)
+- **`wallets.balance numeric(14,2)`** เป็น dead field — **ไม่มีโค้ดใดอ่านหรือเขียน** (ยืนยันทั้ง read + write path); รายการผูก `wallet_id` เป็นแค่ป้ายกำกับ → **ลบทิ้งใน 0011 (F-05, PR #30)**
 - **ไม่มี index บน `transactions(wallet_id)`** ทั้งที่ FK เป็น RESTRICT (ตอนลบ wallet ต้อง scan) — โหลดน้อยสำหรับ user เดียวจึงไม่วิกฤต
 - **`stock_sales` ทั้งตาราง** ยังไม่มี row ใดถูกสร้างจากแอป (F-01)
 - FK policy ออกแบบมาดี: ledger (category/wallet) เป็น RESTRICT กันข้อมูลสรุปพัง, การผูก stock↔transaction เป็น SET NULL กันเงินหาย, budget เป็น CASCADE (config)
@@ -224,7 +224,7 @@ erDiagram
 
 ### กฎ auth/ownership
 20. **RLS ทุกตาราง**: `auth.uid() = user_id` — anon เข้าไม่ถึง; anon key ปลอดภัยฝั่ง client เพราะ RLS
-21. **seed อัตโนมัติตอน signup** ผ่าน trigger `on_auth_user_created` → `seed_defaults_internal` (locked down, เรียกตรงไม่ได้); wallet 3 + category 10 default
+21. **seed อัตโนมัติตอน signup** ผ่าน trigger `on_auth_user_created` → `seed_defaults_internal` (locked down, เรียกตรงไม่ได้); แจก **3 wallets + 10 categories** = expense 7 (รวม stock 2: เสื้อเข้าร้าน/รองเท้าเข้าร้าน `is_stock_category=true`) + income 3 (เงินเดือน/ฟรีแลนซ์/ขายสต็อก) — user ใหม่กดรับเข้าคลังได้ทันที
 22. **storage แยกตาม uid**: path `<user_id>/<...>`, RLS ตรวจ segment แรก = `auth.uid()`, bucket private, จำกัด image type + 10MB (0009)
 
 ---
@@ -249,7 +249,7 @@ erDiagram
 | รายการโปรด (favorites) | ✅ เสร็จ | `FavoritesManager.tsx`, `useLookups.ts` |
 | รายการประจำ (recurring) | ✅ เสร็จ | `RecurringManager.tsx`, `useRecurring.ts`, `0007` |
 | ตั้งค่า (หมวด/กระเป๋า) | ✅ เสร็จ | `SettingsPage.tsx`, `useSettings.ts` |
-| ยอดคงเหลือต่อกระเป๋า | 🔴 ไม่มี (field `balance` ไม่ถูกใช้) | `wallets` |
+| ยอดคงเหลือต่อกระเป๋า | 🔴 ไม่มี (field `balance` ลบทิ้งแล้วใน 0011) | `wallets` |
 | PWA (installable, precache app shell) | ✅ เสร็จ | `vite.config.ts` |
 | Offline write-queue (sync เมื่อกลับ online) | 🔴 dead code (ไม่ถูก import) | `offlineQueue.ts` |
 | AI (พิมพ์/พูด, สแกน, auto-category) | 🔴 stub (UI disabled, `/api/ai` คืน 501) | `worker/ai.ts`, `prefs.ts`, `AddPage.tsx` |
@@ -265,7 +265,7 @@ erDiagram
 | F-02 | 🟠 High | B/D | **SKU ไม่ unique + race + ซ้ำหลังลบ**: `select count(*)+1` ต่อ user, ไม่มี unique constraint | `0004_stock_intake_rpc.sql:62`, `0001_init.sql:102` | intake พร้อมกัน 2 รอบ / ลบแล้วเพิ่มใหม่ → SKU ชนกัน อ้างอิงสินค้าผิดตัว | เพิ่ม `unique(user_id, sku)`; เปลี่ยน gen เป็น per-user counter column หรือ sequence (ไม่พึ่ง `count`) แล้ว retry ถ้าชน |
 | F-03 | 🟠 Medium | C | **Timezone ไม่ตรง**: client กรอกใช้ local date (Bangkok), RPC ใช้ `current_date` ของ DB (Supabase = UTC) | `dates.ts:toISODate`, `0004:69` (intake), `0007` (recurring เทียบ `current_date`) | ซื้อเข้าสต็อก/รายการ recurring ช่วง 00:00–07:00 น. อาจลงวันก่อนหน้า → ยอดรายวัน/รายเดือนคลาด | บังคับวันที่เป็น Asia/Bangkok ทั้งสองฝั่ง: ส่ง `date` จาก client เข้า RPC แทน `current_date`, หรือ set `timezone='Asia/Bangkok'` + ใช้ `(now() at time zone 'Asia/Bangkok')::date` ใน RPC |
 | F-04 | 🟠 Medium | G | **Photo upload ล้มเหลวเงียบ**: `catch {}` ว่างใน `onAddPhotos` ของ edit sheet, ไม่มี error state แสดง | `StockEditSheet.tsx:63-66` | อัปโหลดรูปพลาด (เน็ต/quota) ผู้ใช้ไม่รู้, คิดว่ารูปเข้าแล้ว | เพิ่ม error state + toast เหมือน `StockIntakePage.onAddPhotos` (ที่ใช้ `toast.error` ถูกต้องแล้ว) |
-| F-05 | 🟠 Medium | B/D | **`wallets.balance` เป็น dead field** — ไม่เคยอ่าน/เขียน; ไม่มียอดคงเหลือต่อกระเป๋า | `database.types.ts:27`, `0001` wallets | ผู้ใช้เห็นชื่อกระเป๋าแต่ไม่มียอด; รายงานต่อกระเป๋าทำไม่ได้ | ตัดสินใจ: (ก) ลบ field ถ้าไม่ทำ หรือ (ข) คำนวณ balance จาก transactions (view) หรือ maintain ผ่าน trigger/RPC ตอน insert/delete |
+| F-05 | ✅ Resolved | B/D | **`wallets.balance` เป็น dead field** — ไม่เคยอ่าน/เขียน (ยืนยัน read+write path แล้ว) | `database.types.ts`, `0001` wallets | — | **แก้แล้วใน 0011 (PR #30):** `drop column wallets.balance` + เอาออกจาก `seed_defaults_internal` + `database.types.ts` (ตัดสินใจข้อ (ก) ลบทิ้ง) — รอ apply |
 | F-06 | 🟠 Medium | A/I | **Offline queue เป็น dead code** — `offlineQueue.ts` (enqueue/pending/…) ไม่ถูก import ที่ใด แต่ README/vite comment โฆษณา "offline-first write-queue" | `offlineQueue.ts` ทั้งไฟล์, `useQueue.ts` (คนละเรื่อง) | เขียน offline ไม่ถูก queue จริง — mutation ตอนไม่มีเน็ตจะ fail; ความคาดหวังไม่ตรงกับความจริง | wire เข้ากับ mutation hooks (part 5 ที่ยังไม่ทำ) หรือปรับ README ให้ตรงสถานะ |
 | F-07 | 🟠 Medium | J | **ไม่มี test / ESLint / CI**: `lint` = `tsc --noEmit`, ไม่มี test runner, ไม่มี `.github/workflows/` | `package.json:scripts`, `.github/` | ไม่มี regression net; pure functions (`computeHomeSummary/Pace/StockHero`) test ง่ายแต่ไม่ถูก test; refactor เสี่ยง | เพิ่ม Vitest + test pure functions การเงิน/สต็อกก่อน, ESLint จริง, GitHub Action รัน typecheck+test |
 | F-08 | 🟡 Low | E | **Hard delete ทั้งหมด ไม่มี soft delete/audit** — ลบรายการ/สินค้าหายถาวร, ไม่มี log | `useTransactions.ts` delete, `0006` | ลบผิดกู้ไม่ได้; ไม่มีร่องรอยตรวจสอบย้อนหลัง | พิจารณา `deleted_at` + กรองทุก query, หรือ export/backup ก่อนลบ (single-user จึงไม่วิกฤต) |
@@ -275,6 +275,8 @@ erDiagram
 | F-12 | 🟡 Low | I | **`database.types.ts` sync มือ** — Functions ไม่มี `seed_defaults`; `Insert<T>=Partial<T>` ทำให้ required field ไม่ถูก type-check ตอน insert | `database.types.ts` | type อาจ drift จาก schema; insert ที่ลืม field ไม่ถูกจับ | ใช้ `supabase gen types typescript` แทนการเขียนมือ |
 | F-13 | 🟡 Low | F | **CSP ใช้ wildcard `*.supabase.co`** + `style-src 'unsafe-inline'` | `worker/security.ts` | หลวมกว่าที่ควร (ยอมรับได้/มี comment เตือนแล้ว) | pin เป็น `<ref>.supabase.co` ตอน deploy จริง |
 | F-14 | 🟡 Low | G | **`recurring_run_due` error กลืนเงียบถาวร** — ตั้งใจเผื่อ migration ยังไม่รัน แต่ปิดบัง error จริงตลอดไป | `useRecurring.ts:104` | ถ้า RPC พังหลัง 0007 ผู้ใช้ไม่รู้ว่ารายการประจำไม่เดิน | log/แยกกรณี "function not found" ออกจาก error อื่น |
+| F-15 | 🟠 Medium | J | **Migration hand-run ไม่มี ledger + ไฟล์ที่ apply แล้วเคยถูกแก้ + ฟังก์ชันถูก redefine ข้ามไฟล์** — 0002 ถูกแก้หลัง commit แรก (search_path), seeder ถูก `create or replace` ซ้ำใน 0008, รันมือใน SQL Editor ไม่มีบันทึกว่า apply ไฟล์ไหน/เมื่อไหร่ | `0002`/`0008` seed, git log | พิสูจน์ไม่ได้ว่า DB ตรงกับไฟล์เวอร์ชันใด → กระทบทุกครั้งที่ reproduce function จากไฟล์ (เช่น 0011) | **เริ่มแก้ใน 0011 (PR #30):** ตาราง `schema_migrations` self-record ทุก migration; + ห้ามแก้ไฟล์ที่ apply แล้ว (เขียนใหม่แทน); พิจารณา Supabase CLI migrations |
+| F-16 | 🟡 Low | G | **หน้า intake ไม่มี empty-state เมื่อ user ลบหมวด stock หมด** — `stockCategories` ว่าง → dropdown "เลือกหมวด" ไม่มีตัวเลือก, บันทึกไม่ได้ โดยไม่มีคำอธิบาย/ปุ่มสร้างหมวด | `StockIntakePage.tsx:46`, `204` | user ที่เผลอลบหมวด stock เข้าคลังไม่ได้และไม่รู้สาเหตุ (recoverable แต่เดาไม่ถูก) | เพิ่ม empty-state + ลิงก์สร้างหมวด stock เมื่อ `stockCategories.length===0` |
 
 ---
 
@@ -286,6 +288,7 @@ erDiagram
 - **RPC**: snake_case กริยา-นาม `stock_intake_create`, `stock_item_delete`, `recurring_run_due` — พารามิเตอร์ prefix `p_`, ตัวแปรใน function prefix `v_`
 - **Query keys**: array ลำดับชั้น `['transactions','summary',userId,monthKey]` — ใช้ partial-match invalidation (`invalidateQueries({queryKey:['transactions']})` เคลียร์ทั้ง subtree)
 - **Migration**: `NNNN_snake_name.sql` เลข 4 หลัก, **additive-only** (create/alter เท่านั้น ไม่ drop), idempotent (`if not exists` / `create or replace`), รันมือใน Supabase SQL Editor
+- **ตาราง**: มาตรฐานคือ `id uuid pk default gen_random_uuid()` + `user_id` แยก **ยกเว้น** ตาราง config แบบ 1 แถว/user (เช่น `stock_sku_config`, 0011) ที่ตั้งใจใช้ **`user_id` เป็น PK** เพื่อบังคับ singleton ต่อ user — เบี่ยงจาก pattern โดยตั้งใจ ไม่ใช่เขียนผิด
 - **เงิน**: `numeric(14,2)` ใน DB; แสดงผลผ่าน `formatBaht` (ไม่มีทศนิยม) / `formatBaht2` (2 ตำแหน่ง); เดือนใช้ พ.ศ. (`formatMonthLong`)
 - **UI ภาษาไทยล้วน**, error แปลผ่าน `translateError` (map ตาม SQLSTATE ก่อน แล้วค่อย fragment); Tailwind ใช้ design token (`mint-deep`, `hairline`, `fill`, `expense`, `income`)
 
@@ -309,8 +312,11 @@ erDiagram
 4. **ยอดที่ **บันทึกจริง** ต้องคำนวณใน SQL/numeric** (ฝั่ง client คำนวณเพื่อแสดงผลได้ แต่ห้ามเป็นแหล่งความจริง)
 5. **ตัด `is_stock_purchase=true` ออกจากทุกตัวเลขค่าใช้จ่าย/งบเสมอ** (ทำผิดจุดเดียว = ตัวเลขเพี้ยน)
 6. **error → `translateError` + toast**; อย่าใช้ `catch {}` ว่าง (ดู F-04)
-7. **migration ใหม่ = ไฟล์ใหม่ additive-only** อย่าแก้ไฟล์เก่า
+7. **migration ใหม่ = ไฟล์ใหม่ additive-only** อย่าแก้ไฟล์ที่ apply แล้วเด็ดขาด (F-15)
 8. **RLS: user_id default `auth.uid()` + policy 4 ตัว** ทุกตารางใหม่
+9. **ทุก migration ตั้งแต่ 0011 ต้อง self-record** ท้ายไฟล์ด้วย `insert into public.schema_migrations(version) values ('NNNN') on conflict do nothing;` (ledger บอกได้ว่า DB อยู่ที่ไฟล์ไหน — F-15)
+10. **เปลี่ยน signature ของ function = `drop function <sig เต็ม>` ก่อน `create`** (ไม่ใช่ `create or replace` เฉย ๆ ไม่งั้นได้ overload ซ้อนเงียบ) แล้ว **re-grant** เพราะ drop ล้าง grant
+11. **migration ที่เพิ่ม/ลบ RPC หรือคอลัมน์ → ปิดไฟล์ด้วย `notify pgrst, 'reload schema';`** (กัน PostgREST cache ค้าง → RPC 404 / payload 400)
 
 ---
 
