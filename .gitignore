@@ -18,6 +18,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# typescript incremental build cache (do not commit — causes stale/skipped checks)
+*.tsbuildinfo
+
 # vite pwa generated
 dev-dist
 
