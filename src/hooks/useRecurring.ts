@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/Toast'
-import { isMissingFunctionError, translateError } from '@/lib/errors'
+import { translateError } from '@/lib/errors'
 import type { Recurring, TransactionType } from '@/lib/database.types'
 
 /** All recurring rules for the current user (active + paused). */
@@ -98,10 +98,11 @@ export function useDeleteRecurring() {
  * next_run server-side. On success we refresh transactions + recurring so the
  * new rows appear immediately.
  *
- * Error handling (F-14): we only stay silent for the one benign case — the RPC
- * not existing yet because its migration (0007) hasn't been applied. Any OTHER
- * failure means recurring items silently didn't run, which used to be invisible;
- * now it surfaces as a toast so the user (or a friend testing the app) knows.
+ * Error handling (F-14): every failure surfaces as a toast — no silent swallow.
+ * The old code hid errors "in case migration 0007 isn't applied yet", but 0007/
+ * 0008 are long applied and the function exists, so that guard was dead and only
+ * risked re-hiding real failures. If a fresh environment ever lacks the RPC, the
+ * resulting toast is the correct signal, not something to suppress.
  */
 export function useRunRecurringOnLoad() {
   const qc = useQueryClient()
@@ -113,10 +114,7 @@ export function useRunRecurringOnLoad() {
     ran.current = true
     void supabase.rpc('recurring_run_due').then(({ data, error }) => {
       if (error) {
-        // "function not found" = migration not applied yet → legitimately silent.
-        if (!isMissingFunctionError(error)) {
-          toast.error(`รายการประจำไม่ทำงาน: ${translateError(error)}`)
-        }
+        toast.error(`รายการประจำไม่ทำงาน: ${translateError(error)}`)
         return
       }
       if ((data ?? 0) > 0) {

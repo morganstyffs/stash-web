@@ -5,14 +5,20 @@
  * the real code around to debug. Never inline a Thai error string at a callsite:
  * add the case here so all screens stay consistent (see PROJECT_AUDIT F-04/F-14).
  *
- * Safety rules that keep it callable anywhere:
+ * Rules that keep it safe to call anywhere:
  *  1. If the message already contains Thai characters, it's one we authored at
  *     the hook/callsite (e.g. the category-in-use message) — pass it through
  *     untouched instead of flattening it to the generic fallback.
- *  2. Never surface the raw upstream message to the user (it can carry URLs /
- *     request ids). We show a curated Thai line, plus at most a short, safe code
- *     hint (SQLSTATE / auth slug / HTTP status) so a paused-project or unknown
- *     failure can still be reported.
+ *  2. Match on STRUCTURED fields (`code` / `status`) — never on message
+ *     substrings — for anything that affects behaviour or picks a specific
+ *     message. Upstream wording changes without notice; codes don't. The single
+ *     exception is the connect-failure fallback (a raw fetch `TypeError` carries
+ *     no code/status at all), and it's display-only — it never swallows.
+ *  3. Never reveal whether an email has an account (user enumeration). Login and
+ *     password-reset must read identically whether the address exists or not, so
+ *     there is deliberately NO "email already registered / not found" mapping.
+ *  4. Never surface the raw upstream message. Show a curated Thai line plus at
+ *     most a short, safe code hint (SQLSTATE / auth slug / HTTP status).
  */
 
 interface NormalizedError {
@@ -48,7 +54,9 @@ function normalizeError(err: unknown): NormalizedError {
 }
 
 /** True when the failure is "can't reach Supabase": offline, timeout, or the
- *  project being paused. This is the case that used to show nothing on login. */
+ *  project being paused. This is the case that used to show nothing on login.
+ *  Prefers structured fields; the message regex is the last resort because a raw
+ *  fetch `TypeError` ("Failed to fetch" / "Load failed") has no code or status. */
 function isConnectFailure(n: NormalizedError): boolean {
   if (n.name === 'AuthRetryableFetchError') return true
   if (typeof n.status === 'number' && CONNECT_FAIL_STATUS.has(n.status)) return true
@@ -65,17 +73,6 @@ function debugHint(n: NormalizedError): string | undefined {
   return undefined
 }
 
-/**
- * The `recurring_run_due` RPC (and any future one) doesn't exist until its
- * migration is applied. That specific "function not found" must stay silent —
- * every other failure should surface. Kept here so the check lives with the
- * rest of the error taxonomy instead of being re-derived at the callsite.
- */
-export function isMissingFunctionError(err: unknown): boolean {
-  const n = normalizeError(err)
-  return n.code === 'PGRST202' || n.code === '42883'
-}
-
 export function translateError(err: unknown): string {
   const n = normalizeError(err)
 
@@ -89,7 +86,16 @@ export function translateError(err: unknown): string {
     return 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — เช็กอินเทอร์เน็ต หรือระบบอาจปิดชั่วคราว แล้วลองใหม่'
   }
 
-  // (3) Postgres / PostgREST SQLSTATE codes
+  // (3) rate limiting — by code, or the HTTP 429 status.
+  if (
+    n.code === 'over_request_rate_limit' ||
+    n.code === 'over_email_send_rate_limit' ||
+    n.status === 429
+  ) {
+    return 'ลองบ่อยเกินไป รอสักครู่แล้วลองใหม่'
+  }
+
+  // (4) Postgres / PostgREST SQLSTATE codes
   switch (n.code) {
     case '23505':
       return 'มีรายการนี้อยู่แล้ว'
@@ -102,31 +108,20 @@ export function translateError(err: unknown): string {
       return 'กรอกข้อมูลให้ครบก่อนบันทึก'
   }
 
-  // (4) Supabase auth error codes (stable slugs — preferred over message text)
+  // (5) Supabase auth error codes (stable slugs).
+  //     `invalid_credentials` is returned for BOTH a wrong password and an email
+  //     with no account — Supabase does this on purpose to prevent enumeration,
+  //     and we mirror it with one combined message. Do NOT add an "email exists /
+  //     not found" case here (see rule 3).
   switch (n.code) {
     case 'invalid_credentials':
       return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
     case 'email_not_confirmed':
       return 'ยังไม่ได้ยืนยันอีเมล — เช็กกล่องอีเมลก่อนเข้าสู่ระบบ'
-    case 'user_already_exists':
-    case 'email_exists':
-      return 'อีเมลนี้สมัครไว้แล้ว — ลองเข้าสู่ระบบแทน'
     case 'weak_password':
-      return 'รหัสผ่านสั้นเกินไป (อย่างน้อย 6 ตัวอักษร)'
-    case 'over_request_rate_limit':
-    case 'over_email_send_rate_limit':
-      return 'ลองบ่อยเกินไป รอสักครู่แล้วลองใหม่'
+    case 'same_password':
+      return 'รหัสผ่านไม่ปลอดภัยพอ — ตั้งใหม่ให้ยาวขึ้น (อย่างน้อย 6 ตัวอักษร)'
   }
-
-  // (5) known message fragments (older Supabase auth without a `code`)
-  const m = n.message.toLowerCase()
-  if (/invalid login credentials/.test(m)) return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
-  if (/email not confirmed/.test(m)) return 'ยังไม่ได้ยืนยันอีเมล — เช็กกล่องอีเมลก่อนเข้าสู่ระบบ'
-  if (/user already registered|already been registered/.test(m))
-    return 'อีเมลนี้สมัครไว้แล้ว — ลองเข้าสู่ระบบแทน'
-  if (/password should be at least|password.*6/.test(m))
-    return 'รหัสผ่านสั้นเกินไป (อย่างน้อย 6 ตัวอักษร)'
-  if (/rate limit|too many requests/.test(m)) return 'ลองบ่อยเกินไป รอสักครู่แล้วลองใหม่'
 
   // (6) generic fallback — keep a safe code hint so it's still reportable.
   const hint = debugHint(n)
