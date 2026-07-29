@@ -35,6 +35,11 @@
 -- ── VERIFICATION (run AFTER applying) ──────────────────────────────────────
 --   1) ledger backfilled 0001..0011:
 --        select count(*) from public.schema_migrations where version <= '0011';  -- expect 11
+--   1b) schema_migrations is locked down (RLS on, clients have no privileges):
+--        select relrowsecurity from pg_class where oid = 'public.schema_migrations'::regclass;  -- true
+--        select coalesce(bool_or(has_table_privilege(r, 'public.schema_migrations', p)), false)
+--          from unnest(array['anon','authenticated']) r,
+--               unnest(array['SELECT','INSERT','UPDATE','DELETE']) p;                            -- false
 --   2) every user has exactly one config row:
 --        select (select count(*) from auth.users)              as users,
 --               (select count(*) from public.stock_sku_config) as configs;       -- equal
@@ -273,6 +278,7 @@ create or replace function public.stock_sku_preview(
 )
 returns text
 language plpgsql
+stable                       -- reads stock_sku_config (depends on auth.uid()); NOT immutable
 security invoker
 set search_path = ''
 as $$
