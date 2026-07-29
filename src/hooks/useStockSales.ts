@@ -42,8 +42,8 @@ export interface SalesSummary {
 
 /**
  * Realised sales totals for the current month via the stock_sales_summary RPC
- * (aggregation is done in SQL — PostgREST can't sum sale_price*qty_sold). Shown
- * on the stock screen (not the home screen).
+ * (aggregation is done in SQL — PostgREST can't sum sale_price*qty_sold). Feeds
+ * the stock screen and the home WovenHero's STOCK PROFIT label.
  */
 export function useStockSalesSummary() {
   const { user } = useAuth()

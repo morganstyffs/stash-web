@@ -17,6 +17,15 @@ export default {
           text: '#0C5646', // text on tint / light bg
           hero: '#C9F2E7', // plus badge on dark hero
         },
+        // woven-label hero fabrics (WovenHero). The full indigo `brand` palette
+        // lands with the design-token PR; the hero only needs these fabric/thread
+        // swatches to render, so they are defined here up front.
+        brand: {
+          fabric: '#1E2547', // safe label fabric
+          'fabric-budget': '#4A3A14', // budget label fabric
+          'fabric-stock': '#2B2E34', // stock label fabric
+          thread: '#F3ECDB', // woven thread = text on every label
+        },
         // semantic
         income: '#1D9E75',
         expense: '#E24B4A',

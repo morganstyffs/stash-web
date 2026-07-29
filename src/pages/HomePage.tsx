@@ -1,5 +1,5 @@
-import { Fragment, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Fragment, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { IconArrowDownRight, IconArrowUpRight, IconBell } from '@tabler/icons-react'
 import { useCategories } from '@/hooks/useLookups'
 import {
@@ -10,8 +10,9 @@ import {
   type RecentRow,
 } from '@/hooks/useHome'
 import { Donut, TrendLine } from '@/components/charts'
-import { WalletHero } from '@/components/WalletHero'
+import { WovenHero } from '@/components/WovenHero'
 import { useMonthBudgetTotal } from '@/hooks/useBudgets'
+import { useStockSalesSummary } from '@/hooks/useStockSales'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 import { categoryIcon } from '@/lib/icons'
 import { currentMonthAnchor, formatRecentDayLabel } from '@/lib/dates'
@@ -59,12 +60,11 @@ function buildDonutLegend(slices: DonutSlice[]): LegendRow[] {
 }
 
 export function HomePage() {
-  const navigate = useNavigate()
   const monthQ = useMonthTransactions()
   const catsQ = useCategories()
   const recentQ = useRecentTransactions()
   const budgetTotalQ = useMonthBudgetTotal()
-  const headerRef = useRef<HTMLDivElement>(null)
+  const stockQ = useStockSalesSummary()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [hideBalance, setHideBalance] = useState(() => {
     try {
@@ -98,10 +98,7 @@ export function HomePage() {
   return (
     <div className="flex min-h-full flex-col">
       {/* header */}
-      <div
-        ref={headerRef}
-        className="flex items-center justify-between px-[18px] pb-2.5 pt-[18px]"
-      >
+      <div className="flex items-center justify-between px-[18px] pb-2.5 pt-[18px]">
         <Link to="/" aria-label="Stash">
           <img src="/stash-mark.svg" alt="Stash" className="h-[30px] w-[30px]" />
         </Link>
@@ -109,22 +106,18 @@ export function HomePage() {
         <IconBell size={20} className="text-muted" />
       </div>
 
-      {/* wallet / card-holder hero */}
+      {/* woven-label hero */}
       <div className="px-4 pb-1 pt-1.5">
-        <WalletHero
-          income={summary.income}
-          incomeCount={summary.incomeCount}
+        <WovenHero
+          safeToSpend={summary.safeToSpend}
+          daysLeft={summary.daysLeft}
+          dailyAllowance={summary.dailyAllowance}
+          deltaPct={summary.deltaPct}
           budgetTotal={budgetTotalQ.data ?? 0}
           budgetSpending={summary.budgetSpending}
-          expense={summary.expense}
-          expenseCount={summary.expenseCount}
-          topCategory={summary.donut[0] ?? null}
-          safeToSpend={summary.safeToSpend}
-          deltaPct={summary.deltaPct}
+          stock={stockQ.data ?? { revenue: 0, cogs: 0, profit: 0, sale_count: 0, qty_sold: 0 }}
           hideBalance={hideBalance}
           onToggleHide={toggleHideBalance}
-          onQuickAdd={() => navigate('/add')}
-          getSafeTopY={() => headerRef.current?.getBoundingClientRect().bottom ?? 0}
         />
       </div>
 
@@ -246,7 +239,7 @@ function HomeSkeleton() {
         <div className="h-5 w-5 rounded bg-fill" />
       </div>
       <div className="px-4 pb-1 pt-1.5">
-        <div className="h-[362px] rounded-pocket bg-fill" />
+        <div className="h-[246px] rounded-pocket bg-fill" />
       </div>
       <div className="mx-4 mt-3.5">
         <div className="h-4 w-40 rounded bg-fill" />

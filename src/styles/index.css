@@ -44,6 +44,24 @@
   .hairline {
     border-color: theme('colors.hairline');
   }
+
+  /* woven-fabric texture for the home hero labels (WovenHero). Layered over the
+     label's fabric background-color: warp + weft threads, plus a soft sheen. */
+  .woven {
+    background-image:
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.075) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.11) 0 1px, transparent 1px 3px),
+      linear-gradient(118deg, rgba(255, 255, 255, 0.1), transparent 44%);
+  }
+
+  /* tightly-woven selvedge edge along the top/bottom of each woven label */
+  .selvedge {
+    background: repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.42) 0 2px,
+      rgba(255, 255, 255, 0.14) 2px 4px
+    );
+  }
 }
 
 /* hide scrollbars on horizontal chip rows while keeping scroll */
