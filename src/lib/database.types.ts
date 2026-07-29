@@ -24,7 +24,6 @@ export type Wallet = Timestamps & {
   user_id: string
   name: string
   type: WalletType
-  balance: number
 }
 
 export type Category = Timestamps & {
@@ -98,6 +97,16 @@ export type Budget = Timestamps & {
   amount: number
 }
 
+export type StockSkuConfig = Timestamps & {
+  user_id: string
+  prefix: string
+  use_brand_code: boolean
+  brand_len: number
+  seq_digits: number
+  separator: string
+  next_seq: number
+}
+
 export type Recurring = Timestamps & {
   id: string
   user_id: string
@@ -127,6 +136,8 @@ export type StockIntakeArgs = {
   p_photos?: string[]
   p_needs_details?: boolean
   p_note?: string | null
+  /** optional manual brand code override (client sends this once the SKU settings screen ships) */
+  p_brand_code?: string | null
 }
 
 export type StockIntakeResult = {
@@ -155,6 +166,7 @@ export interface Database {
       budgets: TableShape<Budget>
       stock_items: TableShape<StockItem>
       stock_sales: TableShape<StockSale>
+      stock_sku_config: TableShape<StockSkuConfig>
       favorites: TableShape<Favorite>
       recurring: TableShape<Recurring>
     }
@@ -171,6 +183,10 @@ export interface Database {
       recurring_run_due: {
         Args: Record<string, never>
         Returns: number
+      }
+      stock_sku_preview: {
+        Args: { p_brand?: string | null; p_brand_code?: string | null }
+        Returns: string
       }
     }
     Enums: {

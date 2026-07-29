@@ -32,22 +32,6 @@ export function useStockItems() {
   })
 }
 
-/** Count of stock items — used to seed the SKU sequence on the intake screen. */
-export function useStockCount() {
-  const { user } = useAuth()
-  return useQuery({
-    queryKey: ['stock_count', user?.id],
-    enabled: !!user,
-    queryFn: async (): Promise<number> => {
-      const { count, error } = await supabase
-        .from('stock_items')
-        .select('id', { count: 'exact', head: true })
-      if (error) throw error
-      return count ?? 0
-    },
-  })
-}
-
 /**
  * Deletes a stock item and its paired stock-purchase expense atomically via the
  * stock_item_delete RPC (0006). Blocked server-side when the item has sales
