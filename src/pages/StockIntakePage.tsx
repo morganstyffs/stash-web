@@ -10,11 +10,10 @@ import {
 } from '@tabler/icons-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useLookups'
-import { useStockCount } from '@/hooks/useStock'
 import { useCreateStockIntake } from '@/hooks/useStockIntake'
+import { useSkuPreview } from '@/hooks/useSku'
 import { useToast } from '@/components/Toast'
 import { uploadStockPhotos } from '@/lib/storage'
-import { previewSku } from '@/lib/sku'
 import { formatBaht } from '@/lib/format'
 import { translateError } from '@/lib/errors'
 import {
@@ -39,7 +38,6 @@ export function StockIntakePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const catsQ = useCategories()
-  const stockCountQ = useStockCount()
   const intake = useCreateStockIntake()
   const toast = useToast()
 
@@ -75,8 +73,8 @@ export function StockIntakePage() {
   const profit = targetNum != null && costNum > 0 ? targetNum - costNum : null
   const profitPct = profit != null && costNum > 0 ? Math.round((profit / costNum) * 100) : null
 
-  const seq = (stockCountQ.data ?? 0) + session.length + 1
-  const sku = previewSku(brand, seq)
+  // Live SKU preview from the DB (approximate — see useSkuPreview).
+  const skuQ = useSkuPreview(brand)
 
   const canSave = name.trim() !== '' && !!categoryId && costNum >= 0 && !intake.isPending
 
@@ -308,7 +306,7 @@ export function StockIntakePage() {
                 SKU <span className="text-mint-deep">(สร้างอัตโนมัติ)</span>
               </Label>
               <div className="rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] font-mono text-[13px] text-muted">
-                {sku}
+                {skuQ.data ?? '…'}
               </div>
             </div>
           </div>
