@@ -3,6 +3,7 @@ import {
   todayISO,
   monthBounds,
   dayOfMonthISO,
+  daysLeftInMonth,
   currentMonthAnchor,
   toISODate,
   formatRecentDayLabel,
@@ -62,6 +63,27 @@ describe('dayOfMonthISO / currentMonthAnchor / toISODate', () => {
 
   it('toISODate stringifies a local calendar date', () => {
     expect(toISODate(new Date(2026, 7, 9))).toBe('2026-08-09')
+  })
+})
+
+describe('daysLeftInMonth — days remaining including today (Bangkok)', () => {
+  // July 2026 has 31 days. The count includes today, so the daily-allowance
+  // figure doesn't jump the instant the clock rolls past midnight.
+  it('the 1st of a 31-day month leaves the whole month', () => {
+    expect(daysLeftInMonth(new Date('2026-07-01T12:00:00+07:00'))).toBe(31)
+  })
+
+  it('the 29th leaves 3 days (29th, 30th, 31st)', () => {
+    expect(daysLeftInMonth(new Date('2026-07-29T12:00:00+07:00'))).toBe(3)
+  })
+
+  it('the last day leaves 1 (today itself)', () => {
+    expect(daysLeftInMonth(new Date('2026-07-31T12:00:00+07:00'))).toBe(1)
+  })
+
+  it('reckons the day against the Bangkok calendar at the boundary', () => {
+    // 00:30 ICT on Aug 1 is the 1st in Bangkok (a UTC device would say Jul 31).
+    expect(daysLeftInMonth(new Date('2026-08-01T00:30:00+07:00'))).toBe(31)
   })
 })
 

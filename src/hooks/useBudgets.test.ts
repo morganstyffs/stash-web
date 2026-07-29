@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computePace } from '@/hooks/useBudgets'
+import { computeBudgetSummary, computePace } from '@/hooks/useBudgets'
 import { isBudgetSpendingRow, type LedgerRow } from '@/lib/ledger'
 
 describe('computePace — over budget', () => {
@@ -32,6 +32,60 @@ describe('computePace — pace vs elapsed month (date injected)', () => {
     expect(p.state).toBe('on_track')
     expect(p.ratio).toBe(0)
     expect(p.pct).toBe(0)
+  })
+})
+
+describe('computeBudgetSummary — remaining compares like with like (B5)', () => {
+  it('no budget set: everything spent is off-budget, nothing budgeted', () => {
+    const s = computeBudgetSummary([], { food: 500, transport: 300 })
+    expect(s.totalBudget).toBe(0)
+    expect(s.usedInBudgeted).toBe(0)
+    expect(s.offBudget).toBe(800)
+    expect(s.offBudgetCount).toBe(2)
+    expect(s.remaining).toBe(0)
+  })
+
+  it('budget set but nothing spent yet: full budget remains', () => {
+    const s = computeBudgetSummary([{ category_id: 'food', amount: 1_000 }], {})
+    expect(s.totalBudget).toBe(1_000)
+    expect(s.usedInBudgeted).toBe(0)
+    expect(s.offBudget).toBe(0)
+    expect(s.offBudgetCount).toBe(0)
+    expect(s.remaining).toBe(1_000)
+  })
+
+  it('spending only in un-budgeted categories does NOT eat the budget (the B5 bug)', () => {
+    // One budget on food (unspent); all the money went to transport + fun, which
+    // have no budget. Remaining must stay +1,000, not go red.
+    const s = computeBudgetSummary(
+      [{ category_id: 'food', amount: 1_000 }],
+      { transport: 700, fun: 300 },
+    )
+    expect(s.usedInBudgeted).toBe(0)
+    expect(s.offBudget).toBe(1_000)
+    expect(s.offBudgetCount).toBe(2)
+    expect(s.remaining).toBe(1_000) // NOT 1000 - 1000 = 0
+  })
+
+  it('over budget: remaining goes negative, shown as-is (never clamped)', () => {
+    const s = computeBudgetSummary(
+      [{ category_id: 'food', amount: 1_000 }],
+      { food: 1_300, transport: 200 },
+    )
+    expect(s.totalBudget).toBe(1_000)
+    expect(s.usedInBudgeted).toBe(1_300)
+    expect(s.offBudget).toBe(200)
+    expect(s.offBudgetCount).toBe(1)
+    expect(s.remaining).toBe(-300)
+  })
+
+  it('a zero-spend off-budget key is not counted toward offBudgetCount', () => {
+    const s = computeBudgetSummary([{ category_id: 'food', amount: 500 }], {
+      transport: 0,
+      fun: 120,
+    })
+    expect(s.offBudget).toBe(120)
+    expect(s.offBudgetCount).toBe(1) // transport (0) excluded
   })
 })
 

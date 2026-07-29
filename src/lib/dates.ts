@@ -118,6 +118,19 @@ export function formatRecentDayLabel(iso: string, now: Date = new Date()): strin
   return label
 }
 
+/**
+ * Days remaining in this month, **including today** (Asia/Bangkok calendar).
+ * Today counts because you can still spend today, so the daily-allowance figure
+ * (safeToSpend / daysLeft) doesn't jump the moment the clock ticks past midnight.
+ * The day number is read verbatim from the Bangkok YYYY-MM-DD (never
+ * new Date(str).getDate()) so it can't drift in a negative-offset timezone
+ * (F-25/F-26). The single source of truth for "how many days are left" — both
+ * the home summary and the budget page route through here (convention 10).
+ */
+export function daysLeftInMonth(now: Date = new Date()): number {
+  return monthBounds(now).days - dayOfMonthISO(todayISO(now)) + 1
+}
+
 export function monthBounds(now: Date = new Date()): MonthBounds {
   // Seed from the Bangkok calendar; the rest is pure month arithmetic. Building
   // via new Date(y, m, …) then toISODate keeps both construction and read in the

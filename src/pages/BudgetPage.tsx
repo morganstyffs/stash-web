@@ -1,6 +1,14 @@
 import { useMemo, useState } from 'react'
-import { IconFlame, IconAlertCircle, IconPlus, IconX } from '@tabler/icons-react'
 import {
+  IconFlame,
+  IconAlertCircle,
+  IconAlertTriangle,
+  IconChevronRight,
+  IconPlus,
+  IconX,
+} from '@tabler/icons-react'
+import {
+  computeBudgetSummary,
   computePace,
   useBudgets,
   useDeleteBudget,
@@ -11,7 +19,7 @@ import {
 import { useCategories } from '@/hooks/useLookups'
 import { useToast } from '@/components/Toast'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { currentMonthAnchor, dayOfMonthISO, monthBounds, todayISO } from '@/lib/dates'
+import { currentMonthAnchor, daysLeftInMonth } from '@/lib/dates'
 import { formatBaht, formatMonthShort } from '@/lib/format'
 import { translateError } from '@/lib/errors'
 
@@ -37,13 +45,25 @@ export function BudgetPage() {
   const budgets = budgetsQ.data ?? []
   const spending = spendingQ.data ?? {}
 
-  const totalBudget = budgets.reduce((s, b) => s + Number(b.amount), 0)
-  const totalUsed = Object.values(spending).reduce((s, v) => s + v, 0)
-  const remaining = totalBudget - totalUsed
-  const usedPct = totalBudget > 0 ? Math.min(100, (totalUsed / totalBudget) * 100) : 0
+  // B5: remaining now compares budgeted spend against the budget total (like with
+  // like), and off-budget spend is surfaced on its own strip instead of dragging
+  // the headline permanently red. daysLeft routes through the shared helper (B6).
+  const { totalBudget, usedInBudgeted, offBudget, offBudgetCount, remaining } =
+    computeBudgetSummary(budgets, spending)
+  const hasBudget = totalBudget > 0
+  const overAmount = hasBudget && usedInBudgeted > totalBudget ? usedInBudgeted - totalBudget : 0
+  const isOver = overAmount > 0
+  const daysLeft = daysLeftInMonth()
 
-  const b = monthBounds()
-  const daysLeft = b.days - dayOfMonthISO(todayISO())
+  // Progress bar as two segments in one track (B7 — no Math.min(100, …) clamp).
+  // Over budget: the full bar is the used amount, split into within-budget +
+  // over. Under budget: the bar fills to used/total, no over segment.
+  const inBudgetFrac = isOver
+    ? totalBudget / usedInBudgeted
+    : hasBudget
+      ? usedInBudgeted / totalBudget
+      : 0
+  const overFrac = isOver ? (usedInBudgeted - totalBudget) / usedInBudgeted : 0
 
   // expense categories eligible for a (new) budget
   const budgetedIds = new Set(budgets.map((x) => x.category_id))
@@ -55,6 +75,27 @@ export function BudgetPage() {
     [catsQ.data, budgets],
   )
 
+  // The off-budget category with the most spend — where the "นอกงบ" strip lands
+  // you in the editor. `addable` already excludes budgeted/stock categories, so
+  // any of its ids that carries spending is genuinely off-budget and settable.
+  const topOffBudget = useMemo(() => {
+    const addableIds = new Set(addable.map((c) => c.id))
+    let bestId: string | null = null
+    let best = 0
+    for (const [id, amount] of Object.entries(spending)) {
+      if (addableIds.has(id) && amount > best) {
+        best = amount
+        bestId = id
+      }
+    }
+    return bestId
+  }, [addable, spending])
+
+  const openOffBudget = () => {
+    const id = topOffBudget ?? addable[0]?.id
+    if (id) setEditor({ categoryId: id, amount: '' })
+  }
+
   return (
     <div className="flex min-h-full flex-col">
       <div className="flex items-center justify-between px-[18px] pb-3 pt-[18px]">
@@ -64,25 +105,68 @@ export function BudgetPage() {
         </span>
       </div>
 
-      {/* hero */}
-      <div className="relative mx-4 mb-4 rounded-pocket bg-mint-deep px-4 pb-[15px] pt-[18px]">
-        <div className="pointer-events-none absolute inset-1.5 rounded-[12px] border-[1.5px] border-dashed border-white/[0.22]" />
-        <div className="relative">
-          <p className="text-[12px] text-white/70">งบคงเหลือเดือนนี้</p>
-          <p className="mt-1 text-[30px] font-medium tracking-[-0.5px] text-white">
-            {formatBaht(remaining)}
+      {/* hero — a single woven budget label, same fabric as the BUDGET label on
+          home so the two screens speak one material language (§11.2). */}
+      <div
+        className="woven relative mx-4 mb-3 overflow-hidden bg-brand-fabric-budget text-brand-thread shadow-[0_6px_16px_rgba(0,0,0,0.28)]"
+        style={{ borderRadius: 3, minHeight: 164 }}
+      >
+        {/* selvedge edges */}
+        <span aria-hidden className="selvedge absolute inset-x-0 top-0 h-[7px]" />
+        <span aria-hidden className="selvedge absolute inset-x-0 bottom-0 h-[7px]" />
+        <div className="relative px-[18px] pb-[15px] pt-[15px]">
+          <p
+            className="text-[10px] font-medium uppercase opacity-[.86]"
+            style={{ letterSpacing: '0.17em' }}
+          >
+            BUDGET LEFT
           </p>
-          <div className="my-2.5 h-1.5 overflow-hidden rounded-pill bg-white/20">
-            <div className="h-full rounded-pill bg-mint-hero" style={{ width: `${usedPct}%` }} />
-          </div>
-          <div className="flex justify-between text-[11px] text-white/80">
-            <span>
-              ใช้ไป {formatBaht(totalUsed)} / {formatBaht(totalBudget)}
-            </span>
-            <span>เหลือ {daysLeft} วัน</span>
-          </div>
+          {hasBudget ? (
+            <>
+              <p className="mt-1 text-[34px] font-semibold leading-tight tabular-nums">
+                {formatBaht(remaining)}
+              </p>
+              <div className="my-2.5 flex h-[7px] overflow-hidden rounded-pill bg-white/15">
+                <div
+                  className="h-full bg-brand-thread"
+                  style={{ width: `${inBudgetFrac * 100}%` }}
+                />
+                <div className="h-full bg-red-400" style={{ width: `${overFrac * 100}%` }} />
+              </div>
+              <div className="flex justify-between text-[11px] opacity-[.84]">
+                <span>
+                  ใช้ไป {formatBaht(usedInBudgeted)} / {formatBaht(totalBudget)}
+                </span>
+                <span>เหลือ {daysLeft} วัน</span>
+              </div>
+              {isOver && (
+                <span className="mt-2 inline-flex items-center gap-1 rounded-pill bg-white/[0.14] px-[9px] py-[3px] text-[11.5px] font-medium">
+                  <IconAlertTriangle size={13} />
+                  เกินงบ {formatBaht(overAmount)}
+                </span>
+              )}
+            </>
+          ) : (
+            <p className="mt-2 text-[15px] opacity-[.9]">ยังไม่ได้ตั้งงบเดือนนี้</p>
+          )}
         </div>
       </div>
+
+      {/* off-budget spend — its own strip so it never drags the hero red (B5) */}
+      {offBudget > 0 && (
+        <div className="px-4 pb-4">
+          <button
+            onClick={openOffBudget}
+            className="flex min-h-[44px] w-full items-center gap-2 rounded-[12px] bg-warn-bg px-3.5 py-2.5 text-left text-warn-ink"
+          >
+            <IconAlertTriangle size={18} className="shrink-0" />
+            <span className="min-w-0 flex-1 text-[12.5px]">
+              นอกงบ {formatBaht(offBudget)} — มี {offBudgetCount} หมวดที่ใช้เงินแต่ยังไม่ได้ตั้งงบ
+            </span>
+            <IconChevronRight size={18} className="shrink-0 opacity-60" />
+          </button>
+        </div>
+      )}
 
       {/* per-category */}
       <div className="mb-1 flex items-center justify-between px-4">
@@ -195,17 +279,21 @@ function BudgetRowView({
     >
       <svg viewBox="0 0 44 44" className="h-[42px] w-[42px] shrink-0">
         <circle cx="22" cy="22" r="17" fill="none" stroke="#F1F2F3" strokeWidth="5" />
-        <circle
-          cx="22"
-          cy="22"
-          r="17"
-          fill="none"
-          stroke={pace.color}
-          strokeWidth="5"
-          strokeDasharray={`${arc} ${RING_C}`}
-          strokeLinecap="round"
-          transform="rotate(-90 22 22)"
-        />
+        {/* skip the arc entirely at ratio 0 — a round linecap on a 0-length arc
+            leaves a stray dot on the ring */}
+        {pace.ratio > 0 && (
+          <circle
+            cx="22"
+            cy="22"
+            r="17"
+            fill="none"
+            stroke={pace.color}
+            strokeWidth="5"
+            strokeDasharray={`${arc} ${RING_C}`}
+            strokeLinecap="round"
+            transform="rotate(-90 22 22)"
+          />
+        )}
       </svg>
       <div className="min-w-0 flex-1">
         <p className="text-[13px]">{row.category?.name ?? 'หมวด'}</p>
