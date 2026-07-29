@@ -11,7 +11,7 @@ import {
 } from '@/hooks/useLookups'
 import { formatBaht } from '@/lib/format'
 import { translateError } from '@/lib/errors'
-import type { Favorite, TransactionType } from '@/lib/database.types'
+import type { Favorite, TransactionType } from '@/lib/db'
 
 interface FormState {
   id?: string

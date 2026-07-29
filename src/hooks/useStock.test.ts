@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { computeStockHero } from '@/hooks/useStock'
-import type { StockItem } from '@/lib/database.types'
+import type { StockItem } from '@/lib/db'
 
 /** A fully-typed StockItem with sensible defaults; override just what a case needs. */
 function stockItem(over: Partial<StockItem>): StockItem {
@@ -19,7 +19,7 @@ function stockItem(over: Partial<StockItem>): StockItem {
     qty_total: 1,
     qty_remaining: 1,
     target_price: null,
-    sku: null,
+    sku: 'STZ-TST-0001',
     status: 'in_stock',
     needs_details: false,
     photos: [],

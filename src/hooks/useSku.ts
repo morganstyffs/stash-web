@@ -22,10 +22,10 @@ export function useSkuPreview(brand: string) {
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<string> => {
       const { data, error } = await supabase.rpc('stock_sku_preview', {
-        p_brand: b || null,
+        p_brand: b || undefined,
       })
       if (error) throw error
-      return (data as string) ?? ''
+      return data ?? ''
     },
   })
 }

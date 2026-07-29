@@ -23,7 +23,7 @@ export function useBudgets() {
         .select('id, category_id, amount, category:categories(name, icon, color)')
         .eq('month', b.start)
       if (error) throw error
-      return (data ?? []) as unknown as BudgetRow[]
+      return data ?? []
     },
   })
 }

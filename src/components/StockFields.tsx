@@ -1,6 +1,6 @@
 import { useRef, type ChangeEvent, type ReactNode } from 'react'
 import { IconCameraPlus, IconX } from '@tabler/icons-react'
-import type { ItemCondition } from '@/lib/database.types'
+import type { ItemCondition } from '@/lib/db'
 
 /** A photo being edited: storage `path` + a displayable `preview` URL. */
 export interface EditablePhoto {

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { isSaleLinkedRow, isStockLinkedRow } from '@/lib/ledger'
-import type { TransactionType } from '@/lib/database.types'
+import type { TransactionType } from '@/lib/db'
 
 /** Full editable shape of one transaction (fetched when the edit sheet opens). */
 export interface EditableTx {

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { signStockPhotos } from '@/lib/storage'
-import type { ItemCondition, StockItem } from '@/lib/database.types'
+import type { ItemCondition, StockItem } from '@/lib/db'
 
 export interface QueueData {
   items: StockItem[]

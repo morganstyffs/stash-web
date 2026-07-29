@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { StockIntakeArgs, StockIntakeResult } from '@/lib/database.types'
+import type { StockIntakeArgs, StockIntakeResult } from '@/lib/db'
 
 /**
  * Atomic stock intake: one RPC creates the expense transaction and the stock
@@ -13,7 +13,7 @@ export function useCreateStockIntake() {
     mutationFn: async (args: StockIntakeArgs): Promise<StockIntakeResult> => {
       const { data, error } = await supabase.rpc('stock_intake_create', args)
       if (error) throw error
-      const row = (data as StockIntakeResult[])?.[0]
+      const row = data?.[0]
       if (!row) throw new Error('ไม่พบผลลัพธ์จากการบันทึก')
       return row
     },

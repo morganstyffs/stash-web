@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { todayISO } from '@/lib/dates'
-import type { TransactionType } from '@/lib/database.types'
+import type { TransactionType } from '@/lib/db'
 
 export interface NewTransaction {
   type: TransactionType

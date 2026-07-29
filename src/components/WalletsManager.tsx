@@ -5,7 +5,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useToast } from '@/components/Toast'
 import { useDeleteWallet, useUpsertWallet, useWallets } from '@/hooks/useSettings'
 import { translateError } from '@/lib/errors'
-import type { Wallet, WalletType } from '@/lib/database.types'
+import type { Wallet, WalletType } from '@/lib/db'
 
 const TYPES: { key: WalletType; label: string }[] = [
   { key: 'cash', label: 'เงินสด' },
