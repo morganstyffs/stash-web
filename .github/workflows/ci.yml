@@ -1,0 +1,30 @@
+name: CI
+
+# Build every PR and every push to main so a type error can never reach
+# production again. `npm run build` = `tsc -b && vite build`, i.e. the exact
+# command Cloudflare runs — the real check. (`npm run typecheck` alias is
+# `tsc --noEmit` against the solution-style tsconfig.json, which type-checks
+# nothing; do not rely on it.)
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Full compile + bundle. No VITE_SUPABASE_* needed: those are read at
+      # runtime in the browser, not during the build.
+      - run: npm run build
