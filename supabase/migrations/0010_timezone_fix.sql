@@ -10,18 +10,55 @@
 -- on the previous day and skew the daily/monthly rollups.
 --
 -- Fix: replace `current_date` with `(now() at time zone 'Asia/Bangkok')::date`
--- in the two functions that stamp "today":
---   • stock_intake_create  (0004) — the purchase expense's `date`
---   • recurring_run_due     (0008) — the "is this occurrence due?" comparison
+-- in the two functions that stamp "today", AND in the one column default that
+-- also used current_date:
+--   • stock_intake_create   (0004) — the purchase expense's `date`
+--   • recurring_run_due      (0008) — the "is this occurrence due?" comparison
+--   • transactions.date      (0001) — the column DEFAULT for omitted dates
+--
+-- Schema scan for other offenders (only transactions.date turned up; this is
+-- the exhaustive list, so no other default is changed here):
+--   select table_name, column_name, column_default
+--     from information_schema.columns
+--    where table_schema='public' and column_default ilike '%current_date%';
 --
 -- `recurring_next_date` is pure date arithmetic on values passed in and is NOT
 -- affected by the DB timezone, so it is left unchanged.
 --
--- additive-only: `create or replace` of existing functions, no schema/data
--- changes, idempotent, safe to re-run. Run in Supabase SQL Editor as owner.
--- Bodies are otherwise byte-for-byte the current definitions (0004 / 0008) so
--- the only behavioural change is the date source. Signatures are unchanged, so
--- no client change is required.
+-- additive-only: `create or replace` of existing functions + one `alter column
+-- ... set default` (no table rewrite, no row is touched). Idempotent, safe to
+-- re-run. Run in Supabase SQL Editor as owner. Function bodies are otherwise
+-- byte-for-byte the current definitions (0004 / 0008) and signatures are
+-- unchanged, so no client change is required.
+--
+-- NO BACKFILL: rows already written with the wrong (UTC) date are left as-is
+-- (accepted — a backfill can't reliably tell which past rows were entered in
+-- the 00:00–07:00 window). This migration only fixes dates written from now on.
+--
+-- ── VERIFICATION (run AFTER applying — proves the change, not just the TZ) ──
+--   1) both functions exist exactly once and now reference Asia/Bangkok:
+--        select p.proname, count(*) as defs,
+--               bool_or(pg_get_functiondef(p.oid) ilike '%Asia/Bangkok%') as has_bkk
+--          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--         where n.nspname='public'
+--           and p.proname in ('stock_intake_create','recurring_run_due')
+--         group by p.proname;
+--        -- expect: 2 rows, each defs = 1 and has_bkk = true
+--
+--   2) EXECUTE still granted to `authenticated` (RPC reachable over PostgREST):
+--        select p.proname,
+--               has_function_privilege('authenticated', p.oid, 'EXECUTE') as can_exec
+--          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--         where n.nspname='public'
+--           and p.proname in ('stock_intake_create','recurring_run_due');
+--        -- expect: can_exec = true for each
+--
+--   3) transactions.date default now uses the Bangkok expression:
+--        select column_default
+--          from information_schema.columns
+--         where table_schema='public' and table_name='transactions'
+--           and column_name='date';
+--        -- expect: contains "Asia/Bangkok" (no longer "CURRENT_DATE")
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -172,3 +209,14 @@ end;
 $$;
 
 grant execute on function public.recurring_run_due() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- transactions.date column default — the ONLY column default in the schema
+-- that referenced current_date (verified by the information_schema scan in the
+-- header; no other column turned up). Inserts that omit `date` now default to
+-- the Bangkok wall-clock day too, matching the functions above. This is a
+-- catalog-only change to the column's default expression — existing rows are
+-- NOT re-evaluated or rewritten.
+-- ---------------------------------------------------------------------------
+alter table public.transactions
+  alter column date set default (now() at time zone 'Asia/Bangkok')::date;
