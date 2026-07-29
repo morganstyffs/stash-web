@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { isSaleLinkedRow, isStockLinkedRow } from '@/lib/ledger'
 import type { TransactionType } from '@/lib/database.types'
 
 /** Full editable shape of one transaction (fetched when the edit sheet opens). */
@@ -13,17 +14,17 @@ export interface EditableTx {
   date: string
   note: string | null
   is_stock_purchase: boolean
+  is_stock_cogs: boolean
   stock_item_id: string | null
 }
 
-/** True when a transaction is tied to stock — its amount/category are managed on
- * the stock screen, not here. */
-export function isStockLinked(tx: {
-  is_stock_purchase: boolean
-  stock_item_id: string | null
-}): boolean {
-  return tx.is_stock_purchase || tx.stock_item_id != null
-}
+/** True when a transaction is tied to stock (purchase, COGS, or sale income) —
+ * its money fields are managed by the stock flows, not editable here. */
+export const isStockLinked = isStockLinkedRow
+
+/** True when a transaction was created by a SALE (income leg or COGS leg) —
+ * editing/deleting is blocked by a DB trigger; use stock_sale_reverse instead. */
+export const isSaleLinked = isSaleLinkedRow
 
 /** Fetches a single transaction with every field the edit sheet can change. */
 export function useTransaction(id: string | null) {
@@ -35,7 +36,7 @@ export function useTransaction(id: string | null) {
       const { data, error } = await supabase
         .from('transactions')
         .select(
-          'id, type, amount, category_id, wallet_id, date, note, is_stock_purchase, stock_item_id',
+          'id, type, amount, category_id, wallet_id, date, note, is_stock_purchase, is_stock_cogs, stock_item_id',
         )
         .eq('id', id!)
         .single()

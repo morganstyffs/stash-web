@@ -8,6 +8,7 @@ import {
   type HistoryRow,
 } from '@/hooks/useHistory'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
+import { isStockLinkedRow } from '@/lib/ledger'
 import { categoryIcon } from '@/lib/icons'
 import { formatBaht, formatSigned } from '@/lib/format'
 
@@ -150,7 +151,7 @@ function HistorySkeleton() {
 }
 
 function LedgerRow({ row, onOpen }: { row: HistoryRow; onOpen: () => void }) {
-  const isStock = row.is_stock_purchase || row.stock_item_id != null
+  const isStock = isStockLinkedRow(row)
   const Icon = isStock ? IconBox : categoryIcon(row.category?.icon)
   const time = new Date(row.created_at).toLocaleTimeString('th-TH', {
     hour: '2-digit',

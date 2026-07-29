@@ -54,11 +54,14 @@ export function useMonthSpending() {
     queryKey: ['transactions', 'byCategory', user?.id, b.key],
     enabled: !!user,
     queryFn: async (): Promise<Record<string, number>> => {
+      // Budget spending = isBudgetSpendingRow: expense, not a stock purchase,
+      // and NOT recognised COGS (a resale's cost is not budgeted spending).
       const { data, error } = await supabase
         .from('transactions')
         .select('amount, category_id')
         .eq('type', 'expense')
         .eq('is_stock_purchase', false)
+        .eq('is_stock_cogs', false)
         .gte('date', b.start)
         .lt('date', b.next)
       if (error) throw error

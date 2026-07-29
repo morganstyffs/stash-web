@@ -32,6 +32,10 @@ export type Category = Timestamps & {
   name: string
   kind: CategoryKind
   is_stock_category: boolean
+  /** app-managed category (cannot be deleted; DB trigger enforces) */
+  is_system: boolean
+  /** stable resolve key for system categories, e.g. 'stock_sale_income' | 'stock_cogs' */
+  system_key: string | null
   icon: string | null
   color: string | null
   sort_order: number
@@ -47,6 +51,8 @@ export type Transaction = Timestamps & {
   date: string
   note: string | null
   is_stock_purchase: boolean
+  /** recognised cost-of-goods-sold expense created at sale time (0012) */
+  is_stock_cogs: boolean
   stock_item_id: string | null
 }
 
@@ -75,8 +81,13 @@ export type StockSale = Timestamps & {
   user_id: string
   stock_item_id: string
   sale_transaction_id: string | null
+  cogs_transaction_id: string | null
   qty_sold: number
   sale_price: number
+  /** per-unit cost snapshot at sale time (0012) */
+  cost_at_sale: number
+  /** sale date (Asia/Bangkok) snapshot (0012) */
+  sold_on: string
   profit: number
 }
 
@@ -187,6 +198,40 @@ export interface Database {
       stock_sku_preview: {
         Args: { p_brand?: string | null; p_brand_code?: string | null }
         Returns: string
+      }
+      stock_sale_create: {
+        Args: {
+          p_item_id: string
+          p_qty: number
+          p_sale_price: number
+          p_wallet_id?: string | null
+          p_sale_date?: string | null
+          p_income_category_id?: string | null
+          p_cogs_category_id?: string | null
+          p_note?: string | null
+        }
+        Returns: {
+          sale_id: string
+          income_transaction_id: string
+          cogs_transaction_id: string
+          qty_remaining: number
+          status: StockStatus
+          profit: number
+        }[]
+      }
+      stock_sale_reverse: {
+        Args: { p_sale_id: string }
+        Returns: { item_id: string; qty_remaining: number; status: StockStatus }[]
+      }
+      stock_sales_summary: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          revenue: number
+          cogs: number
+          profit: number
+          sale_count: number
+          qty_sold: number
+        }[]
       }
     }
     Enums: {

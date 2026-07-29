@@ -8,26 +8,36 @@ export interface StockData {
   items: StockItem[]
   /** object-path → signed URL for each item's first photo */
   thumbs: Record<string, string>
+  /** item id → number of recorded sales (drives "has sales" / locked fields) */
+  salesCount: Record<string, number>
 }
 
-/** All stock items for the user, newest first, with signed first-photo URLs. */
+/** All stock items for the user, newest first, with signed first-photo URLs and
+ * a per-item sales count embedded in the same query (no N+1). */
 export function useStockItems() {
   const { user } = useAuth()
   return useQuery({
     queryKey: ['stock_items', 'list', user?.id],
     enabled: !!user,
     queryFn: async (): Promise<StockData> => {
+      // `sales:stock_sales(count)` embeds the related-row count via the FK, so a
+      // single request returns each item's sale count instead of one query/row.
       const { data, error } = await supabase
         .from('stock_items')
-        .select('*')
+        .select('*, sales:stock_sales(count)')
         .order('created_at', { ascending: false })
       if (error) throw error
-      const items = (data ?? []) as StockItem[]
+      const rows = (data ?? []) as (StockItem & { sales?: { count: number }[] })[]
+      const salesCount: Record<string, number> = {}
+      const items = rows.map(({ sales, ...item }) => {
+        salesCount[item.id] = sales?.[0]?.count ?? 0
+        return item as StockItem
+      })
       const firstPhotos = items
         .map((i) => i.photos?.[0])
         .filter((p): p is string => !!p)
       const thumbs = await signStockPhotos(firstPhotos)
-      return { items, thumbs }
+      return { items, thumbs, salesCount }
     },
   })
 }
