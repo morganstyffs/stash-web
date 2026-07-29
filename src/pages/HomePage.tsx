@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { Fragment, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { IconArrowDownRight, IconArrowUpRight, IconBell } from '@tabler/icons-react'
 import { useCategories } from '@/hooks/useLookups'
@@ -6,6 +6,7 @@ import {
   computeHomeSummary,
   useMonthTransactions,
   useRecentTransactions,
+  type DonutSlice,
   type RecentRow,
 } from '@/hooks/useHome'
 import { Donut, TrendLine } from '@/components/charts'
@@ -13,8 +14,49 @@ import { WalletHero } from '@/components/WalletHero'
 import { useMonthBudgetTotal } from '@/hooks/useBudgets'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 import { categoryIcon } from '@/lib/icons'
-import { currentMonthAnchor } from '@/lib/dates'
+import { currentMonthAnchor, formatRecentDayLabel } from '@/lib/dates'
 import { formatBaht, formatMonthLong, formatSigned } from '@/lib/format'
+
+interface LegendRow {
+  key: string
+  name: string
+  /** category colour, or null for the neutral "อื่นๆ" roll-up swatch */
+  color: string | null
+  total: number
+  /** share of the ring total, rounded to a whole percent */
+  pct: number
+}
+
+/**
+ * Legend rows for the category donut: the top 3 categories, plus — when there
+ * are more — a 4th "อื่นๆ (N หมวด)" row carrying the summed remainder, so the
+ * legend's baht add up to the number in the middle of the ring (the donut draws
+ * every slice; only this legend was truncating). Percentages are of the ring
+ * total; the roll-up row uses a neutral swatch rather than a category colour.
+ */
+function buildDonutLegend(slices: DonutSlice[]): LegendRow[] {
+  const total = slices.reduce((s, x) => s + x.total, 0) || 1
+  const pct = (v: number) => Math.round((v / total) * 100)
+  const rows: LegendRow[] = slices.slice(0, 3).map((s) => ({
+    key: s.categoryId,
+    name: s.name,
+    color: s.color,
+    total: s.total,
+    pct: pct(s.total),
+  }))
+  const rest = slices.slice(3)
+  if (rest.length > 0) {
+    const restTotal = rest.reduce((s, x) => s + x.total, 0)
+    rows.push({
+      key: '__other__',
+      name: `อื่นๆ (${rest.length} หมวด)`,
+      color: null,
+      total: restTotal,
+      pct: pct(restTotal),
+    })
+  }
+  return rows
+}
 
 export function HomePage() {
   const navigate = useNavigate()
@@ -126,20 +168,23 @@ export function HomePage() {
             <div className="flex items-center gap-[18px]">
               <Donut slices={summary.donut} />
               <div className="min-w-0 flex-1">
-                {summary.donut.slice(0, 3).map((s) => (
+                {buildDonutLegend(summary.donut).map((row) => (
                   <div
-                    key={s.categoryId}
+                    key={row.key}
                     className="mb-[9px] flex items-center justify-between gap-2 last:mb-0"
                   >
                     <span className="flex min-w-0 items-center text-[13px]">
                       <span
-                        className="mr-2 inline-block h-2 w-2 shrink-0 rounded-full"
-                        style={{ background: s.color }}
+                        className={`mr-2 inline-block h-2 w-2 shrink-0 rounded-full${
+                          row.color ? '' : ' bg-faint'
+                        }`}
+                        style={row.color ? { background: row.color } : undefined}
                       />
-                      <span className="truncate">{s.name}</span>
+                      <span className="truncate">{row.name}</span>
                     </span>
-                    <span className="shrink-0 text-[13px] font-medium">
-                      {formatBaht(s.total)}
+                    <span className="flex shrink-0 items-baseline gap-1.5 text-[13px]">
+                      <span className="font-medium">{formatBaht(row.total)}</span>
+                      <span className="text-faint">{row.pct}%</span>
                     </span>
                   </div>
                 ))}
@@ -157,9 +202,26 @@ export function HomePage() {
       <div className="mx-4 mb-4 mt-3.5 border-t-[0.5px] border-hairline pt-3.5">
         <p className="mb-1 text-[15px] font-medium">รายการล่าสุด</p>
         {recentQ.data && recentQ.data.length > 0 ? (
-          recentQ.data.map((t) => (
-            <RecentItem key={t.id} tx={t} onOpen={() => setEditingId(t.id)} />
-          ))
+          recentQ.data.map((t, i) => {
+            const rows = recentQ.data!
+            const newDay = i === 0 || rows[i - 1].date !== t.date
+            return (
+              <Fragment key={t.id}>
+                {newDay && (
+                  <p
+                    className={`mb-1 text-[11px] font-medium text-faint${i === 0 ? '' : ' mt-3'}`}
+                  >
+                    {formatRecentDayLabel(t.date)}
+                  </p>
+                )}
+                <RecentItem
+                  tx={t}
+                  onOpen={() => setEditingId(t.id)}
+                  last={i === rows.length - 1}
+                />
+              </Fragment>
+            )
+          })
         ) : (
           <p className="py-3 text-[13px] text-faint">
             {recentQ.isLoading ? 'กำลังโหลด…' : 'ยังไม่มีรายการ — แตะ “เพิ่มเร็ว” เพื่อเริ่ม'}
@@ -206,25 +268,39 @@ function HomeSkeleton() {
   )
 }
 
-function RecentItem({ tx, onOpen }: { tx: RecentRow; onOpen: () => void }) {
+function RecentItem({
+  tx,
+  onOpen,
+  last = false,
+}: {
+  tx: RecentRow
+  onOpen: () => void
+  last?: boolean
+}) {
   const Icon = categoryIcon(tx.category?.icon)
   const time = new Date(tx.created_at).toLocaleTimeString('th-TH', {
     hour: '2-digit',
     minute: '2-digit',
   })
+  // Header is the note when present, else the category name. Only repeat the
+  // category on the sub-line when it genuinely differs from that header, so an
+  // un-noted row doesn't print its category name twice.
+  const headerText = tx.note || tx.category?.name || 'รายการ'
+  const catName = tx.category?.name
+  const showCat = !!catName && catName !== headerText
   return (
     <button
       onClick={onOpen}
-      className="flex w-full items-center gap-[11px] border-b-[0.5px] border-hairline py-2.5 text-left last:border-b-0"
+      className={`flex w-full items-center gap-[11px] py-2.5 text-left${
+        last ? '' : ' border-b-[0.5px] border-hairline'
+      }`}
     >
       <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] bg-fill">
         <Icon size={16} className="text-muted" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px]">{tx.note || tx.category?.name || 'รายการ'}</p>
-        <p className="mt-px text-[11px] text-faint">
-          {tx.category?.name ?? 'ไม่มีหมวด'} · {time}
-        </p>
+        <p className="truncate text-[13px]">{headerText}</p>
+        <p className="mt-px text-[11px] text-faint">{showCat ? `${catName} · ${time}` : time}</p>
       </div>
       <span
         className={`text-[13px] font-medium ${

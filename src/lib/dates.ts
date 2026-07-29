@@ -72,6 +72,52 @@ export interface MonthBounds {
   key: string
 }
 
+/**
+ * A Date at *device-local* midnight built from a YYYY-MM-DD string's numeric
+ * parts — never `new Date(iso)`, which parses as UTC and shifts a day in
+ * negative-offset zones (rule 18 / F-25). The Date is only ever handed to a
+ * device-local Intl formatter for a day/month label, so the local frame it was
+ * built in cancels out and the rendered label is timezone-stable.
+ */
+function localDateFromISO(iso: string): Date {
+  const y = Number(iso.slice(0, 4))
+  const m = Number(iso.slice(5, 7))
+  const d = Number(iso.slice(8, 10))
+  return new Date(y, m - 1, d)
+}
+
+/** YYYY-MM-DD `delta` days from `iso`, built and read in one local frame (tz-stable). */
+function addDaysISO(iso: string, delta: number): string {
+  const base = localDateFromISO(iso)
+  base.setDate(base.getDate() + delta)
+  return toISODate(base)
+}
+
+const thaiDayShort = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short' })
+const thaiDayShortYear = new Intl.DateTimeFormat('th-TH', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+})
+
+/**
+ * Group label for the "recent transactions" ledger, grouped by transaction date:
+ * "วันนี้ · 29 ก.ค." for today, "เมื่อวาน · 28 ก.ค." for yesterday, otherwise the
+ * bare "27 ก.ค." — with the Buddhist-era year appended ("9 ม.ค. 2568") only when
+ * the date falls in a different year than today. "Today"/"yesterday" are reckoned
+ * against the Asia/Bangkok calendar (todayISO), matching the DB, and the whole
+ * comparison runs on YYYY-MM-DD strings so it can't drift by a day (rule 18).
+ */
+export function formatRecentDayLabel(iso: string, now: Date = new Date()): string {
+  const today = todayISO(now)
+  const yesterday = addDaysISO(today, -1)
+  const sameYear = iso.slice(0, 4) === today.slice(0, 4)
+  const label = (sameYear ? thaiDayShort : thaiDayShortYear).format(localDateFromISO(iso))
+  if (iso === today) return `วันนี้ · ${label}`
+  if (iso === yesterday) return `เมื่อวาน · ${label}`
+  return label
+}
+
 export function monthBounds(now: Date = new Date()): MonthBounds {
   // Seed from the Bangkok calendar; the rest is pure month arithmetic. Building
   // via new Date(y, m, …) then toISODate keeps both construction and read in the
