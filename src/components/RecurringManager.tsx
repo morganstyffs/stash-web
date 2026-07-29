@@ -11,7 +11,7 @@ import {
   useToggleRecurringActive,
   useUpsertRecurring,
 } from '@/hooks/useRecurring'
-import { toISODate } from '@/lib/dates'
+import { todayISO } from '@/lib/dates'
 import { formatBaht } from '@/lib/format'
 import { translateError } from '@/lib/errors'
 import type { Recurring, TransactionType } from '@/lib/database.types'
@@ -80,7 +80,7 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState<FormState | null>(null)
   const [confirming, setConfirming] = useState<Recurring | null>(null)
 
-  const today = toISODate(new Date())
+  const today = todayISO()
   const isEdit = !!form?.id
 
   // categories selectable for the chosen kind (stock categories have their own

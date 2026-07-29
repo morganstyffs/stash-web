@@ -13,6 +13,7 @@ import { WalletHero } from '@/components/WalletHero'
 import { useMonthBudgetTotal } from '@/hooks/useBudgets'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 import { categoryIcon } from '@/lib/icons'
+import { currentMonthAnchor } from '@/lib/dates'
 import { formatBaht, formatMonthLong, formatSigned } from '@/lib/format'
 
 export function HomePage() {
@@ -89,7 +90,7 @@ export function HomePage() {
         {/* left — cumulative in/out trend */}
         <div className="min-w-0 sm:flex-1">
           <div className="mb-1.5 flex items-baseline justify-between">
-            <p className="text-[15px] font-medium">{formatMonthLong(new Date())}</p>
+            <p className="text-[15px] font-medium">{formatMonthLong(currentMonthAnchor())}</p>
             <Link to="/history" className="text-[12px] text-muted">
               ดูทั้งหมด ›
             </Link>

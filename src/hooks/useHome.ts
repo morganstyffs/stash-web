@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { monthBounds } from '@/lib/dates'
+import { dayOfMonthISO, monthBounds } from '@/lib/dates'
 import { isIncomeRow, isSpendingRow } from '@/lib/ledger'
 import type { Category, TransactionType } from '@/lib/database.types'
 
@@ -105,8 +105,12 @@ const FALLBACK_SLICE_COLORS = ['#2CC0A0', '#F5C64C', '#FB7A57', '#34C471', '#171
 export function computeHomeSummary(
   rows: MonthRow[],
   categories: Category[],
+  now = new Date(),
 ): HomeSummary {
-  const b = monthBounds()
+  // `now` is injectable purely so tests can pin the month with fixed dates
+  // instead of sharing monthBounds() with the code under test; it defaults to
+  // the current time, so runtime behaviour is unchanged.
+  const b = monthBounds(now)
   const catById = new Map(categories.map((c) => [c.id, c]))
 
   let income = 0
@@ -127,12 +131,12 @@ export function computeHomeSummary(
       if (isIncomeRow(r)) {
         income += amount
         incomeCount += 1
-        const dayIdx = new Date(r.date).getDate() - 1
+        const dayIdx = dayOfMonthISO(r.date) - 1
         if (dayIdx >= 0 && dayIdx < dailyCumInc.length) dailyCumInc[dayIdx] += amount
       } else if (isSpendingRow(r)) {
         expense += amount
         expenseCount += 1
-        const dayIdx = new Date(r.date).getDate() - 1
+        const dayIdx = dayOfMonthISO(r.date) - 1
         if (dayIdx >= 0 && dayIdx < dailyCum.length) dailyCum[dayIdx] += amount
         const key = r.category_id ?? 'none'
         byCat.set(key, (byCat.get(key) ?? 0) + amount)

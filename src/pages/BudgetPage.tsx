@@ -11,7 +11,7 @@ import {
 import { useCategories } from '@/hooks/useLookups'
 import { useToast } from '@/components/Toast'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { monthBounds } from '@/lib/dates'
+import { currentMonthAnchor, dayOfMonthISO, monthBounds, todayISO } from '@/lib/dates'
 import { formatBaht, formatMonthShort } from '@/lib/format'
 import { translateError } from '@/lib/errors'
 
@@ -43,7 +43,7 @@ export function BudgetPage() {
   const usedPct = totalBudget > 0 ? Math.min(100, (totalUsed / totalBudget) * 100) : 0
 
   const b = monthBounds()
-  const daysLeft = b.days - new Date().getDate()
+  const daysLeft = b.days - dayOfMonthISO(todayISO())
 
   // expense categories eligible for a (new) budget
   const budgetedIds = new Set(budgets.map((x) => x.category_id))
@@ -60,7 +60,7 @@ export function BudgetPage() {
       <div className="flex items-center justify-between px-[18px] pb-3 pt-[18px]">
         <p className="text-[17px] font-medium">งบประมาณ</p>
         <span className="rounded-pill border-[0.5px] border-hairline px-3 py-[5px] text-[12px] text-muted">
-          {formatMonthShort(new Date())}
+          {formatMonthShort(currentMonthAnchor())}
         </span>
       </div>
 

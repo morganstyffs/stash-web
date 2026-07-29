@@ -47,6 +47,8 @@ export interface SalesSummary {
  */
 export function useStockSalesSummary() {
   const { user } = useAuth()
+  // monthBounds() is reckoned in Asia/Bangkok, the same calendar the RPC compares
+  // sold_on against — so p_from/p_to never drift a day on a non-Bangkok device.
   const b = monthBounds()
   return useQuery({
     queryKey: ['stock_sales', 'summary', user?.id, b.key],

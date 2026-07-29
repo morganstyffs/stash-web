@@ -65,10 +65,17 @@ function isConnectFailure(n: NormalizedError): boolean {
   )
 }
 
+/** Auth codes whose slug *is itself* an answer to "does this email have an
+ *  account?" — echoing them as a debug hint would leak enumeration (rule 3), so
+ *  they never reach the hint. They only arise from sign-up anyway (no UI). */
+const ENUMERATION_CODES = new Set(['email_exists', 'user_already_exists', 'user_not_found'])
+
 /** A short, sanitised hint (never the raw message) so an otherwise-opaque error
- *  is still reportable. Only well-formed slugs / numeric statuses get through. */
+ *  is still reportable. Only well-formed slugs / numeric statuses get through,
+ *  and an existence-revealing auth slug is dropped (falls back to the status). */
 function debugHint(n: NormalizedError): string | undefined {
-  if (n.code && /^[A-Za-z0-9_.-]{1,40}$/.test(n.code)) return `รหัส ${n.code}`
+  const codeOk = n.code && /^[A-Za-z0-9_.-]{1,40}$/.test(n.code) && !ENUMERATION_CODES.has(n.code)
+  if (codeOk) return `รหัส ${n.code}`
   if (typeof n.status === 'number' && n.status > 0) return `รหัส ${n.status}`
   return undefined
 }

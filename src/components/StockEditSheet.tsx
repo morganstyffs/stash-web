@@ -8,7 +8,7 @@ import { useCreateStockSale, useReverseStockSale } from '@/hooks/useStockSale'
 import { useItemSales } from '@/hooks/useStockSales'
 import { useToast } from '@/components/Toast'
 import { signStockPhotos, uploadStockPhotos } from '@/lib/storage'
-import { toISODate } from '@/lib/dates'
+import { todayISO } from '@/lib/dates'
 import { formatBaht, formatDayShort } from '@/lib/format'
 import { translateError } from '@/lib/errors'
 import {
@@ -57,7 +57,7 @@ export function StockEditSheet({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   // sell panel
-  const today = toISODate(new Date())
+  const today = todayISO()
   const [sellOpen, setSellOpen] = useState(false)
   const [sellQty, setSellQty] = useState('1')
   const [sellPrice, setSellPrice] = useState(item.target_price != null ? String(item.target_price) : '')

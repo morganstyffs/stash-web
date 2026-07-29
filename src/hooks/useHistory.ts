@@ -2,6 +2,7 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { formatDayShort } from '@/lib/format'
+import { todayISO } from '@/lib/dates'
 import type { TransactionType } from '@/lib/database.types'
 
 export type HistoryFilter = 'all' | 'income' | 'expense' | 'stock'
@@ -74,9 +75,11 @@ export interface DayGroup {
 }
 
 function dayLabel(dateStr: string): { label: string; sub: string | null } {
+  // Both sides are the local-midnight of a pure date string, so the day diff is
+  // timezone-stable; "today" is the Bangkok calendar day (todayISO), not the
+  // device's, so วันนี้/เมื่อวาน stay correct on a phone set to another zone.
   const d = new Date(dateStr + 'T00:00:00')
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const today = new Date(todayISO() + 'T00:00:00')
   const diff = Math.round((today.getTime() - d.getTime()) / 86_400_000)
   if (diff === 0) return { label: 'วันนี้', sub: formatDayShort(d) }
   if (diff === 1) return { label: 'เมื่อวาน', sub: formatDayShort(d) }
