@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { monthBounds } from '@/lib/dates'
+import { dayOfMonthISO, monthBounds, todayISO } from '@/lib/dates'
 
 export interface BudgetRow {
   id: string
@@ -119,13 +119,19 @@ export interface Pace {
   note: string
 }
 
-/** Classifies spending pace for a category against elapsed month fraction. */
-export function computePace(used: number, budget: number): Pace {
+/**
+ * Classifies spending pace for a category against elapsed month fraction.
+ * `now` is injectable purely so tests can pin the date (the elapsed-fraction
+ * branch is otherwise time-dependent); it defaults to the current time, so
+ * runtime behaviour is unchanged.
+ */
+export function computePace(used: number, budget: number, now = new Date()): Pace {
   const ratio = budget > 0 ? used / budget : 0
   const pct = Math.round(ratio * 100)
-  const b = monthBounds()
-  const today = new Date()
-  const elapsed = today.getDate() / b.days // fraction of month gone
+  const b = monthBounds(now)
+  // Bangkok day-of-month (not the device-local getDate()) so elapsed matches the
+  // Bangkok month window computed above.
+  const elapsed = dayOfMonthISO(todayISO(now)) / b.days // fraction of month gone
 
   if (used > budget && budget > 0) {
     return {

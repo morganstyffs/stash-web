@@ -13,7 +13,7 @@ import {
   useUpdateTransaction,
 } from '@/hooks/useTransactions'
 import { categoryIcon } from '@/lib/icons'
-import { toISODate } from '@/lib/dates'
+import { todayISO } from '@/lib/dates'
 import { formatDayShort } from '@/lib/format'
 import { translateError } from '@/lib/errors'
 
@@ -44,7 +44,7 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
   // Sale-linked rows (income/COGS of a sale) are stricter: a DB trigger blocks
   // changing the date too, so lock it and route deletion to the reverse flow.
   const saleLinked = tx ? isSaleLinked(tx) : false
-  const today = toISODate(new Date())
+  const today = todayISO()
 
   // seed the form once the row loads
   useEffect(() => {

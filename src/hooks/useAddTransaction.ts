@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { toISODate } from '@/lib/dates'
+import { todayISO } from '@/lib/dates'
 import type { TransactionType } from '@/lib/database.types'
 
 export interface NewTransaction {
@@ -38,7 +38,7 @@ export function useAddTransaction() {
           category_id: input.categoryId,
           wallet_id: input.walletId ?? null,
           note: input.note ?? null,
-          date: input.date ?? toISODate(new Date()),
+          date: input.date ?? todayISO(),
         })
         .select('id')
         .single()

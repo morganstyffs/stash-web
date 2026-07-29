@@ -8,6 +8,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "tsc -b",
     "typecheck": "tsc -b",
     "cf:dev": "wrangler dev",
@@ -35,6 +37,7 @@
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
     "vite-plugin-pwa": "^0.21.1",
+    "vitest": "^2.1.9",
     "wrangler": "^4.112.0"
   }
 }

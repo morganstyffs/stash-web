@@ -16,7 +16,7 @@ import { CategoriesManager } from '@/components/CategoriesManager'
 import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
 import { formatBaht, formatDayShort } from '@/lib/format'
-import { toISODate } from '@/lib/dates'
+import { todayISO } from '@/lib/dates'
 import { translateError } from '@/lib/errors'
 import type { TransactionType } from '@/lib/database.types'
 
@@ -31,7 +31,7 @@ export function AddPage() {
   const saveFav = useUpsertFavorite()
   const toast = useToast()
 
-  const today = toISODate(new Date())
+  const today = todayISO()
   const [type, setType] = useState<TransactionType>('expense')
   const [amountStr, setAmountStr] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
