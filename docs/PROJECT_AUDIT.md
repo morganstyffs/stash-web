@@ -13,16 +13,16 @@
 - **การเขียนที่กระทบสองระบบทำเป็น atomic RPC**: intake (สร้าง expense + stock item) และ delete (ลบ item + expense ต้นทาง) อยู่ใน transaction เดียว ผ่าน `security invoker` (RLS ยังบังคับ) — ดีมาก
 - **Security แน่นเกินคาดสำหรับ personal app**: RLS `auth.uid() = user_id` ทุกตาราง, storage แยกตาม uid, RPC มี auth guard, security headers/CSP ครบใน Worker, constraint กันค่าลบใน DB (0009)
 - **✅ "การขายสินค้า" ทำแล้วใน 0012 (Model A)** — เดิมไม่มีเลย ตอนนี้มี `stock_sale_create`/`stock_sale_reverse`/`stock_sales_summary` (atomic RPC): ขายลง income เต็มราคา + COGS แยก, ตัด `qty_remaining`, เปลี่ยน `status` → partial/sold, snapshot ต้นทุน, ย้อนการขายได้ + trigger กันแก้/ลบรายการขายตรง (ปิด F-01)
-- **🟠 การสร้าง SKU มี race + ไม่ unique + ซ้ำได้หลังลบ** — ใช้ `count(*)+1` ต่อ user โดยไม่มี unique constraint (F-02)
-- **🟠 Timezone ไม่ตรงกันระหว่าง client กับ server** — รายการที่ผู้ใช้กรอกใช้วันที่ local (Bangkok) แต่รายการที่สร้างจาก RPC ใช้ `current_date` ของ DB (ปกติ UTC) (F-03)
+- **✅ SKU race/ซ้ำ แก้แล้วใน 0011 (F-02)** — เพิ่ม `unique(user_id, sku)` + counter `stock_sku_config.next_seq` (ไม่พึ่ง `count`) + retry ตอนชน; รูปแบบ SKU ตั้งค่าได้ต่อ user
+- **✅ Timezone แก้แล้วใน 0010 (F-03)** — RPC + `transactions.date` default ใช้ `(now() at time zone 'Asia/Bangkok')::date` ตรงกับ client แล้ว
 - **PWA/offline ยังเป็นแค่โครง**: โมดูล `offlineQueue.ts` เขียนไว้ครบแต่ **ไม่ถูก import ที่ไหนเลย** — คำโฆษณา "offline-first write-queue" ยังไม่จริง (F-06)
-- **ไม่มี test / ไม่มี ESLint / ไม่มี CI**: script `lint` แท้จริงคือ `tsc --noEmit` เท่านั้น, ไม่มี `.github/workflows/`, ไม่มี test runner ติดตั้ง (F-07)
+- **🟠 มี CI แล้ว แต่ยังไม่มี test / ESLint**: เพิ่ม GitHub Action `npm ci && npm run build` ทุก PR/push (#32) — ยังไม่มี unit test / test runner / ESLint จริง (F-07 บางส่วน) ⚠️ `npm run typecheck`/`lint` (`tsc --noEmit` บน solution-style tsconfig) **ตรวจ 0 ไฟล์** — ดู F-19
 - **ลบเป็น hard delete ทั้งหมด ไม่มี soft delete / audit trail** — การลบรายการหรือสินค้าย้อนกลับไม่ได้และกระทบรายงานย้อนหลังทันที (F-08)
 
 ### 3 เรื่องที่ควรแก้ก่อนพัฒนาต่อ
 1. ~~**ทำ "flow การขาย" เป็น atomic RPC**~~ — ✅ **เสร็จใน 0012** (`stock_sale_create`/`reverse`/`summary`, Model A gross, ตัด `qty_remaining` + `status` + snapshot ต้นทุน + guard triggers)
-2. **เพิ่ม `unique(user_id, sku)` และเปลี่ยนวิธี gen SKU ให้ไม่พึ่ง `count(*)`** (ใช้ sequence/serial ต่อ user หรือ column counter) เพื่อกันซ้ำจาก race และจากการลบ (F-02)
-3. **รวม timezone ให้เป็นระบบเดียว** (บังคับ `date` = วันที่ Asia/Bangkok ทั้ง client และ RPC) ก่อนที่ข้อมูลผิดวันจะสะสม (F-03)
+2. ~~**เพิ่ม `unique(user_id, sku)` + เปลี่ยนวิธี gen SKU**~~ — ✅ **เสร็จใน 0011** (unique + `stock_sku_config.next_seq` counter + retry)
+3. ~~**รวม timezone ให้เป็นระบบเดียว**~~ — ✅ **เสร็จใน 0010** (Asia/Bangkok ทั้ง RPC + column default)
 
 ---
 
@@ -69,12 +69,12 @@ stash-web/
 │  │  ├─ database.types.ts    types เขียนมือ mirror schema (⚠️ ต้อง sync เอง)
 │  │  ├─ dates.ts             monthBounds()/toISODate() — ใช้ local time
 │  │  ├─ format.ts            เงินบาท (th-TH), เดือน พ.ศ.
-│  │  ├─ sku.ts               previewSku() (mirror RPC, แสดงผลอย่างเดียว)
+│  │  ├─ ledger.ts            predicate กลางจัดประเภท transaction (0012) — แหล่งเดียว
 │  │  ├─ storage.ts           อัปโหลด/sign รูปสต็อก (validate type/size ฝั่ง client)
 │  │  ├─ errors.ts            แปลง error → ข้อความไทย (map ตาม SQLSTATE)
 │  │  ├─ offlineQueue.ts      IndexedDB outbox — ⚠️ dead code, ไม่ถูก import (F-06)
 │  │  ├─ prefs.ts             AI prefs ใน localStorage (ยังไม่ wire)
-│  │  └─ icons.tsx / sku.ts
+│  │  └─ icons.tsx            (sku.ts ถูกลบใน 0011 → preview ใช้ RPC stock_sku_preview)
 │  │
 │  ├─ hooks/                  ทุกการอ่าน/เขียน DB ผ่าน TanStack Query อยู่ที่นี่
 │  │  ├─ useAuth.tsx          Auth context (session, signIn/signUp/signOut)
@@ -82,8 +82,8 @@ stash-web/
 │  │  ├─ useHistory.ts        useInfiniteQuery (paged 50), groupByDay
 │  │  ├─ useAddTransaction / useTransactions   insert/update/delete รายการ
 │  │  ├─ useStock / useStockIntake / useQueue  อ่าน/สร้าง/แก้/ลบ stock item
-│  │  ├─ useBudgets / useRecurring / useLookups / useSettings
-│  │  └─ (⚠️ ไม่มี useStockSale / useSell)
+│  │  ├─ useStockSale / useStockSales / useSku  ขาย/ย้อน/สรุปยอด + SKU preview (0011/0012)
+│  │  └─ useBudgets / useRecurring / useLookups / useSettings
 │  │
 │  ├─ components/             UI ล้วน (bottom sheet, hero, managers, charts, toast)
 │  ├─ pages/                  10 จอ
@@ -95,7 +95,8 @@ stash-web/
 │
 └─ supabase/migrations/       0001 schema+RLS · 0002 seed · 0003 storage · 0004 intake RPC ·
                               0005 budgets · 0006 stock delete RPC · 0007 recurring RPC ·
-                              0008 security hardening · 0009 value constraints  (additive-only)
+                              0008 security hardening · 0009 value constraints ·
+                              0010 timezone fix · 0011 sku config · 0012 stock sale  (additive-only)
 ```
 
 **Data flow (อ่าน)**: Component → hook (`useQuery`) → `supabase.from(...).select()` (RLS กรองตาม uid) → pure compute (`computeHomeSummary`) → render
@@ -187,7 +188,7 @@ erDiagram
 **Index ที่มี**: `transactions(user_id, date desc)`, `transactions(category_id)`, `transactions(stock_item_id)`, `stock_items(user_id, status)`, partial index `stock_items(user_id) where needs_details`, `stock_sales(stock_item_id)`, `stock_sales(user_id)`, `budgets(user_id, month)`, + `*_user_idx` ทุกตาราง
 
 **ประเด็น data model**
-- **`stock_items.sku` ไม่มี unique constraint** (0001:102) — เปิดช่องให้ SKU ซ้ำ (F-02)
+- **`stock_items.sku`**: มี `unique(user_id, sku)` + `not null` แล้ว (0011, ปิด F-02)
 - **`wallets.balance numeric(14,2)`** เป็น dead field — **ไม่มีโค้ดใดอ่านหรือเขียน** (ยืนยันทั้ง read + write path); รายการผูก `wallet_id` เป็นแค่ป้ายกำกับ → **ลบทิ้งใน 0011 (F-05, PR #30)**
 - **ไม่มี index บน `transactions(wallet_id)`** ทั้งที่ FK เป็น RESTRICT (ตอนลบ wallet ต้อง scan) — โหลดน้อยสำหรับ user เดียวจึงไม่วิกฤต
 - **`stock_sales`** ถูกเขียนโดย `stock_sale_create` (0012) แล้ว — มี `cost_at_sale`/`cogs_transaction_id`/`sold_on` เพิ่ม; ทุกแถวผูก income + COGS transaction
@@ -211,7 +212,7 @@ erDiagram
 
 ### กฎสต็อก
 11. **intake เป็น atomic**: 1 ครั้งสร้าง (a) expense `is_stock_purchase=true` (b) stock_item `qty_total=qty_remaining=qty, status='in_stock'` (c) ผูก 2 ทาง ผ่าน RPC `stock_intake_create` (`security invoker`, RLS บังคับ)
-12. **SKU = `STZ-<BRAND3>-<seq4>`**: BRAND3 = 3 ตัวอักษร/เลขแรกของแบรนด์ (uppercase) หรือ `GEN`; seq = `count(*)+1` ต่อ user (`0004:62`) — ⚠️ ไม่ unique, ซ้ำได้ (F-02)
+12. **SKU (0011)**: default `STZ-<BRAND3>-<seq4>` แต่**ตั้งค่าได้ต่อ user** ผ่าน `stock_sku_config` (prefix/ความยาวแบรนด์/จำนวนหลัก/ตัวคั่น); seq = `next_seq` counter (forward-only, ไม่พึ่ง count), unique + retry ตอนชน; ประกอบด้วยฟังก์ชันกลาง `stock_sku_build` (เรียกจากทั้ง intake + preview)
 13. **needs_details = true** เมื่อขาด อย่างใดอย่างหนึ่งใน {รูป, ไซซ์, สี, สภาพ, ราคาขาย} (`computeNeedsDetails`) — item เข้า "คิวรอเติมรายละเอียด" (`/stock/queue`); เติมครบแล้ว flag เป็น false อัตโนมัติตอน update (`useQueue.useUpdateStockItem`)
 14. **ลบ stock item เป็น atomic**: RPC `stock_item_delete` ลบ item + expense ต้นทาง (`is_stock_purchase=true`) ในคำสั่งเดียว **แต่บล็อกถ้ามี `stock_sales`** (กันประวัติกำไรหาย) — ทั้ง guard ในฟังก์ชันและ FK RESTRICT (defence in depth)
 15. **hero สต็อก**: `costValue = Σ cost_per_unit × qty_remaining` (เฉพาะ status ≠ sold); `pendingProfit = Σ (target_price − cost_per_unit) × qty_remaining` (`computeStockHero`)
@@ -268,21 +269,24 @@ erDiagram
 | ID | Severity | หมวด | ปัญหา | ไฟล์:บรรทัด | ผลกระทบ | แนวทางแก้ |
 |---|---|---|---|---|---|---|
 | F-01 | ✅ Resolved | D/E ฟีเจอร์ | **ไม่มี flow การขาย/ตัดสต็อกเลย** (เดิม) | `stock_sale_*` `0012`, `useStockSale.ts`, `StockEditSheet.tsx` | — | **แก้แล้วใน 0012 (PR)** — `stock_sale_create`/`reverse`/`summary` atomic (Model A): income+COGS, ตัด qty + status, snapshot ต้นทุน, ย้อนได้ + trigger กันแก้/ลบรายการขายตรง |
-| F-02 | 🟠 High | B/D | **SKU ไม่ unique + race + ซ้ำหลังลบ**: `select count(*)+1` ต่อ user, ไม่มี unique constraint | `0004_stock_intake_rpc.sql:62`, `0001_init.sql:102` | intake พร้อมกัน 2 รอบ / ลบแล้วเพิ่มใหม่ → SKU ชนกัน อ้างอิงสินค้าผิดตัว | เพิ่ม `unique(user_id, sku)`; เปลี่ยน gen เป็น per-user counter column หรือ sequence (ไม่พึ่ง `count`) แล้ว retry ถ้าชน |
-| F-03 | 🟠 Medium | C | **Timezone ไม่ตรง**: client กรอกใช้ local date (Bangkok), RPC ใช้ `current_date` ของ DB (Supabase = UTC) | `dates.ts:toISODate`, `0004:69` (intake), `0007` (recurring เทียบ `current_date`) | ซื้อเข้าสต็อก/รายการ recurring ช่วง 00:00–07:00 น. อาจลงวันก่อนหน้า → ยอดรายวัน/รายเดือนคลาด | บังคับวันที่เป็น Asia/Bangkok ทั้งสองฝั่ง: ส่ง `date` จาก client เข้า RPC แทน `current_date`, หรือ set `timezone='Asia/Bangkok'` + ใช้ `(now() at time zone 'Asia/Bangkok')::date` ใน RPC |
+| F-02 | ✅ Resolved | B/D | **SKU ไม่ unique + race + ซ้ำหลังลบ** (เดิม) | `0011_sku_config.sql` | — | **แก้ใน 0011**: `unique(user_id, sku)` + `stock_sku_config.next_seq` counter (ไม่พึ่ง count) + retry ตอนชน + `sku not null` |
+| F-03 | ✅ Resolved | C | **Timezone client/server ไม่ตรง** (เดิม) | `0010_timezone_fix.sql` | — | **แก้ใน 0010**: `stock_intake_create`/`recurring_run_due` + `transactions.date` default ใช้ `(now() at time zone 'Asia/Bangkok')::date` |
 | F-04 | 🟠 Medium | G | **Photo upload ล้มเหลวเงียบ**: `catch {}` ว่างใน `onAddPhotos` ของ edit sheet, ไม่มี error state แสดง | `StockEditSheet.tsx:63-66` | อัปโหลดรูปพลาด (เน็ต/quota) ผู้ใช้ไม่รู้, คิดว่ารูปเข้าแล้ว | เพิ่ม error state + toast เหมือน `StockIntakePage.onAddPhotos` (ที่ใช้ `toast.error` ถูกต้องแล้ว) |
 | F-05 | ✅ Resolved | B/D | **`wallets.balance` เป็น dead field** — ไม่เคยอ่าน/เขียน (ยืนยัน read+write path แล้ว) | `database.types.ts`, `0001` wallets | — | **แก้แล้วใน 0011 (PR #30):** `drop column wallets.balance` + เอาออกจาก `seed_defaults_internal` + `database.types.ts` (ตัดสินใจข้อ (ก) ลบทิ้ง) — รอ apply |
 | F-06 | 🟠 Medium | A/I | **Offline queue เป็น dead code** — `offlineQueue.ts` (enqueue/pending/…) ไม่ถูก import ที่ใด แต่ README/vite comment โฆษณา "offline-first write-queue" | `offlineQueue.ts` ทั้งไฟล์, `useQueue.ts` (คนละเรื่อง) | เขียน offline ไม่ถูก queue จริง — mutation ตอนไม่มีเน็ตจะ fail; ความคาดหวังไม่ตรงกับความจริง | wire เข้ากับ mutation hooks (part 5 ที่ยังไม่ทำ) หรือปรับ README ให้ตรงสถานะ |
-| F-07 | 🟠 Medium | J | **ไม่มี test / ESLint / CI**: `lint` = `tsc --noEmit`, ไม่มี test runner, ไม่มี `.github/workflows/` | `package.json:scripts`, `.github/` | ไม่มี regression net; pure functions (`computeHomeSummary/Pace/StockHero`) test ง่ายแต่ไม่ถูก test; refactor เสี่ยง | เพิ่ม Vitest + test pure functions การเงิน/สต็อกก่อน, ESLint จริง, GitHub Action รัน typecheck+test |
+| F-07 | 🟠 Medium (บางส่วน) | J | **ไม่มี test / ESLint / CI** (เดิม) | `.github/workflows/ci.yml`, `package.json` | ไม่มี regression net | **CI แก้แล้ว (#32)**: GitHub Action `npm ci && npm run build` ทุก PR/push · **ยังเหลือ**: Vitest + test pure functions (`computeHomeSummary/Pace/StockHero`), ESLint จริง |
 | F-08 | 🟡 Low | E | **Hard delete ทั้งหมด ไม่มี soft delete/audit** — ลบรายการ/สินค้าหายถาวร, ไม่มี log | `useTransactions.ts` delete, `0006` | ลบผิดกู้ไม่ได้; ไม่มีร่องรอยตรวจสอบย้อนหลัง | พิจารณา `deleted_at` + กรองทุก query, หรือ export/backup ก่อนลบ (single-user จึงไม่วิกฤต) |
 | F-09 | 🟡 Low | F | **การกันแก้/ลบ stock-purchase เป็น UI-only** — server (RLS) ยอมให้เจ้าของลบ expense ต้นทางตรงๆ ได้ ทำให้ stock item กำพร้า (`source_transaction_id` → null) | `useTransactions.ts:useDeleteTransaction`, guard อยู่แค่ `TransactionEditSheet.tsx` | เรียก API ตรง/ผ่าน client ที่ถูกแก้ ลบ expense ได้ → เงินหาย stock ค้าง (single-user เสี่ยงต่ำ) | ย้าย guard ลง DB: trigger บล็อกลบ transaction ที่ `is_stock_purchase=true` หรือให้ผ่าน RPC เท่านั้น |
 | F-10 | 🟡 Low | C/I | **คำนวณเงินฝั่ง client เป็น JS float** (`Number(...)` แล้วคูณลบ) | `useStock.ts:90-92`, `StockIntakePage.tsx` profit | อาจมี floating error เล็กน้อยตอนแสดงผล (0.1+0.2); ยังไม่กระทบข้อมูลที่บันทึก (DB numeric) | คำนวณยอดที่บันทึกจริงใน SQL/numeric เสมอ (intake ทำถูกแล้ว); ระวังตอนทำ flow ขาย |
 | F-11 | 🟡 Low | H/UX | **ค้นหาประวัติจับเฉพาะ `note`** (`ilike '%q%'`) ไม่รวมชื่อหมวด/จำนวน | `useHistory.ts` | ค้นหาไม่เจอตามที่ผู้ใช้คาด | ขยาย search ให้รวม category name (ผ่าน join filter) ถ้าจำเป็น |
-| F-12 | 🟡 Low | I | **`database.types.ts` sync มือ** — Functions ไม่มี `seed_defaults`; `Insert<T>=Partial<T>` ทำให้ required field ไม่ถูก type-check ตอน insert | `database.types.ts` | type อาจ drift จาก schema; insert ที่ลืม field ไม่ถูกจับ | ใช้ `supabase gen types typescript` แทนการเขียนมือ |
+| F-12 | 🟠 Medium (ยกจาก Low) | I | **`database.types.ts` เขียนมือ + `Relationships: []` ทุกตาราง** — embed ใด ๆ resolve ไม่ได้ (typed) → โค้ดใช้ `as unknown as` กลบ (ดู F-20); `Insert<T>=Partial<T>` ทำให้ required field ไม่ถูก check | `database.types.ts` | type drift จาก schema; embed พังตอน build (เคยเกิดกับ `stock_sales(count)` — PR #31) | **ทางแก้ถาวร: `supabase gen types typescript`** (แทน hand-write Relationships tuple ที่เปราะ) — งานแยก |
 | F-13 | 🟡 Low | F | **CSP ใช้ wildcard `*.supabase.co`** + `style-src 'unsafe-inline'` | `worker/security.ts` | หลวมกว่าที่ควร (ยอมรับได้/มี comment เตือนแล้ว) | pin เป็น `<ref>.supabase.co` ตอน deploy จริง |
 | F-14 | 🟡 Low | G | **`recurring_run_due` error กลืนเงียบถาวร** — ตั้งใจเผื่อ migration ยังไม่รัน แต่ปิดบัง error จริงตลอดไป | `useRecurring.ts:104` | ถ้า RPC พังหลัง 0007 ผู้ใช้ไม่รู้ว่ารายการประจำไม่เดิน | log/แยกกรณี "function not found" ออกจาก error อื่น |
 | F-15 | 🟠 Medium | J | **Migration hand-run ไม่มี ledger + ไฟล์ที่ apply แล้วเคยถูกแก้ + ฟังก์ชันถูก redefine ข้ามไฟล์** — 0002 ถูกแก้หลัง commit แรก (search_path), seeder ถูก `create or replace` ซ้ำใน 0008, รันมือใน SQL Editor ไม่มีบันทึกว่า apply ไฟล์ไหน/เมื่อไหร่ | `0002`/`0008` seed, git log | พิสูจน์ไม่ได้ว่า DB ตรงกับไฟล์เวอร์ชันใด → กระทบทุกครั้งที่ reproduce function จากไฟล์ (เช่น 0011) | **เริ่มแก้ใน 0011 (PR #30):** ตาราง `schema_migrations` self-record ทุก migration; + ห้ามแก้ไฟล์ที่ apply แล้ว (เขียนใหม่แทน); พิจารณา Supabase CLI migrations |
 | F-16 | 🟡 Low | G | **หน้า intake ไม่มี empty-state เมื่อ user ลบหมวด stock หมด** — `stockCategories` ว่าง → dropdown "เลือกหมวด" ไม่มีตัวเลือก, บันทึกไม่ได้ โดยไม่มีคำอธิบาย/ปุ่มสร้างหมวด | `StockIntakePage.tsx:46`, `204` | user ที่เผลอลบหมวด stock เข้าคลังไม่ได้และไม่รู้สาเหตุ (recoverable แต่เดาไม่ถูก) | เพิ่ม empty-state + ลิงก์สร้างหมวด stock เมื่อ `stockCategories.length===0` |
+| F-19 | 🟠 Medium | J | **`npm run typecheck`/`lint` เป็น no-op** — `tsc --noEmit` รันบน `tsconfig.json` แบบ solution-style (`files:[]` + references) → **ตรวจ 0 ไฟล์ ผ่านเสมอ**; ตัวจริงคือ `tsc -b` (ใน `npm run build`) | `tsconfig.json`, `package.json:scripts` | เชื่อ typecheck ที่ไร้ความหมาย → type error หลุดถึง production (เกิดจริง PR #31) | **แก้ใน PR นี้**: `typecheck`/`lint` → `tsc -b`; CI (#32) รัน `npm run build` แล้ว; Convention: ห้ามพูด "ผ่าน" ถ้าไม่รันคำสั่งเดียวกับ CI |
+| F-20 | 🟡 Low | H/I | **embed `as unknown as` กลบ type ในไฟล์คำนวณเงิน** — `useHome.ts:66` (recent tx) + `useBudgets.ts:26` (budgets) cast ผล query ทั้งก้อน → query สองไฟล์ที่รวมยอด/งบ **ไม่ถูก typecheck เลย** (schema drift ไม่ถูกจับ); โยงกับ F-12 | `useHome.ts:66`, `useBudgets.ts:26` | เปลี่ยน schema แล้ว query เพี้ยนเงียบ ๆ ไม่มี compile error | ทางแก้ถาวร = `supabase gen types` (F-12) ให้ embed resolve ได้โดยไม่ต้อง cast |
+| F-21 | 🟡 Low | H | **`useStockItems` ดึง `stock_sales` ทุกแถวมานับใน JS** — 2-query (items + sale ids) นับ per-item ฝั่ง client; ตอนนี้โอเค (ข้อมูลน้อย) แต่พอ sales โตจะกินแบนด์วิดท์ทุกครั้งที่เปิดหน้าคลัง | `useStock.ts:useStockItems` | โหลด stock list ช้าลง/เปลืองเมื่อมีการขายสะสมมาก | เปลี่ยนเป็น RPC aggregate (`count group by stock_item_id`) หรือ view เมื่อข้อมูลโต |
 
 ---
 
@@ -326,13 +330,15 @@ erDiagram
 12. **transaction ที่ผูกกับ `stock_sales` (income หรือ COGS ของการขาย) ห้ามแก้/ลบตรง** — ต้องผ่าน `stock_sale_reverse` เท่านั้น (บังคับด้วย trigger DB SECTION 8 ของ 0012 ไม่ใช่แค่ซ่อนปุ่ม); UI ล็อก amount/หมวด/วันที่ของแถวเหล่านี้ (ดู `isSaleLinkedRow`)
 13. **การจัดประเภท transaction ใช้ `lib/ledger.ts` เป็นแหล่งเดียว** (`isIncomeRow`/`isSpendingRow`/`isBudgetSpendingRow`/`isSaleLinkedRow`/`isStockLinkedRow`) — ห้าม inline เงื่อนไข flag ซ้ำใน hook/component
 14. **หมวด system** (`is_system`+`system_key`): resolve ด้วย `system_key` ตอน runtime เท่านั้น (ห้ามใช้ชื่อไทยที่ user แก้ได้), ลบไม่ได้ (trigger), backfill ครั้งเดียวใน migration ใช้ชื่อได้
+15. **ตรวจ build ด้วย `npm run build` (= `tsc -b && vite build`) เท่านั้น ห้ามพูดว่า "ผ่าน" ถ้าไม่ได้รันคำสั่งเดียวกับ CI** — `npm run typecheck`/`lint` (`tsc --noEmit` บน `tsconfig.json` ที่ `files:[]`+references) **ตรวจ 0 ไฟล์** เชื่อไม่ได้ (F-19); CI (`.github/workflows/ci.yml`) รัน `npm run build` ทุก PR/push
+16. **ห้าม `as unknown as` กลบ type ของ query** — ถ้า embed resolve ไม่ได้เพราะ hand-written types ให้ regenerate ด้วย `supabase gen types` หรือแยก query (F-12/F-20) อย่ากลบเพราะจะทำให้ query นั้นไม่ถูก typecheck
 
 ---
 
 ## 9. ข้อจำกัดของ audit นี้
 
 - **ไม่ได้รันจริง**: ไม่ได้ execute แอป, ไม่ได้ต่อ Supabase/ดู schema จริงใน DB, ไม่ได้ดู lockfile ราย package เพื่อยืนยันเวอร์ชัน exact — อ่านจาก source + migration files เท่านั้น สถานะจริงของ DB อาจต่างจาก migration ถ้ามีการแก้มือใน dashboard
-- **สมมติฐาน timezone ของ DB** (F-03): อ้างว่า Supabase default = UTC ตาม convention — **ไม่แน่ใจ — ต้องตรวจสอบเพิ่ม** ค่า `timezone` จริงของ project/role (`show timezone;`) เพื่อยืนยันผลกระทบ
+- **timezone (F-03)**: แก้แล้วใน 0010 — RPC + column default บังคับ `(now() at time zone 'Asia/Bangkok')::date` จึงไม่พึ่ง `timezone` ของ DB session อีกต่อไป (ปิดประเด็นเดิม)
 - **ไฟล์ที่อ่านผ่านๆ ไม่ละเอียดทุกบรรทัด**: `components/charts.tsx`, `WalletHero.tsx` (อ่านเฉพาะ props/logic ไม่ครบทุก animation), `AppLayout.tsx` (ครึ่งไฟล์), `CategoriesManager/WalletsManager/FavoritesManager/RecurringManager.tsx`, `ui.tsx`, `Toast.tsx`, `ConfirmDialog.tsx`, `icons.tsx`, `StockQueuePage.tsx`, `SettingsPage.tsx`, `BudgetPage.tsx`, `HistoryPage.tsx` (อ่าน hook แต่ไม่ทุกบรรทัด JSX) — อาจมี finding เล็กๆ ที่ตกหล่น
 - **ไม่ได้ตรวจ**: accessibility (a11y) เชิงลึก, bundle size จริง (ไม่ได้ build), performance ภายใต้ข้อมูลจริงปริมาณมาก, พฤติกรรม PWA/service-worker ตอน update, การ handle session expiry/refresh token edge cases
 - **ไม่ได้ประเมิน**: `index.html` (Google Fonts/meta) แบบละเอียด, `tailwind.config.ts` token ทั้งหมด, `public/` assets
