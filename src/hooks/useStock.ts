@@ -12,27 +12,32 @@ export interface StockData {
   salesCount: Record<string, number>
 }
 
-/** All stock items for the user, newest first, with signed first-photo URLs and
- * a per-item sales count embedded in the same query (no N+1). */
+/**
+ * All stock items for the user, newest first, with signed first-photo URLs and
+ * a per-item sales count. Two parallel queries (items + the sale rows' item ids)
+ * — NOT N+1, and it avoids a typed embed that the hand-authored database.types
+ * can't resolve (empty Relationships). Sales rows are tiny, so a plain id list
+ * counted in JS is cheap and keeps the types honest (no `as unknown as`).
+ */
 export function useStockItems() {
   const { user } = useAuth()
   return useQuery({
     queryKey: ['stock_items', 'list', user?.id],
     enabled: !!user,
     queryFn: async (): Promise<StockData> => {
-      // `sales:stock_sales(count)` embeds the related-row count via the FK, so a
-      // single request returns each item's sale count instead of one query/row.
-      const { data, error } = await supabase
-        .from('stock_items')
-        .select('*, sales:stock_sales(count)')
-        .order('created_at', { ascending: false })
-      if (error) throw error
-      const rows = (data ?? []) as (StockItem & { sales?: { count: number }[] })[]
+      const [itemsRes, salesRes] = await Promise.all([
+        supabase.from('stock_items').select('*').order('created_at', { ascending: false }),
+        supabase.from('stock_sales').select('stock_item_id'),
+      ])
+      if (itemsRes.error) throw itemsRes.error
+      if (salesRes.error) throw salesRes.error
+
+      const items = (itemsRes.data ?? []) as StockItem[]
       const salesCount: Record<string, number> = {}
-      const items = rows.map(({ sales, ...item }) => {
-        salesCount[item.id] = sales?.[0]?.count ?? 0
-        return item as StockItem
-      })
+      for (const row of salesRes.data ?? []) {
+        salesCount[row.stock_item_id] = (salesCount[row.stock_item_id] ?? 0) + 1
+      }
+
       const firstPhotos = items
         .map((i) => i.photos?.[0])
         .filter((p): p is string => !!p)
