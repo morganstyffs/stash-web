@@ -6,15 +6,15 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
+import type { AuthError, Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 
 interface AuthState {
   session: Session | null
   user: User | null
   loading: boolean
-  signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>
-  signUpWithPassword: (email: string, password: string) => Promise<{ error: string | null }>
+  signInWithPassword: (email: string, password: string) => Promise<{ error: AuthError | null }>
+  signUpWithPassword: (email: string, password: string) => Promise<{ error: AuthError | null }>
   signOut: () => Promise<void>
 }
 
@@ -25,10 +25,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      setLoading(false)
-    })
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        setSession(data.session)
+      })
+      .catch(() => {
+        // Can't reach Supabase (offline / paused project). Don't hang on the
+        // splash forever — fall through as signed-out so the login screen shows
+        // and the user gets a real error when they try to sign in.
+        setSession(null)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next)
@@ -43,12 +53,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: session?.user ?? null,
       loading,
       async signInWithPassword(email, password) {
+        // Return the full AuthError (not just its message) so translateError can
+        // read `code` / `status` / `name` and tell apart wrong-password vs.
+        // unverified-email vs. can't-reach-Supabase (paused project / offline).
         const { error } = await supabase.auth.signInWithPassword({ email, password })
-        return { error: error?.message ?? null }
+        return { error }
       },
       async signUpWithPassword(email, password) {
         const { error } = await supabase.auth.signUp({ email, password })
-        return { error: error?.message ?? null }
+        return { error }
       },
       async signOut() {
         await supabase.auth.signOut()

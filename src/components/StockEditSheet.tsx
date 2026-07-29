@@ -96,26 +96,33 @@ export function StockEditSheet({
   }
 
   async function save() {
-    await update.mutateAsync({
-      id: item.id,
-      name: name.trim(),
-      category: type.trim() || null,
-      brand: brand.trim() || null,
-      size: size.trim() || null,
-      color: color.trim() || null,
-      condition: (condition || null) as ItemCondition | null,
-      target_price: target ? Number(target) : null,
-      photos: photos.map((p) => p.path),
-    })
-    onClose()
+    try {
+      await update.mutateAsync({
+        id: item.id,
+        name: name.trim(),
+        category: type.trim() || null,
+        brand: brand.trim() || null,
+        size: size.trim() || null,
+        color: color.trim() || null,
+        condition: (condition || null) as ItemCondition | null,
+        target_price: target ? Number(target) : null,
+        photos: photos.map((p) => p.path),
+      })
+      toast.success('บันทึกรายละเอียดแล้ว')
+      onClose()
+    } catch (e) {
+      // Keep the sheet open so the user can retry without re-typing.
+      toast.error(translateError(e))
+    }
   }
 
   async function remove() {
     try {
       await del.mutateAsync(item.id)
       onClose()
-    } catch {
-      /* del.error rendered below; keep the sheet open */
+    } catch (e) {
+      // Keep the sheet open on failure so nothing looks half-deleted.
+      toast.error(translateError(e))
     }
   }
 
@@ -409,14 +416,8 @@ export function StockEditSheet({
             </div>
           </div>
 
-          {update.error && (
-            <p className="pb-2 text-[12px] text-expense">
-              บันทึกไม่สำเร็จ: {(update.error as Error).message}
-            </p>
-          )}
-          {del.error && (
-            <p className="pb-2 text-[12px] text-expense">{(del.error as Error).message}</p>
-          )}
+          {/* save/delete failures now surface via toast (translateError) — see
+              save()/remove(); no raw upstream message is rendered here. */}
 
           {/* delete — blocked once the item has sales (reverse first) */}
           {hasSales ? (

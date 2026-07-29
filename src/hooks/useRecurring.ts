@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { useToast } from '@/components/Toast'
+import { isMissingFunctionError, translateError } from '@/lib/errors'
 import type { Recurring, TransactionType } from '@/lib/database.types'
 
 /** All recurring rules for the current user (active + paused). */
@@ -94,22 +96,33 @@ export function useDeleteRecurring() {
  * Fire the recurring_run_due() RPC once per app load: it materializes every due
  * occurrence (backfilling missed periods with their correct dates) and advances
  * next_run server-side. On success we refresh transactions + recurring so the
- * new rows appear immediately. Errors are swallowed on purpose — until the 0007
- * migration is applied the function doesn't exist, and the app must still work.
+ * new rows appear immediately.
+ *
+ * Error handling (F-14): we only stay silent for the one benign case — the RPC
+ * not existing yet because its migration (0007) hasn't been applied. Any OTHER
+ * failure means recurring items silently didn't run, which used to be invisible;
+ * now it surfaces as a toast so the user (or a friend testing the app) knows.
  */
 export function useRunRecurringOnLoad() {
   const qc = useQueryClient()
   const { user } = useAuth()
+  const toast = useToast()
   const ran = useRef(false)
   useEffect(() => {
     if (!user || ran.current) return
     ran.current = true
     void supabase.rpc('recurring_run_due').then(({ data, error }) => {
-      if (error) return // RPC not present until 0007 is run — ignore silently
+      if (error) {
+        // "function not found" = migration not applied yet → legitimately silent.
+        if (!isMissingFunctionError(error)) {
+          toast.error(`รายการประจำไม่ทำงาน: ${translateError(error)}`)
+        }
+        return
+      }
       if ((data ?? 0) > 0) {
         qc.invalidateQueries({ queryKey: ['transactions'] })
         qc.invalidateQueries({ queryKey: ['recurring'] })
       }
     })
-  }, [user, qc])
+  }, [user, qc, toast])
 }
