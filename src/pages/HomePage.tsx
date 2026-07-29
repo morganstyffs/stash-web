@@ -73,6 +73,7 @@ export function HomePage() {
           income={summary.income}
           incomeCount={summary.incomeCount}
           budgetTotal={budgetTotalQ.data ?? 0}
+          budgetSpending={summary.budgetSpending}
           expense={summary.expense}
           expenseCount={summary.expenseCount}
           topCategory={summary.donut[0] ?? null}

@@ -10,6 +10,7 @@ import {
   IconScan,
 } from '@tabler/icons-react'
 import { formatBaht } from '@/lib/format'
+import { computePace } from '@/hooks/useBudgets'
 import stashLogo from '@/assets/stash-logo-emboss.png'
 
 /**
@@ -67,7 +68,7 @@ interface HeroCard {
   value: number
   to: string
   /** small stat rows revealed when the card is pulled out */
-  subs: { label: string; value: string }[]
+  subs: { label: string; value: string; valueClass?: string }[]
   cardClass: string
   buttonClass: string
 }
@@ -76,6 +77,7 @@ export interface WalletHeroProps {
   income: number
   incomeCount: number
   budgetTotal: number
+  budgetSpending: number
   expense: number
   expenseCount: number
   topCategory: { name: string; total: number } | null
@@ -92,6 +94,7 @@ export function WalletHero({
   income,
   incomeCount,
   budgetTotal,
+  budgetSpending,
   expense,
   expenseCount,
   topCategory,
@@ -120,7 +123,13 @@ export function WalletHero({
     return () => ro.disconnect()
   }, [])
 
-  const pct = budgetTotal > 0 ? Math.round((expense / budgetTotal) * 100) : null
+  // Budget figures compare against isBudgetSpendingRow spending (COGS excluded),
+  // NOT the COGS-inclusive `expense` headline (B1). computePace surfaces the
+  // over-budget amount that the old Math.max(0, …) clamp hid (B2).
+  const pct = budgetTotal > 0 ? Math.round((budgetSpending / budgetTotal) * 100) : null
+  const pace = computePace(budgetSpending, budgetTotal)
+  const paceClass =
+    pace.state === 'over' ? 'text-expense' : pace.state === 'fast' ? 'text-warn' : undefined
   const avgIncome = incomeCount > 0 ? income / incomeCount : 0
 
   const cards: HeroCard[] = [
@@ -144,9 +153,12 @@ export function WalletHero({
       subs: [
         {
           label: 'ใช้ไปแล้ว',
-          value: pct != null ? `${formatBaht(expense)} · ${pct}%` : formatBaht(expense),
+          value:
+            pct != null
+              ? `${formatBaht(budgetSpending)} · ${pct}%`
+              : formatBaht(budgetSpending),
         },
-        { label: 'คงเหลือ', value: formatBaht(Math.max(0, budgetTotal - expense)) },
+        { label: 'สถานะ', value: pace.note, valueClass: paceClass },
       ],
       cardClass: 'bg-cat-yellow text-cat-yellow-ink',
       buttonClass: 'bg-cat-yellow-ink/[0.14] text-cat-yellow-ink',
@@ -220,7 +232,7 @@ export function WalletHero({
                   className="flex justify-between py-0.5 text-[11px] opacity-90"
                 >
                   <span>{s.label}</span>
-                  <span>{s.value}</span>
+                  <span className={s.valueClass}>{s.value}</span>
                 </div>
               ))}
               <span

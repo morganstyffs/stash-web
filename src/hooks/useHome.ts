@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { dayOfMonthISO, monthBounds } from '@/lib/dates'
-import { isIncomeRow, isSpendingRow } from '@/lib/ledger'
+import { dayOfMonthISO, monthBounds, todayISO } from '@/lib/dates'
+import { isBudgetSpendingRow, isIncomeRow, isSpendingRow } from '@/lib/ledger'
 import type { Category, TransactionType } from '@/lib/db'
 
 /** Minimal transaction shape used by the home aggregates. */
@@ -12,6 +12,7 @@ interface MonthRow {
   date: string
   category_id: string | null
   is_stock_purchase: boolean
+  is_stock_cogs: boolean
 }
 
 /** A recent transaction joined with its category (for the ledger rows). */
@@ -39,7 +40,7 @@ export function useMonthTransactions() {
     queryFn: async (): Promise<MonthRow[]> => {
       const { data, error } = await supabase
         .from('transactions')
-        .select('amount, type, date, category_id, is_stock_purchase')
+        .select('amount, type, date, category_id, is_stock_purchase, is_stock_cogs')
         .gte('date', b.prevStart)
         .lt('date', b.next)
       if (error) throw error
@@ -81,6 +82,12 @@ export interface HomeSummary {
   expense: number
   /** safe-to-spend = income − expense (stock purchases excluded as inventory) */
   safeToSpend: number
+  /** spending that counts against budgets — isBudgetSpendingRow basis (COGS excluded) */
+  budgetSpending: number
+  /** days remaining in the month, including today (Asia/Bangkok calendar) */
+  daysLeft: number
+  /** safeToSpend / daysLeft, or 0 when safeToSpend <= 0 */
+  dailyAllowance: number
   /** % change of safe-to-spend vs last month, or null when last month is empty */
   deltaPct: number | null
   /** number of income transactions this month */
@@ -115,6 +122,7 @@ export function computeHomeSummary(
 
   let income = 0
   let expense = 0
+  let budgetSpending = 0
   let incomeCount = 0
   let expenseCount = 0
   let prevSafe = 0
@@ -141,6 +149,7 @@ export function computeHomeSummary(
         const key = r.category_id ?? 'none'
         byCat.set(key, (byCat.get(key) ?? 0) + amount)
       }
+      if (isBudgetSpendingRow(r)) budgetSpending += amount
     } else {
       // previous month
       if (isIncomeRow(r)) prevIncome += amount
@@ -156,6 +165,12 @@ export function computeHomeSummary(
   const safeToSpend = income - expense
   const deltaPct =
     prevSafe > 0 ? Math.round(((safeToSpend - prevSafe) / prevSafe) * 100) : null
+
+  // Days remaining in the month, today included. Read the day number verbatim
+  // from the Bangkok YYYY-MM-DD (never new Date(str).getDate()) so it can't drift
+  // in a negative-offset runner timezone (F-25/F-26).
+  const daysLeft = b.days - dayOfMonthISO(todayISO(now)) + 1
+  const dailyAllowance = daysLeft > 0 && safeToSpend > 0 ? safeToSpend / daysLeft : 0
 
   const donut: DonutSlice[] = [...byCat.entries()]
     .map(([id, total], i) => {
@@ -173,6 +188,9 @@ export function computeHomeSummary(
     income,
     expense,
     safeToSpend,
+    budgetSpending,
+    daysLeft,
+    dailyAllowance,
     deltaPct,
     incomeCount,
     expenseCount,
