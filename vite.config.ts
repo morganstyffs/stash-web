@@ -4,11 +4,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { execSync } from 'node:child_process'
 import path from 'node:path'
 
-// Brand indigo (คราม). Must stay in step with tailwind.config.ts → brand.DEFAULT
-// (#4A57B5) — this is the PWA/browser-chrome colour, NOT a free-standing value.
-// The old palette's mint (#14B8A6) leaked into two theme-colour slots; both now
-// point here so the app chrome matches the brand.
-const BRAND_THEME_COLOR = '#4A57B5'
+// App surface colour, light scheme — mirrors --color-surface (246 243 236) in
+// src/styles/index.css. Used for the installed-PWA manifest theme_color, which
+// (unlike index.html's <meta name="theme-color">) can't switch per scheme, so
+// it takes the light value. This is the app background, NOT the accent — a fixed
+// accent would look wrong in one of the two modes. (Was the old mint #14B8A6.)
+const APP_SURFACE_LIGHT = '#F6F3EC'
 
 /**
  * Short commit SHA for the version stamp shown in Settings. Cloudflare Workers
@@ -80,7 +81,7 @@ export default defineConfig({
         short_name: 'Stash',
         description: 'บันทึกรายรับ-รายจ่ายส่วนตัว + กึ่งระบบสต็อกสินค้า (ขายต่อ)',
         lang: 'th',
-        theme_color: BRAND_THEME_COLOR,
+        theme_color: APP_SURFACE_LIGHT,
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',

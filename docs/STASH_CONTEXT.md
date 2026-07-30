@@ -158,7 +158,7 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 18. ห้าม `new Date('YYYY-MM-DD')` แล้วอ่านค่าออกมา (timestamp เต็มที่มีเวลา+Z parse ได้ — `formatBuildStamp` ใน `format.ts` เป็นข้อยกเว้นที่ตั้งใจ มีคอมเมนต์กำกับ)
 19. 1 PR = 1 เรื่อง แตกจาก main ล่าสุด ไม่ stack · เช็คก่อน push ว่า PR ยังเปิดอยู่
 20. ตารางที่ PK เป็น `user_id` (เช่น `stock_sku_config`) เบี่ยงจาก pattern โดยตั้งใจ เพราะเป็นตาราง 1 แถว/user
-21. **สีต้องมาจาก token** ห้ามใส่ hex ดิบใหม่ใน `src/` · ค่าใน `index.html`/`vite.config.ts` (เช่น `theme-color`/`manifest.theme_color`) ต้องอ้างค่าเดียวกับพาเลตต์ (`brand.DEFAULT #4A57B5`) พร้อมคอมเมนต์กำกับ ไม่ใช่ค่าอิสระ
+21. **สีต้องมาจาก token** ห้ามใส่ hex ดิบใหม่ใน `src/` · ค่าใน `index.html`/`vite.config.ts` (เช่น `theme-color`/`manifest.theme_color`) ต้อง mirror ค่าจากพาเลตต์ (`--color-surface` ใน `index.css`) พร้อมคอมเมนต์กำกับ ไม่ใช่ค่าอิสระ · แอปมี dark mode → `theme-color` ต้องเป็น **สีพื้นแอป** และแยกตาม scheme ห้ามใช้ค่าตายตัวค่าเดียว (จะผิดในโหมดใดโหมดหนึ่งเสมอ)
 
 ---
 
@@ -268,7 +268,7 @@ Home `/` · History `/history` · Add `/add` · Stock `/stock` · StockIntake `/
 
 - **ค่าคงที่ (literal hex, locked ใน `tailwind.config.ts`):** `brand.DEFAULT #4A57B5` · `brand.fabric #1E2547` · `brand.fabric-budget #4A3A14` · `brand.fabric-stock #2B2E34` · `brand.fabric-income #1E3A2C` · `brand.thread #F3ECDB` · `cat.1–6` + `cat.other`
 - **ค่าที่ theming ได้ (ย้ายเป็น CSS variable ตอนทำ dark mode — PR #63):** `brand.deep`/`brand.tint`/`brand.ink` และ semantic (`income`/`expense`/`warn`/neutrals) เป็น `rgb(var(--color-*) / <alpha-value>)` · ค่า light อยู่ใน `:root` (เช่น `--color-brand-deep: 46 60 107` = `#2E3C6B`, `--color-brand-tint: 231 233 244` = `#E7E9F4`, `--color-brand-ink: 42 50 96` = `#2A3260`) · ค่า dark อยู่ใน `html.dark`
-- **`theme-color`/`manifest.theme_color` = `#4A57B5`** (= `brand.DEFAULT`) ใน `index.html` + `vite.config.ts` — ต้องตามพาเลตต์เสมอ ไม่ใช่ค่าอิสระ (เดิมเป็นมินต์ `#14B8A6` ของพาเลตต์เก่า — แก้ใน PR นี้)
+- **`theme-color` = สีพื้นแอป (surface) แยกตาม scheme:** `index.html` มี `<meta name="theme-color">` สองตัว (`media="(prefers-color-scheme: light/dark)"`) ค่า `#F6F3EC` / `#17160F` = mirror ของ `--color-surface` light/dark ใน `index.css` · `manifest.theme_color` สลับ scheme ไม่ได้ จึงใช้ค่า light `#F6F3EC` (`vite.config.ts` → `APP_SURFACE_LIGHT`) · **ไม่ใช่สี accent** เพราะแอปมี dark mode ค่าตายตัวค่าเดียวจะผิดในโหมดใดโหมดหนึ่งเสมอ (เดิมเป็นมินต์ `#14B8A6` ของพาเลตต์เก่า — แก้ใน PR นี้)
 - `FALLBACK_SLICE_COLORS` ใน `useHome.ts:109` เป็น hex ดิบโดยตั้งใจ (mirror ของ `cat.1–6` ตามคอมเมนต์ใน `tailwind.config.ts`) · `.rack-rail` ใน `index.css` เป็น gradient เหล็กแปรงตกแต่งล้วน (ไม่สื่อความหมาย)
 
 ### 11.4 ลำดับงาน — redesign เสร็จครบ

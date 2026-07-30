@@ -23,10 +23,13 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- Brand indigo (คราม). Keep in step with tailwind.config.ts → brand.DEFAULT
-         and vite.config.ts BRAND_THEME_COLOR — this follows the palette, it is
-         not a free value. (Was the old palette's mint #14B8A6.) -->
-    <meta name="theme-color" content="#4A57B5" />
+    <!-- App surface colour, one per scheme — the app has light + dark modes, so a
+         single fixed value is always wrong in one of them. Values mirror
+         --color-surface in src/styles/index.css (light: 246 243 236, dark:
+         23 22 15); this is the app background, NOT the accent. Keep in step with
+         that file and vite.config.ts. (Was the old palette's mint #14B8A6.) -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F6F3EC" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#17160F" />
     <meta name="description" content="Stash — บันทึกรายรับ-รายจ่ายส่วนตัว + กึ่งระบบสต็อกสินค้า" />
 
     <!-- Social preview -->
