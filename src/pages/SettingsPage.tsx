@@ -180,10 +180,10 @@ function RowShell({
     >
       <div
         className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] ${
-          iconTint ? 'bg-mint-tint' : 'bg-fill'
+          iconTint ? 'bg-brand-tint' : 'bg-fill'
         }`}
       >
-        <Icon size={16} className={iconTint ? 'text-mint-deep' : 'text-muted'} />
+        <Icon size={16} className={iconTint ? 'text-brand-deep' : 'text-muted'} />
       </div>
       {children}
     </Tag>

@@ -102,7 +102,10 @@ export interface HomeSummary {
   donut: DonutSlice[]
 }
 
-const FALLBACK_SLICE_COLORS = ['#2CC0A0', '#F5C64C', '#FB7A57', '#34C471', '#171717']
+// Donut slice colours when a category has no colour of its own. Passed as the
+// `color` prop straight to the SVG, so these stay raw hex (not Tailwind classes).
+// Must mirror cat.1–6 in tailwind.config.ts, in the same order.
+const FALLBACK_SLICE_COLORS = ['#4A57B5', '#CE6A22', '#0D8F6A', '#9B4BB0', '#7D7708', '#BC2F60']
 
 /**
  * Pure aggregation of the month rows into everything the home screen renders.

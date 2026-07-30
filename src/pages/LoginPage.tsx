@@ -42,7 +42,7 @@ export function LoginPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+              className="rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
               placeholder="you@example.com"
             />
           </label>
@@ -55,7 +55,7 @@ export function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+              className="rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
               placeholder="รหัสผ่าน"
             />
           </label>
@@ -65,7 +65,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={busy}
-            className="mt-1 rounded-btn bg-mint-deep py-3 text-[14px] font-medium text-white disabled:opacity-60"
+            className="mt-1 rounded-btn bg-brand-deep py-3 text-[14px] font-medium text-white disabled:opacity-60"
           >
             {busy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}
           </button>

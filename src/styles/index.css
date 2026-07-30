@@ -5,10 +5,6 @@
 @layer base {
   :root {
     color-scheme: light;
-
-    /* Stash brand tokens — reusable across the app */
-    --brand: #14b8a6;
-    --brand-deep: #0f766e;
   }
 
   html,
@@ -29,13 +25,13 @@
   }
 
   a {
-    color: theme('colors.mint.deep');
+    color: theme('colors.brand.deep');
     text-decoration: none;
   }
 }
 
 @layer components {
-  /* dashed inner frame used on the mint "pocket" hero */
+  /* dashed inner frame used on the "pocket" hero */
   .pocket-dash {
     border: 1.5px dashed rgba(255, 255, 255, 0.22);
   }

@@ -56,7 +56,7 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
           aria-label="เพิ่มหมวด"
           onClick={() => setForm({ name: '', kind: 'expense', is_stock_category: false })}
         >
-          <IconPlus size={20} className="text-mint-deep" />
+          <IconPlus size={20} className="text-brand-deep" />
         </button>
       }
     >
@@ -67,7 +67,7 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="ชื่อหมวด"
-            className="mb-2.5 w-full rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+            className="mb-2.5 w-full rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
           />
           <div className="mb-3 flex gap-1.5">
             {(['expense', 'income'] as const).map((k) => (
@@ -76,7 +76,7 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                 onClick={() => setForm({ ...form, kind: k })}
                 className={`rounded-pill px-4 py-[5px] text-[12px] ${
                   form.kind === k
-                    ? 'bg-mint-tint font-medium text-mint-text'
+                    ? 'bg-brand-tint font-medium text-brand-ink'
                     : 'border-[0.5px] border-hairline text-muted'
                 }`}
               >
@@ -107,7 +107,7 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                   toast.error(translateError(e))
                 }
               }}
-              className="flex-1 rounded-btn bg-mint-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
+              className="flex-1 rounded-btn bg-brand-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
             >
               บันทึก
             </button>

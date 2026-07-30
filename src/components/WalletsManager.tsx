@@ -45,7 +45,7 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       action={
         <button aria-label="เพิ่มกระเป๋า" onClick={() => setForm({ name: '', type: 'cash' })}>
-          <IconPlus size={20} className="text-mint-deep" />
+          <IconPlus size={20} className="text-brand-deep" />
         </button>
       }
     >
@@ -56,7 +56,7 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="ชื่อกระเป๋า"
-            className="mb-2.5 w-full rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+            className="mb-2.5 w-full rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
           />
           <div className="mb-3 flex flex-wrap gap-1.5">
             {TYPES.map((t) => (
@@ -65,7 +65,7 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
                 onClick={() => setForm({ ...form, type: t.key })}
                 className={`rounded-pill px-4 py-[5px] text-[12px] ${
                   form.type === t.key
-                    ? 'bg-mint-tint font-medium text-mint-text'
+                    ? 'bg-brand-tint font-medium text-brand-ink'
                     : 'border-[0.5px] border-hairline text-muted'
                 }`}
               >
@@ -95,7 +95,7 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
                   toast.error(translateError(e))
                 }
               }}
-              className="flex-1 rounded-btn bg-mint-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
+              className="flex-1 rounded-btn bg-brand-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
             >
               บันทึก
             </button>

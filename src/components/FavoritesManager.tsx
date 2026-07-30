@@ -79,7 +79,7 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       action={
         <button aria-label="เพิ่มรายการโปรด" onClick={() => setForm({ ...EMPTY })}>
-          <IconPlus size={20} className="text-mint-deep" />
+          <IconPlus size={20} className="text-brand-deep" />
         </button>
       }
     >
@@ -90,7 +90,7 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
             value={form.label}
             onChange={(e) => setForm({ ...form, label: e.target.value })}
             placeholder="ชื่อรายการโปรด เช่น กาแฟเช้า"
-            className="mb-2.5 w-full rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+            className="mb-2.5 w-full rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
           />
           <div className="mb-2.5 flex gap-1.5">
             {(['expense', 'income'] as const).map((k) => (
@@ -99,7 +99,7 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
                 onClick={() => setForm({ ...form, type: k, categoryId: '' })}
                 className={`rounded-pill px-4 py-[5px] text-[12px] ${
                   form.type === k
-                    ? 'bg-mint-tint font-medium text-mint-text'
+                    ? 'bg-brand-tint font-medium text-brand-ink'
                     : 'border-[0.5px] border-hairline text-muted'
                 }`}
               >
@@ -110,7 +110,7 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
           <select
             value={form.categoryId}
             onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-            className="mb-2.5 w-full appearance-none rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+            className="mb-2.5 w-full appearance-none rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
           >
             <option value="">ไม่ระบุหมวด</option>
             {options.map((c) => (
@@ -141,7 +141,7 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
             <button
               disabled={!form.label.trim() || upsert.isPending}
               onClick={submit}
-              className="flex-1 rounded-btn bg-mint-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
+              className="flex-1 rounded-btn bg-brand-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
             >
               {upsert.isPending ? 'กำลังบันทึก…' : 'บันทึก'}
             </button>

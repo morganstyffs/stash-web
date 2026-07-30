@@ -2,59 +2,55 @@ import type { Config } from 'tailwindcss'
 
 /**
  * Design tokens straight from the Stash design spec (docs/design).
- * Brand = mint. Style = flat, hairline borders, generous spacing, Prompt font.
+ * Brand = คราม (indigo). Style = flat, hairline borders, generous spacing, Prompt font.
  */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        // brand mint
-        mint: {
-          DEFAULT: '#2CC0A0', // bright — graph lines, accents, dark text on tint
-          deep: '#0E7D66', // primary buttons, hero pocket, active nav
-          tint: '#E1F6F0', // selected chip / soft highlight bg
-          text: '#0C5646', // text on tint / light bg
-          hero: '#C9F2E7', // plus badge on dark hero
-        },
-        // woven-label hero fabrics (WovenHero). The full indigo `brand` palette
-        // lands with the design-token PR; the hero only needs these fabric/thread
-        // swatches to render, so they are defined here up front.
+        // brand — คราม (indigo). fabric*/thread drive WovenHero: do NOT change
+        // their values (the woven labels render against them).
         brand: {
-          fabric: '#1E2547', // safe label fabric
-          'fabric-budget': '#4A3A14', // budget label fabric
-          'fabric-stock': '#2B2E34', // stock label fabric
-          thread: '#F3ECDB', // woven thread = text on every label
+          DEFAULT: '#4A57B5', // accent, graph lines, first category
+          deep: '#2E3C6B', // primary buttons, dark surfaces, active nav (white on this = 10.63:1)
+          tint: '#E7E9F4', // selected chip / soft highlight bg
+          ink: '#2A3260', // text on tint (10.07:1)
+          fabric: '#1E2547', // safe label fabric — locked
+          'fabric-budget': '#4A3A14', // budget label fabric — locked
+          'fabric-stock': '#2B2E34', // stock label fabric — locked
+          thread: '#F3ECDB', // woven thread = text on every label — locked
         },
-        // semantic
-        income: '#1D9E75',
-        expense: '#E24B4A',
-        warn: '#BA7517',
-        // category palette (bg + text pairs)
+        // semantic (each with a light surface; -soft pairs read on dark bg)
+        income: '#1A7A57',
+        'income-bg': '#E4F0EA',
+        'income-soft': '#8FD3B4',
+        expense: '#B23A2C',
+        'expense-bg': '#F8E7E4',
+        'expense-soft': '#EDA095',
+        warn: '#8F6410',
+        'warn-bg': '#F7EEDC',
+        'warn-ink': '#6E4C0C',
+        // neutrals
+        ink: '#1B1A17', // primary text
+        muted: '#5B5850', // secondary text
+        faint: '#6D6A60', // tertiary / placeholder
+        hairline: '#E2DED3', // 0.5px separators + borders
+        surface: '#F6F3EC', // app background
+        fill: '#EDE9DE', // inset field / neutral chip bg
+        chevron: '#C8C2B4',
+        // category palette — colorblind-checked. Do NOT change values, reorder,
+        // or add a 7th. Categories past 6 collapse to cat.other.
+        // FALLBACK_SLICE_COLORS in useHome.ts must mirror cat.1–6 in this order.
         cat: {
-          yellow: '#F5C64C',
-          'yellow-ink': '#4A3A08',
-          coral: '#FB7A57',
-          'coral-ink': '#7A2F17',
-          green: '#34C471',
-          'green-ink': '#0B3D22',
-          black: '#171717',
-          'black-ink': '#E8E8E8',
+          1: '#4A57B5',
+          2: '#CE6A22',
+          3: '#0D8F6A',
+          4: '#9B4BB0',
+          5: '#7D7708',
+          6: '#BC2F60',
+          other: '#A9A498',
         },
-        // neutrals (from the mockups)
-        ink: '#1A1D1C', // primary text
-        muted: '#5F6360', // secondary text
-        faint: '#9AA09C', // tertiary / placeholder
-        hairline: '#E6E8E7', // 0.5px separators + borders
-        surface: '#F4F5F5', // app background
-        fill: '#F1F2F3', // inset field / neutral chip bg
-        chevron: '#D2D5D4',
-        // warn soft surfaces
-        'warn-bg': '#FBF3E4',
-        'warn-border': '#E7D3A6',
-        'warn-ink': '#7A5B12',
-        // missing-tag surfaces (coral tint)
-        'miss-bg': '#FDE7DF',
       },
       fontFamily: {
         sans: ['Prompt', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],

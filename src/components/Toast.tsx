@@ -55,9 +55,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             className="pointer-events-auto flex max-w-md items-center gap-2 rounded-pill bg-ink/92 px-4 py-2.5 text-[13px] font-medium text-white shadow-card"
           >
             {t.kind === 'success' ? (
-              <IconCheck size={16} className="shrink-0 text-mint-hero" />
+              <IconCheck size={16} className="shrink-0 text-income-soft" />
             ) : (
-              <IconExclamationCircle size={16} className="shrink-0 text-expense" />
+              <IconExclamationCircle size={16} className="shrink-0 text-expense-soft" />
             )}
             {t.message}
           </div>

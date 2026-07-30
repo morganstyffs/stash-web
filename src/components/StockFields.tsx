@@ -35,7 +35,7 @@ export function TextInput({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       inputMode={inputMode}
-      className="w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] text-[13px] outline-none placeholder:text-faint focus:border-mint"
+      className="w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] text-[13px] outline-none placeholder:text-faint focus:border-brand"
     />
   )
 }
@@ -58,7 +58,7 @@ export function ConditionChips({
             onClick={() => onChange(active ? '' : c.key)}
             className={`rounded-pill px-[14px] py-1.5 text-[12px] ${
               active
-                ? 'bg-mint-tint font-medium text-mint-text'
+                ? 'bg-brand-tint font-medium text-brand-ink'
                 : 'border-[0.5px] border-hairline text-muted'
             }`}
           >

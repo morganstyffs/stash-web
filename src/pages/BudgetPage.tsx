@@ -174,7 +174,7 @@ export function BudgetPage() {
         {addable.length > 0 && (
           <button
             onClick={() => setEditor({ categoryId: addable[0].id, amount: '' })}
-            className="flex items-center gap-1 text-[12px] font-medium text-mint-deep"
+            className="flex items-center gap-1 text-[12px] font-medium text-brand-deep"
           >
             <IconPlus size={14} />
             ตั้งงบเพิ่ม
@@ -271,6 +271,8 @@ function BudgetRowView({
     pace.state === 'over' ? 'text-expense' : pace.state === 'fast' ? 'text-warn' : 'text-faint'
   const pctColor =
     pace.state === 'over' ? 'text-expense' : pace.state === 'fast' ? 'text-warn' : 'text-ink'
+  const ringColor =
+    pace.state === 'over' ? 'stroke-expense' : pace.state === 'fast' ? 'stroke-warn' : 'stroke-brand'
 
   return (
     <button
@@ -278,7 +280,7 @@ function BudgetRowView({
       className="flex w-full items-center gap-[13px] border-b-[0.5px] border-hairline py-[11px] text-left last:border-b-0"
     >
       <svg viewBox="0 0 44 44" className="h-[42px] w-[42px] shrink-0">
-        <circle cx="22" cy="22" r="17" fill="none" stroke="#F1F2F3" strokeWidth="5" />
+        <circle cx="22" cy="22" r="17" fill="none" className="stroke-fill" strokeWidth="5" />
         {/* skip the arc entirely at ratio 0 — a round linecap on a 0-length arc
             leaves a stray dot on the ring */}
         {pace.ratio > 0 && (
@@ -287,7 +289,7 @@ function BudgetRowView({
             cy="22"
             r="17"
             fill="none"
-            stroke={pace.color}
+            className={ringColor}
             strokeWidth="5"
             strokeDasharray={`${arc} ${RING_C}`}
             strokeLinecap="round"
@@ -361,7 +363,7 @@ function BudgetEditor({
           <select
             value={state.categoryId}
             onChange={(e) => onChange({ ...state, categoryId: e.target.value })}
-            className="mb-3 w-full appearance-none rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+            className="mb-3 w-full appearance-none rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
           >
             {addable.map((c) => (
               <option key={c.id} value={c.id}>
@@ -398,7 +400,7 @@ function BudgetEditor({
           <button
             onClick={onSave}
             disabled={saving || !state.categoryId || Number(state.amount || '0') <= 0}
-            className="flex-1 rounded-btn bg-mint-deep py-3 text-[14px] font-medium text-white disabled:opacity-40"
+            className="flex-1 rounded-btn bg-brand-deep py-3 text-[14px] font-medium text-white disabled:opacity-40"
           >
             {saving ? 'กำลังบันทึก…' : 'บันทึก'}
           </button>

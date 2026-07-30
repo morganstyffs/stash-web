@@ -11,7 +11,7 @@ export function Donut({ slices }: { slices: DonutSlice[] }) {
   return (
     <div className="relative shrink-0">
       <svg viewBox="0 0 80 80" className="h-[76px] w-[76px]">
-        <circle cx="40" cy="40" r={R} fill="none" stroke="#F1F2F3" strokeWidth="11" />
+        <circle cx="40" cy="40" r={R} fill="none" className="stroke-fill" strokeWidth="11" />
         {slices.map((s) => {
           const dash = (s.total / total) * C
           const el = (
@@ -54,7 +54,7 @@ const PLOT_H = BOTTOM - TOP
 const STEP = 10_000 // gridline every ฿10,000
 
 /**
- * Month trend — cumulative income (mint) vs expense (red), on a fixed money
+ * Month trend — cumulative income (green) vs expense (red), on a fixed money
  * scale with labelled horizontal gridlines. Pass `sparseLabels` to only label
  * every ฿20,000 (a lighter look for tight mobile widths).
  */
@@ -93,14 +93,14 @@ export function TrendLine({
         const labelled = !sparseLabels || v % 20_000 === 0
         return (
           <g key={v}>
-            <line x1={PLOT_L} y1={y} x2={PLOT_R} y2={y} stroke="#E6E8E7" strokeWidth="1" />
+            <line x1={PLOT_L} y1={y} x2={PLOT_R} y2={y} className="stroke-hairline" strokeWidth="1" />
             {labelled && (
               <text
                 x={GUTTER - 4}
                 y={y + 3}
                 textAnchor="end"
                 fontSize="9"
-                fill="#9AA09C"
+                className="fill-faint"
               >
                 {v.toLocaleString('en-US')}
               </text>
@@ -113,24 +113,24 @@ export function TrendLine({
       <polyline
         points={toPoints(expense)}
         fill="none"
-        stroke="#E24B4A"
+        className="stroke-expense"
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {/* income line (mint) */}
+      {/* income line (green) */}
       <polyline
         points={toPoints(income)}
         fill="none"
-        stroke="#2CC0A0"
+        className="stroke-income"
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
 
       {/* end-of-line value dots */}
-      {expLast && <circle cx={expLast.x} cy={expLast.y} r="4" fill="#E24B4A" />}
-      {incLast && <circle cx={incLast.x} cy={incLast.y} r="4" fill="#2CC0A0" />}
+      {expLast && <circle cx={expLast.x} cy={expLast.y} r="4" className="fill-expense" />}
+      {incLast && <circle cx={incLast.x} cy={incLast.y} r="4" className="fill-income" />}
 
       {/* x-axis day labels */}
       {dayMarks.map((d, i) => (
@@ -140,7 +140,7 @@ export function TrendLine({
           y={BOTTOM + 16}
           textAnchor={i === 0 ? 'start' : i === dayMarks.length - 1 ? 'end' : 'middle'}
           fontSize="10"
-          fill="#9AA09C"
+          className="fill-faint"
         >
           {d}
         </text>
