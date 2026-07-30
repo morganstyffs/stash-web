@@ -28,6 +28,10 @@ export type Favorite = Tables<'favorites'>
 export type Budget = Tables<'budgets'>
 export type StockSkuConfig = Tables<'stock_sku_config'>
 export type Recurring = Tables<'recurring'>
+export type Profile = Tables<'profiles'>
+export type FriendConnection = Tables<'friend_connections'>
+export type Debt = Tables<'debts'>
+export type DebtEvent = Tables<'debt_events'>
 
 // ── RPC arg / result shapes ────────────────────────────────────────────────
 type Fns = Database['public']['Functions']
@@ -39,3 +43,8 @@ export type StockIntakeResult = Fns['stock_intake_create']['Returns'][number]
 /** Named args for `stock_sale_create` (0012). Optional args omit → SQL DEFAULT. */
 export type StockSaleArgs = Fns['stock_sale_create']['Args']
 export type StockSaleResult = Fns['stock_sale_create']['Returns'][number]
+
+/** Named args for `debt_create` (0015). Optional args omit → SQL DEFAULT. */
+export type DebtCreateArgs = Fns['debt_create']['Args']
+export type DebtSettleResult = Fns['debt_settle']['Returns'][number]
+export type FriendDebtsSummary = Fns['friend_debts_summary']['Returns'][number]

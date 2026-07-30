@@ -13,6 +13,7 @@ interface MonthRow {
   category_id: string | null
   is_stock_purchase: boolean
   is_stock_cogs: boolean
+  is_debt_settlement: boolean
 }
 
 /** A recent transaction joined with its category (for the ledger rows). */
@@ -40,7 +41,7 @@ export function useMonthTransactions() {
     queryFn: async (): Promise<MonthRow[]> => {
       const { data, error } = await supabase
         .from('transactions')
-        .select('amount, type, date, category_id, is_stock_purchase, is_stock_cogs')
+        .select('amount, type, date, category_id, is_stock_purchase, is_stock_cogs, is_debt_settlement')
         .gte('date', b.prevStart)
         .lt('date', b.next)
       if (error) throw error

@@ -18,6 +18,7 @@ const coffee: LedgerRow = { type: 'expense' } // plain discretionary expense
 const intake: LedgerRow = { type: 'expense', is_stock_purchase: true } // buying into stock
 const cogs: LedgerRow = { type: 'expense', is_stock_cogs: true, stock_item_id: 'item-1' } // sale cost leg
 const saleIncome: LedgerRow = { type: 'income', stock_item_id: 'item-1' } // sale income leg
+const debtSettle: LedgerRow = { type: 'expense', is_debt_settlement: true } // paying back a debt
 
 describe('isIncomeRow', () => {
   it('is true only for income rows (incl. sale income)', () => {
@@ -30,9 +31,10 @@ describe('isIncomeRow', () => {
 })
 
 describe('isSpendingRow (home headline / trend / donut)', () => {
-  it('excludes stock PURCHASES but INCLUDES recognised COGS', () => {
+  it('excludes stock PURCHASES but INCLUDES recognised COGS and debt settlements', () => {
     expect(isSpendingRow(coffee)).toBe(true)
     expect(isSpendingRow(cogs)).toBe(true) // COGS is a real expense under Model A
+    expect(isSpendingRow(debtSettle)).toBe(true) // real money leaving the wallet
     expect(isSpendingRow(intake)).toBe(false) // inventory asset, not spending
     expect(isSpendingRow(salary)).toBe(false)
     expect(isSpendingRow(saleIncome)).toBe(false)
@@ -40,9 +42,10 @@ describe('isSpendingRow (home headline / trend / donut)', () => {
 })
 
 describe('isBudgetSpendingRow (counts against category budgets)', () => {
-  it('is like isSpendingRow but ALSO excludes COGS', () => {
+  it('is like isSpendingRow but ALSO excludes COGS and debt settlements', () => {
     expect(isBudgetSpendingRow(coffee)).toBe(true)
     expect(isBudgetSpendingRow(cogs)).toBe(false) // a resale cost is not budgeted spending
+    expect(isBudgetSpendingRow(debtSettle)).toBe(false) // repaying an owed debt is not budgeted spending
     expect(isBudgetSpendingRow(intake)).toBe(false)
     expect(isBudgetSpendingRow(salary)).toBe(false)
     expect(isBudgetSpendingRow(saleIncome)).toBe(false)
