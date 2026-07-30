@@ -9,8 +9,10 @@ import {
   type HistoryRow,
 } from '@/hooks/useHistory'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
+import { LedgerIcon } from '@/components/LedgerIcon'
 import { isStockLinkedRow } from '@/lib/ledger'
 import { categoryIcon } from '@/lib/icons'
+import { catColorVar } from '@/lib/catColor'
 import { formatBaht, formatSigned } from '@/lib/format'
 
 const FILTERS: { key: HistoryFilter; label: string }[] = [
@@ -197,13 +199,10 @@ function LedgerRow({ row, onOpen }: { row: HistoryRow; onOpen: () => void }) {
       onClick={onOpen}
       className="flex w-full items-center gap-[11px] border-b-[0.5px] border-hairline py-2.5 text-left last:border-b-0"
     >
-      <div
-        className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] ${
-          isStock ? 'bg-brand-tint' : 'bg-fill'
-        }`}
-      >
-        <Icon size={16} className={isStock ? 'text-brand-deep' : 'text-muted'} />
-      </div>
+      <LedgerIcon
+        icon={Icon}
+        color={isStock ? 'rgb(var(--color-brand-deep))' : catColorVar(row.category?.color_index)}
+      />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px]">{row.note || row.category?.name || 'รายการ'}</p>
         <p className="mt-px text-[11px] text-faint">

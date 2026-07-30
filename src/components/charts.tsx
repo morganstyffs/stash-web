@@ -1,4 +1,5 @@
 import type { DonutSlice } from '@/hooks/useHome'
+import { catColorVar } from '@/lib/catColor'
 import { formatBaht, MASKED_BAHT } from '@/lib/format'
 
 // ── donut geometry + centre-total sizing ─────────────────────────────────────
@@ -68,7 +69,7 @@ export function Donut({ slices, hideBalance = false }: { slices: DonutSlice[]; h
               cy="40"
               r={R}
               fill="none"
-              stroke={s.color}
+              stroke={catColorVar(s.colorIndex)}
               strokeWidth={DONUT_STROKE}
               strokeDasharray={`${dash} ${C - dash}`}
               strokeDashoffset={-offset}

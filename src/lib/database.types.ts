@@ -79,9 +79,9 @@ export type Database = {
       }
       categories: {
         Row: {
-          color: string | null
+          color_index: number
           created_at: string
-          icon: string | null
+          icon: string
           id: string
           is_stock_category: boolean
           is_system: boolean
@@ -93,9 +93,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          color?: string | null
+          color_index?: number
           created_at?: string
-          icon?: string | null
+          icon?: string
           id?: string
           is_stock_category?: boolean
           is_system?: boolean
@@ -107,9 +107,9 @@ export type Database = {
           user_id?: string
         }
         Update: {
-          color?: string | null
+          color_index?: number
           created_at?: string
-          icon?: string | null
+          icon?: string
           id?: string
           is_stock_category?: boolean
           is_system?: boolean
@@ -890,6 +890,10 @@ export type Database = {
         }
       }
       generate_friend_code: { Args: never; Returns: string }
+      pick_category_color_index: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
       recurring_next_date: {
         Args: { p_from: string; p_schedule: string }
         Returns: string

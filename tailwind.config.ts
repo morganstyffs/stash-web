@@ -49,17 +49,17 @@ export default {
         surface: 'rgb(var(--color-surface) / <alpha-value>)', // app background
         fill: 'rgb(var(--color-fill) / <alpha-value>)', // inset field / neutral chip bg
         chevron: 'rgb(var(--color-chevron) / <alpha-value>)',
-        // category palette — colorblind-checked. Do NOT change values, reorder,
-        // or add a 7th. Categories past 6 collapse to cat.other.
-        // FALLBACK_SLICE_COLORS in useHome.ts must mirror cat.1–6 in this order.
+        // category palette — colorblind-checked. Now CSS variables (light + dark) so the DB stays
+        // free of hex; values + the color_index→slot mapping live in index.css
+        // and lib/catColor.ts. Do NOT reorder or add a 7th (see color_index 1–6).
         cat: {
-          1: '#4A57B5',
-          2: '#CE6A22',
-          3: '#0D8F6A',
-          4: '#9B4BB0',
-          5: '#7D7708',
-          6: '#BC2F60',
-          other: '#A9A498',
+          1: 'rgb(var(--color-cat-1) / <alpha-value>)',
+          2: 'rgb(var(--color-cat-2) / <alpha-value>)',
+          3: 'rgb(var(--color-cat-3) / <alpha-value>)',
+          4: 'rgb(var(--color-cat-4) / <alpha-value>)',
+          5: 'rgb(var(--color-cat-5) / <alpha-value>)',
+          6: 'rgb(var(--color-cat-6) / <alpha-value>)',
+          other: 'rgb(var(--color-cat-other) / <alpha-value>)',
         },
       },
       fontFamily: {

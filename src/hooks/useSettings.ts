@@ -41,6 +41,9 @@ export interface CategoryInput {
   name: string
   kind: CategoryKind
   is_stock_category: boolean
+  icon: string
+  /** chosen colour slot 1–6, or null to let the DB pick an unused one (create). */
+  colorIndex: number | null
 }
 
 export function useUpsertCategory() {
@@ -50,24 +53,44 @@ export function useUpsertCategory() {
     mutationFn: async (input: CategoryInput) => {
       if (!user) throw new Error('ยังไม่ได้เข้าสู่ระบบ')
       if (input.id) {
-        const { error } = await supabase
-          .from('categories')
-          .update({
-            name: input.name,
-            kind: input.kind,
-            is_stock_category: input.is_stock_category,
-          })
-          .eq('id', input.id)
+        // edit always carries the current colour, so color_index is set; guard
+        // anyway so we never write null/0 into a NOT NULL 1–6 column on update.
+        const patch: {
+          name: string
+          kind: CategoryKind
+          is_stock_category: boolean
+          icon: string
+          color_index?: number
+        } = {
+          name: input.name,
+          kind: input.kind,
+          is_stock_category: input.is_stock_category,
+          icon: input.icon,
+        }
+        if (input.colorIndex != null) patch.color_index = input.colorIndex
+        const { error } = await supabase.from('categories').update(patch).eq('id', input.id)
         if (error) throw error
       } else {
-        const { error } = await supabase.from('categories').insert({
+        // Omit color_index when the user didn't pick one → the DB's BEFORE INSERT
+        // trigger assigns an unused slot (never computed on the client).
+        const row: {
+          user_id: string
+          name: string
+          kind: CategoryKind
+          is_stock_category: boolean
+          icon: string
+          sort_order: number
+          color_index?: number
+        } = {
           user_id: user.id,
           name: input.name,
           kind: input.kind,
           is_stock_category: input.is_stock_category,
-          icon: 'tag',
+          icon: input.icon,
           sort_order: 100,
-        })
+        }
+        if (input.colorIndex != null) row.color_index = input.colorIndex
+        const { error } = await supabase.from('categories').insert(row)
         if (error) throw error
       }
     },

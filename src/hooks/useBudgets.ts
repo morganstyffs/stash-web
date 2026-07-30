@@ -7,7 +7,7 @@ export interface BudgetRow {
   id: string
   category_id: string
   amount: number
-  category: { name: string; icon: string | null; color: string | null } | null
+  category: { name: string; icon: string; color_index: number } | null
 }
 
 /** Budgets for the current month, joined with their category. */
@@ -20,7 +20,7 @@ export function useBudgets() {
     queryFn: async (): Promise<BudgetRow[]> => {
       const { data, error } = await supabase
         .from('budgets')
-        .select('id, category_id, amount, category:categories(name, icon, color)')
+        .select('id, category_id, amount, category:categories(name, icon, color_index)')
         .eq('month', b.start)
       if (error) throw error
       return data ?? []

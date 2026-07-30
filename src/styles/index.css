@@ -22,6 +22,17 @@
     --color-surface: 246 243 236;
     --color-fill: 237 233 222;
     --color-chevron: 200 194 180;
+    /* category palette (colorblind-checked). One source of truth for the donut
+       + category icons; the DB stores a slot 1–6 (categories.color_index), the
+       client maps it to these. All ≥3:1 on the light surface. cat.1 shares the
+       brand identity (= brand.DEFAULT). */
+    --color-cat-1: 74 87 181;
+    --color-cat-2: 206 106 34;
+    --color-cat-3: 13 143 106;
+    --color-cat-4: 155 75 176;
+    --color-cat-5: 125 119 8;
+    --color-cat-6: 188 47 96;
+    --color-cat-other: 128 120 107;
     --shadow-card: 0 3px 14px rgba(20, 30, 28, 0.07);
   }
 
@@ -44,6 +55,10 @@
     --color-surface: 23 22 15;
     --color-fill: 35 32 25;
     --color-chevron: 74 70 56;
+    /* cat.1 (indigo) is 2.87:1 on the dark surface — just under the 3:1 bar for
+       a graphical object — so lighten it here (tracks brand-deep dark). cat.2–6
+       and cat.other already clear 3:1 on dark, so they inherit the :root values. */
+    --color-cat-1: 90 104 201;
     --shadow-card: 0 3px 14px rgba(0, 0, 0, 0.4);
   }
 
