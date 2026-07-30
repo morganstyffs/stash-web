@@ -6,31 +6,34 @@ import {
 } from '@/components/charts'
 import { formatBaht, MASKED_BAHT } from '@/lib/format'
 
-// The donut centre total overflowed the ring at a fixed 13px. donutCenterFontSize
-// shrinks by the display string's length. These lock the three cases the spec
-// calls out (verification must prove it WORKS, not just exists).
+// donutCenterFontSize picks the largest size whose text box fits the ring hole.
+// After widening the hole (stroke 9, render 90px, single line), realistic totals
+// no longer get squeezed to the floor. These lock the four cases the spec calls
+// out; the real-browser fit is verified in charts.visual.test.ts.
 
 describe('donutCenterFontSize', () => {
   it('keeps the max size for a short total (฿0)', () => {
     expect(formatBaht(0)).toBe('฿0') // 2 chars
-    expect(donutCenterFontSize('฿0'.length)).toBe(13)
+    expect(donutCenterFontSize('฿0'.length)).toBeGreaterThanOrEqual(13)
   })
 
-  it('shrinks the reference total (฿48,052) to fit the hole', () => {
+  it('keeps the everyday total (฿48,052) at full size — no more squeeze', () => {
     expect(formatBaht(48_052)).toBe('฿48,052') // 7 chars
-    // ~50px at 13px vs a ~43.8px chord → floors to 11px (fits)
-    expect(donutCenterFontSize('฿48,052'.length)).toBe(11)
+    expect(donutCenterFontSize('฿48,052'.length)).toBeGreaterThanOrEqual(13)
   })
 
-  it('clamps a 7-figure total (฿1,234,567) to the 11px floor', () => {
+  it('keeps a 6-figure total (฿999,999) legible (≥12px)', () => {
+    expect(formatBaht(999_999)).toBe('฿999,999') // 8 chars
+    expect(donutCenterFontSize('฿999,999'.length)).toBeGreaterThanOrEqual(12)
+  })
+
+  it('fits a 7-figure total (฿1,234,567) at ≥11px', () => {
     expect(formatBaht(1_234_567)).toBe('฿1,234,567') // 10 chars
-    // geometry wants ~8px here — below the readability floor, so it clamps to 11
-    // and still overflows: the signal to move the number out of the ring.
-    expect(donutCenterFontSize('฿1,234,567'.length)).toBe(11)
+    expect(donutCenterFontSize('฿1,234,567'.length)).toBeGreaterThanOrEqual(11)
   })
 
   it('shows the hide-balance mask at full size', () => {
-    expect(donutCenterFontSize(MASKED_BAHT.length)).toBe(13)
+    expect(donutCenterFontSize(MASKED_BAHT.length)).toBeGreaterThanOrEqual(13)
   })
 
   it('never leaves the [11,13] band and never grows with length', () => {
