@@ -27,3 +27,58 @@ export function saveAiPrefs(prefs: AiPrefs): void {
     /* ignore quota / privacy-mode errors */
   }
 }
+
+// ── hide-balance toggle ──────────────────────────────────────────────────────
+// The eye on the hero. Kept here so components never touch localStorage directly
+// (one place owns every 'stash.*' key). Stored as '1'/'0' — unchanged wire
+// format so no migration from the previous inline HomePage code.
+const HIDE_BALANCE_KEY = 'stash.hideBalance'
+
+export function loadHideBalance(): boolean {
+  try {
+    return localStorage.getItem(HIDE_BALANCE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function saveHideBalance(hidden: boolean): void {
+  try {
+    localStorage.setItem(HIDE_BALANCE_KEY, hidden ? '1' : '0')
+  } catch {
+    /* ignore quota / privacy-mode errors */
+  }
+}
+
+// ── home "moments" (new month / first sale) ──────────────────────────────────
+// The last home state we recorded, so we can play a one-off animation when it
+// changes (see useHomeMoments). Device-local by design — see STASH_CONTEXT §
+// "หน้าแรก" notes: syncing this to the DB isn't worth it for a handful of users,
+// so opening a phone then a laptop can replay a moment once. `month` is null
+// until the first record, which is how we avoid celebrating for a brand-new user.
+export interface HomeMomentState {
+  /** month key 'YYYY-MM' last seen, or null before anything was recorded */
+  month: string | null
+  /** whether STOCK PROFIT was non-zero when last recorded */
+  stockActive: boolean
+}
+
+const HOME_MOMENTS_KEY = 'stash.home.moments'
+const HOME_MOMENTS_DEFAULT: HomeMomentState = { month: null, stockActive: false }
+
+export function loadHomeMoments(): HomeMomentState {
+  try {
+    const raw = localStorage.getItem(HOME_MOMENTS_KEY)
+    return raw ? { ...HOME_MOMENTS_DEFAULT, ...JSON.parse(raw) } : HOME_MOMENTS_DEFAULT
+  } catch {
+    return HOME_MOMENTS_DEFAULT
+  }
+}
+
+export function saveHomeMoments(state: HomeMomentState): void {
+  try {
+    localStorage.setItem(HOME_MOMENTS_KEY, JSON.stringify(state))
+  } catch {
+    /* ignore quota / privacy-mode errors */
+  }
+}

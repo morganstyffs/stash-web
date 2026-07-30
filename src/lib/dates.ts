@@ -40,6 +40,16 @@ export function todayISO(now: Date = new Date()): string {
 }
 
 /**
+ * Current month as YYYY-MM in Asia/Bangkok — the key used to detect a new-month
+ * rollover on the home screen. Same calendar as todayISO, so it flips exactly
+ * when the DB's month does, not when the device's local month does.
+ */
+export function monthKey(now: Date = new Date()): string {
+  const { y, m } = bangkokYMD(now)
+  return `${y}-${pad2(m)}`
+}
+
+/**
  * Day-of-month (1–31) read verbatim from a YYYY-MM-DD string — the single,
  * timezone-proof way to get a day number from a stored date. Never route a
  * date-only string through `new Date(...).getDate()`: it parses as UTC midnight

@@ -4,6 +4,15 @@ import type { Config } from 'tailwindcss'
  * Design tokens straight from the Stash design spec (docs/design).
  * Brand = คราม (indigo). Style = flat, hairline borders, generous spacing, Prompt font.
  */
+
+// Motion — single source for the woven-label flip timing and the home "moment"
+// flourishes (new month / first sale). Components reference these as
+// `duration-label` / `ease-label` / `animate-weave-in` / `animate-moment-pop`;
+// never hard-code the values in a component (design-spec §2 "การเคลื่อนไหว").
+// These are the WovenHero flip's original figures — reused, not re-invented.
+const LABEL_DURATION = '420ms'
+const LABEL_EASING = 'cubic-bezier(.22,1,.36,1)'
+
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
@@ -69,6 +78,28 @@ export default {
       },
       boxShadow: {
         card: 'var(--shadow-card)',
+      },
+      transitionDuration: {
+        label: LABEL_DURATION,
+      },
+      transitionTimingFunction: {
+        label: LABEL_EASING,
+      },
+      keyframes: {
+        // new-month rollover: the fresh label "weaves in"
+        'weave-in': {
+          '0%': { opacity: '0', transform: 'translateY(6px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        // first sale of the month: a single recognition beat on STOCK PROFIT
+        'moment-pop': {
+          '0%, 100%': { transform: 'scale(1)' },
+          '38%': { transform: 'scale(1.05)' },
+        },
+      },
+      animation: {
+        'weave-in': `weave-in ${LABEL_DURATION} ${LABEL_EASING}`,
+        'moment-pop': `moment-pop ${LABEL_DURATION} ${LABEL_EASING}`,
       },
     },
   },

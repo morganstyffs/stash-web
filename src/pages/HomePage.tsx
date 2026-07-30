@@ -16,10 +16,14 @@ import { Donut } from '@/components/charts'
 import { WovenHero } from '@/components/WovenHero'
 import { useMonthBudgetTotal } from '@/hooks/useBudgets'
 import { useStockSalesSummary } from '@/hooks/useStockSales'
+import { useDelayedFlag } from '@/hooks/useDelayedFlag'
+import { useHomeMoments } from '@/hooks/useHomeMoments'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 import { categoryIcon } from '@/lib/icons'
-import { formatRecentDayLabel } from '@/lib/dates'
-import { formatBaht, formatSigned } from '@/lib/format'
+import { formatRecentDayLabel, monthKey } from '@/lib/dates'
+import { largestRemainderPercents } from '@/lib/percent'
+import { loadHideBalance, saveHideBalance } from '@/lib/prefs'
+import { formatBaht, formatSigned, MASKED_BAHT } from '@/lib/format'
 
 interface LegendRow {
   key: string
@@ -39,27 +43,26 @@ interface LegendRow {
  * total; the roll-up row uses a neutral swatch rather than a category colour.
  */
 function buildDonutLegend(slices: DonutSlice[]): LegendRow[] {
-  const total = slices.reduce((s, x) => s + x.total, 0) || 1
-  const pct = (v: number) => Math.round((v / total) * 100)
-  const rows: LegendRow[] = slices.slice(0, 3).map((s) => ({
+  const base = slices.slice(0, 3).map((s) => ({
     key: s.categoryId,
     name: s.name,
-    color: s.color,
+    color: s.color as string | null,
     total: s.total,
-    pct: pct(s.total),
   }))
   const rest = slices.slice(3)
   if (rest.length > 0) {
-    const restTotal = rest.reduce((s, x) => s + x.total, 0)
-    rows.push({
+    base.push({
       key: '__other__',
       name: `อื่นๆ (${rest.length} หมวด)`,
       color: null,
-      total: restTotal,
-      pct: pct(restTotal),
+      total: rest.reduce((s, x) => s + x.total, 0),
     })
   }
-  return rows
+  // These rows cover the whole ring total (the "อื่นๆ" roll-up carries every
+  // slice past the top 3), so largest-remainder percents make the shown numbers
+  // sum to exactly 100 instead of drifting to 99 with independent Math.round.
+  const pcts = largestRemainderPercents(base.map((r) => r.total))
+  return base.map((r, i) => ({ ...r, pct: pcts[i] }))
 }
 
 export function HomePage() {
@@ -72,22 +75,12 @@ export function HomePage() {
   const attention = useAttentionSignals()
   const [panelOpen, setPanelOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [hideBalance, setHideBalance] = useState(() => {
-    try {
-      return localStorage.getItem('stash.hideBalance') === '1'
-    } catch {
-      return false
-    }
-  })
+  const [hideBalance, setHideBalance] = useState(loadHideBalance)
 
   function toggleHideBalance() {
     setHideBalance((v) => {
       const next = !v
-      try {
-        localStorage.setItem('stash.hideBalance', next ? '1' : '0')
-      } catch {
-        /* ignore quota / privacy-mode errors */
-      }
+      saveHideBalance(next)
       return next
     })
   }
@@ -98,8 +91,24 @@ export function HomePage() {
   )
 
   const loading = monthQ.isLoading || catsQ.isLoading
+  // Skeleton only after a beat: a cached load resolves first, so no flash.
+  const showSkeleton = useDelayedFlag(loading, 200)
 
-  if (loading) return <HomeSkeleton />
+  // One-off "moment" animations, decided once everything the hero reads is in.
+  const ready =
+    !monthQ.isLoading && !catsQ.isLoading && !stockQ.isLoading && !recentQ.isLoading
+  const stockActive = (stockQ.data?.qty_sold ?? 0) > 0
+  const { newMonth, firstSale } = useHomeMoments(ready, monthKey(), stockActive)
+
+  // Brand-new user: no transactions logged anywhere, no sales → invite, don't
+  // show ฿0 and empty lists.
+  const isNewUser =
+    ready &&
+    (recentQ.data?.length ?? 0) === 0 &&
+    (monthQ.data?.length ?? 0) === 0 &&
+    !stockActive
+
+  if (loading) return showSkeleton ? <HomeSkeleton /> : null
 
   return (
     <div className="flex min-h-full flex-col">
@@ -154,15 +163,19 @@ export function HomePage() {
           stock={stockQ.data ?? { revenue: 0, cogs: 0, profit: 0, sale_count: 0, qty_sold: 0 }}
           hideBalance={hideBalance}
           onToggleHide={toggleHideBalance}
+          empty={isNewUser}
+          newMonth={newMonth}
+          firstSale={firstSale}
         />
       </div>
 
       {/* category donut */}
+      {!isNewUser && (
       <div className="mx-4 mt-3.5 border-t-[0.5px] border-hairline pt-3.5">
         <p className="mb-3 text-[15px] font-medium">หมวดใช้จ่าย</p>
         {summary.donut.length > 0 ? (
           <div className="flex items-center gap-[18px]">
-            <Donut slices={summary.donut} />
+            <Donut slices={summary.donut} hideBalance={hideBalance} />
             <div className="min-w-0 flex-1">
               {buildDonutLegend(summary.donut).map((row) => (
                 <div
@@ -179,7 +192,11 @@ export function HomePage() {
                     <span className="truncate">{row.name}</span>
                   </span>
                   <span className="flex shrink-0 items-baseline gap-1.5">
-                    <span className="text-[12.5px] font-medium">{formatBaht(row.total)}</span>
+                    {/* mask the baht with the hero's hide-balance toggle so the
+                        amounts don't leak here; name + % stay (% isn't a figure) */}
+                    <span className="text-[12.5px] font-medium">
+                      {hideBalance ? MASKED_BAHT : formatBaht(row.total)}
+                    </span>
                     <span className="text-[10.5px] text-faint">{row.pct}%</span>
                   </span>
                 </div>
@@ -187,13 +204,13 @@ export function HomePage() {
             </div>
           </div>
         ) : (
-          <p className="py-3 text-[13px] text-faint">
-            {loading ? 'กำลังโหลด…' : 'ยังไม่มีรายจ่ายเดือนนี้'}
-          </p>
+          <p className="py-3 text-[13px] text-faint">ยังไม่มีรายจ่ายเดือนนี้</p>
         )}
       </div>
+      )}
 
       {/* recent transactions */}
+      {!isNewUser && (
       <div className="mx-4 mb-4 mt-3.5 border-t-[0.5px] border-hairline pt-3.5">
         <p className="mb-1 text-[15px] font-medium">รายการล่าสุด</p>
         {recentQ.data && recentQ.data.length > 0 ? (
@@ -218,11 +235,10 @@ export function HomePage() {
             )
           })
         ) : (
-          <p className="py-3 text-[13px] text-faint">
-            {recentQ.isLoading ? 'กำลังโหลด…' : 'ยังไม่มีรายการ — แตะ “เพิ่มเร็ว” เพื่อเริ่ม'}
-          </p>
+          <p className="py-3 text-[13px] text-faint">ยังไม่มีรายการ — แตะ “เพิ่มเร็ว” เพื่อเริ่ม</p>
         )}
       </div>
+      )}
 
       {editingId && (
         <TransactionEditSheet id={editingId} onClose={() => setEditingId(null)} />
@@ -291,17 +307,28 @@ function AttentionPanel({
   )
 }
 
-/** Loading placeholder that mirrors the home layout (no ฿0 flash on first load). */
+/**
+ * Loading placeholder that mirrors the home layout (no ฿0 flash on first load).
+ * The hero is a label caught mid-weave — fabric filling the top, the rest still
+ * bare — rather than a generic pulsing block: it reads as "this is a woven label
+ * loading", not "something is broken". Static by design (it only appears after a
+ * 200ms delay, so a slow load lands on a calm frame, not a strobe).
+ */
 function HomeSkeleton() {
   return (
-    <div className="flex min-h-full animate-pulse flex-col">
+    <div className="flex min-h-full flex-col">
       <div className="flex items-center justify-between px-[18px] pb-2.5 pt-[18px]">
         <div className="h-[30px] w-[30px] rounded-[9px] bg-fill" />
         <div className="h-4 w-32 rounded bg-fill" />
         <div className="h-5 w-5 rounded bg-fill" />
       </div>
       <div className="px-4 pb-1 pt-1.5">
-        <div className="h-[254px] rounded-pocket bg-fill" />
+        <div className="relative h-[254px] overflow-hidden rounded-pocket bg-fill">
+          {/* the label, woven only partway down */}
+          <div className="woven bg-brand-fabric absolute inset-x-0 top-0 h-[104px] opacity-80">
+            <span aria-hidden className="selvedge absolute inset-x-0 top-0 h-[7px]" />
+          </div>
+        </div>
       </div>
       <div className="mx-4 mt-3.5">
         <div className="h-4 w-40 rounded bg-fill" />
