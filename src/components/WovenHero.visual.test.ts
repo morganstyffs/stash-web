@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
@@ -14,35 +14,23 @@ import { WovenHero } from '@/components/WovenHero'
  * STOCK PROFIT (eyebrow + figure) end up painted behind the label in front and
  * read as blank fabric on the real screen. jsdom does not model button content
  * centring, so a "is the text in the DOM" test (WovenHero.test.tsx) passed the
- * whole time the bug was live. This test renders the real component with the
- * real compiled CSS in real Chromium and asserts, via elementFromPoint, that
- * each folded eyebrow is the element actually painted at its own centre — which
- * is false when the label in front covers it.
+ * whole time the bug was live. This renders the real component with the real
+ * compiled CSS in real Chromium and asserts, via elementFromPoint, that each
+ * folded eyebrow is the element actually painted at its own centre.
  *
- * Runs wherever a Chromium binary + a production CSS build are available (this
- * sandbox, local dev). It skips (rather than fails) when either is missing so a
- * browser-less `npm test` stays green; `npm run build` before `npm test` gives
- * it the CSS.
+ * Browser resolution: playwright-core finds its OWN installed browser (no path
+ * guessing). Set CHROMIUM_EXECUTABLE to point at a specific binary if a sandbox
+ * ships a different revision than this playwright-core expects.
+ *
+ * Runnability policy — a guard that can never fail where it matters is no guard
+ * (cf. the `tsc --noEmit`-on-0-files trap this project already hit):
+ *   • outside CI, browser not launchable → skip (dev box may have no Chromium)
+ *   • in CI (process.env.CI set), browser not launchable → FAIL, because CI is
+ *     supposed to provision it (see .github/workflows/ci.yml). The error says
+ *     exactly what to add.
  */
 
-function findChromium(): string | null {
-  const envPath = process.env.CHROMIUM_EXECUTABLE
-  if (envPath && existsSync(envPath)) return envPath
-  const base = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers'
-  try {
-    const dir = readdirSync(base).find((d) => /^chromium-\d+$/.test(d))
-    if (dir) {
-      const exe = `${base}/${dir}/chrome-linux/chrome`
-      if (existsSync(exe)) return exe
-    }
-  } catch {
-    /* no browsers dir */
-  }
-  for (const p of ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome']) {
-    if (existsSync(p)) return p
-  }
-  return null
-}
+const IN_CI = !!process.env.CI
 
 function findBuiltCss(): string | null {
   try {
@@ -53,69 +41,70 @@ function findBuiltCss(): string | null {
   }
 }
 
-const chromium = findChromium()
-const css = findBuiltCss()
-const canRun = !!chromium && !!css
-const runIt = canRun ? it : it.skip
-
-if (!canRun) {
-  // eslint-disable-next-line no-console
-  console.warn(
-    `[WovenHero.visual] skipped — ${!chromium ? 'no Chromium binary' : ''}${
-      !chromium && !css ? ' and ' : ''
-    }${!css ? 'no dist CSS (run `npm run build` first)' : ''}`,
-  )
-}
-
 describe('WovenHero folded labels are actually visible (real browser)', () => {
-  runIt(
+  it(
     'BUDGET and STOCK PROFIT eyebrows + figures are the painted element at their own centre',
     async (ctx) => {
-      const { chromium: pw } = await import('playwright-core')
-
-      const markup = renderToStaticMarkup(
-        createElement(
-          MemoryRouter,
-          null,
-          createElement(WovenHero, {
-            safeToSpend: 9_000,
-            daysLeft: 10,
-            dailyAllowance: 900,
-            deltaPct: null,
-            budgetTotal: 10_000,
-            budgetSpending: 4_000,
-            stock: { revenue: 5_000, cogs: 3_200, profit: 1_800, sale_count: 3, qty_sold: 4 },
-            hideBalance: false,
-            onToggleHide: () => {},
-          }),
-        ),
-      )
-      const page = `<!doctype html><html lang="th"><head><meta charset="utf-8">
-<style>${css}</style><style>body{margin:0}#stage{width:390px;padding:16px}</style></head>
-<body><div id="stage">${markup}</div></body></html>`
-
-      // Only an assertion failure (a real regression) should fail CI. If the
-      // browser can't even launch (e.g. a mismatched system binary on a runner),
-      // skip rather than go red — the assertions below are the guard, not the
-      // launcher.
-      let browser
-      try {
-        browser = await pw.launch({ executablePath: chromium!, args: ['--no-sandbox'] })
-      } catch (err) {
+      const css = findBuiltCss()
+      if (!css) {
+        const msg = 'no production CSS at dist/assets — run `npm run build` before `npm test`'
+        if (IN_CI) throw new Error(`[WovenHero.visual] ${msg}`)
         // eslint-disable-next-line no-console
-        console.warn('[WovenHero.visual] Chromium launch failed, skipping:', err)
+        console.warn(`[WovenHero.visual] skipped: ${msg} (local, not CI)`)
         ctx.skip()
         return
       }
-      try {
-        const p = await browser.newPage({ viewport: { width: 390, height: 800 } })
-        await p.setContent(page)
 
-        // For each label expected to peek, assert the pixel at the centre of its
-        // eyebrow (and its folded figure) belongs to THAT label — i.e. nothing is
-        // painted over it. Returns the aria-label of whatever owns the pixel.
+      const { chromium } = await import('playwright-core')
+      // undefined → playwright-core resolves its own installed browser.
+      const executablePath = process.env.CHROMIUM_EXECUTABLE || undefined
+
+      let browser
+      try {
+        browser = await chromium.launch({ executablePath, args: ['--no-sandbox'] })
+      } catch (err) {
+        const detail = err instanceof Error ? err.message.split('\n')[0] : String(err)
+        const msg =
+          `could not launch Chromium (${detail}). CI must provision it — add ` +
+          '`npx playwright-core install --with-deps chromium` before `npm test` in ' +
+          '.github/workflows/ci.yml'
+        if (IN_CI) throw new Error(`[WovenHero.visual] ${msg}`)
+        // eslint-disable-next-line no-console
+        console.warn(`[WovenHero.visual] skipped: ${msg} (local, not CI)`)
+        ctx.skip()
+        return
+      }
+
+      try {
+        const markup = renderToStaticMarkup(
+          createElement(
+            MemoryRouter,
+            null,
+            createElement(WovenHero, {
+              safeToSpend: 9_000,
+              daysLeft: 10,
+              dailyAllowance: 900,
+              deltaPct: null,
+              budgetTotal: 10_000,
+              budgetSpending: 4_000,
+              stock: { revenue: 5_000, cogs: 3_200, profit: 1_800, sale_count: 3, qty_sold: 4 },
+              hideBalance: false,
+              onToggleHide: () => {},
+            }),
+          ),
+        )
+        const html = `<!doctype html><html lang="th"><head><meta charset="utf-8">
+<style>${css}</style><style>body{margin:0}#stage{width:390px;padding:16px}</style></head>
+<body><div id="stage">${markup}</div></body></html>`
+
+        const page = await browser.newPage({ viewport: { width: 390, height: 800 } })
+        await page.setContent(html)
+
+        // For each label expected to peek, the pixel at the centre of its eyebrow
+        // (and folded figure) must belong to THAT label — 'SELF' — i.e. nothing
+        // is painted over it. Returns the covering label's aria-label otherwise.
         const ownerAt = (text: string) =>
-          p.evaluate((t) => {
+          page.evaluate((t) => {
             const el = [...document.querySelectorAll('span,p')].find(
               (s) => (s.textContent || '').trim() === t,
             )
@@ -141,6 +130,6 @@ describe('WovenHero folded labels are actually visible (real browser)', () => {
         await browser.close()
       }
     },
-    30_000,
+    60_000,
   )
 })

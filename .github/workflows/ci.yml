@@ -28,6 +28,12 @@ jobs:
       # Full compile + bundle. No VITE_SUPABASE_* needed: those are read at
       # runtime in the browser, not during the build.
       - run: npm run build
-      # Unit tests for the money/stock formulas (Vitest). Uses dummy Supabase
-      # env from vitest.config.ts — no live project needed.
+      # Chromium for the WovenHero visual-regression guard — a real-browser check
+      # (elementFromPoint) that jsdom can't do. Installs the exact build this
+      # playwright-core expects so the guard resolves it itself, no path guessing.
+      # Without this the guard fails in CI on purpose (a guard that can only skip
+      # is no guard); with it, the guard actually runs.
+      - run: npx playwright-core install --with-deps chromium
+      # Unit tests for the money/stock formulas + the visual guard (Vitest). Uses
+      # dummy Supabase env from vitest.config.ts — no live project needed.
       - run: npm test
