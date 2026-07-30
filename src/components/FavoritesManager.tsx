@@ -9,6 +9,7 @@ import {
   useFavorites,
   useUpsertFavorite,
 } from '@/hooks/useLookups'
+import { useWallets } from '@/hooks/useSettings'
 import { formatBaht } from '@/lib/format'
 import { translateError } from '@/lib/errors'
 import type { Favorite, TransactionType } from '@/lib/db'
@@ -19,13 +20,23 @@ interface FormState {
   type: TransactionType
   amount: string
   categoryId: string
+  walletId: string
+  note: string
 }
 
-const EMPTY: FormState = { label: '', type: 'expense', amount: '', categoryId: '' }
+const EMPTY: FormState = {
+  label: '',
+  type: 'expense',
+  amount: '',
+  categoryId: '',
+  walletId: '',
+  note: '',
+}
 
 export function FavoritesManager({ onClose }: { onClose: () => void }) {
   const { data: favorites } = useFavorites()
   const { data: categories } = useCategories()
+  const { data: wallets } = useWallets()
   const upsert = useUpsertFavorite()
   const del = useDeleteFavorite()
   const toast = useToast()
@@ -63,6 +74,8 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
         type: form.type,
         amount: form.amount ? Number(form.amount) : null,
         category_id: form.categoryId || null,
+        wallet_id: form.walletId || null,
+        note: form.note.trim() || null,
       })
       toast.success(form.id ? 'บันทึกรายการโปรดแล้ว' : 'เพิ่มรายการโปรดแล้ว')
       setForm(null)
@@ -119,6 +132,20 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
               </option>
             ))}
           </select>
+          {wallets && wallets.length > 0 && (
+            <select
+              value={form.walletId}
+              onChange={(e) => setForm({ ...form, walletId: e.target.value })}
+              className="mb-2.5 w-full appearance-none rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
+            >
+              <option value="">ไม่ระบุกระเป๋า (ใช้กระเป๋าเริ่มต้น)</option>
+              {wallets.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="mb-3 flex items-center rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5">
             <span className="mr-1 text-[13px] text-faint">฿</span>
             <input
@@ -131,6 +158,12 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
               className="w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
             />
           </div>
+          <input
+            value={form.note}
+            onChange={(e) => setForm({ ...form, note: e.target.value })}
+            placeholder="โน้ต (ไม่ใส่ก็ได้)"
+            className="mb-3 w-full rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none placeholder:text-faint focus:border-brand"
+          />
           <div className="flex gap-2">
             <button
               onClick={() => setForm(null)}
@@ -160,6 +193,7 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
       ) : (
         list.map((f) => {
           const catName = categories?.find((c) => c.id === f.category_id)?.name
+          const walletName = wallets?.find((w) => w.id === f.wallet_id)?.name
           return (
             <div
               key={f.id}
@@ -173,6 +207,7 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
                 <p className="text-[11px] text-faint">
                   {f.type === 'income' ? 'รายรับ' : 'รายจ่าย'}
                   {catName ? ` · ${catName}` : ''}
+                  {walletName ? ` · ${walletName}` : ''}
                   {f.amount != null ? ` · ${formatBaht(f.amount)}` : ''}
                 </p>
               </div>
@@ -186,6 +221,8 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
                     type: f.type,
                     amount: f.amount != null ? String(f.amount) : '',
                     categoryId: f.category_id ?? '',
+                    walletId: f.wallet_id ?? '',
+                    note: f.note ?? '',
                   })
                 }
               >

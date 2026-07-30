@@ -129,9 +129,11 @@ export type Database = {
           created_at: string
           id: string
           label: string
+          note: string | null
           type: Database["public"]["Enums"]["transaction_type"]
           updated_at: string
           user_id: string
+          wallet_id: string | null
         }
         Insert: {
           amount?: number | null
@@ -139,9 +141,11 @@ export type Database = {
           created_at?: string
           id?: string
           label: string
+          note?: string | null
           type?: Database["public"]["Enums"]["transaction_type"]
           updated_at?: string
           user_id?: string
+          wallet_id?: string | null
         }
         Update: {
           amount?: number | null
@@ -149,9 +153,11 @@ export type Database = {
           created_at?: string
           id?: string
           label?: string
+          note?: string | null
           type?: Database["public"]["Enums"]["transaction_type"]
           updated_at?: string
           user_id?: string
+          wallet_id?: string | null
         }
         Relationships: [
           {
@@ -159,6 +165,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favorites_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
             referencedColumns: ["id"]
           },
         ]
