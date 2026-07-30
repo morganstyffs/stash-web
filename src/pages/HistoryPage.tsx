@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { IconAdjustmentsHorizontal, IconBox, IconSearch } from '@tabler/icons-react'
+import { IconChartBar, IconSearch, IconX, IconBox } from '@tabler/icons-react'
 import {
   groupByDay,
   useHistory,
+  useHistoryTotals,
   type HistoryFilter,
   type HistoryRow,
 } from '@/hooks/useHistory'
@@ -48,23 +49,34 @@ export function HistoryPage() {
   )
   const rows = useMemo(() => data?.pages.flat() ?? [], [data])
   const groups = useMemo(() => groupByDay(rows), [rows])
+  const totals = useHistoryTotals(filter, search)
+  const filterLabel = FILTERS.find((f) => f.key === filter)?.label
 
   return (
     <div className="flex min-h-full flex-col">
-      <div className="flex items-center justify-between px-[18px] pb-3.5 pt-[18px]">
+      <div className="px-[18px] pb-3.5 pt-[18px]">
         <p className="text-[17px] font-medium">ประวัติ</p>
-        <IconAdjustmentsHorizontal size={19} className="text-muted" />
       </div>
 
       <div className="px-4 pb-3">
-        <div className="flex items-center gap-2 rounded-[11px] border-[0.5px] border-hairline bg-fill px-3 py-[9px]">
-          <IconSearch size={16} className="text-faint" />
+        <div className="flex h-11 items-center gap-2 rounded-input border-[0.5px] border-hairline bg-fill px-3">
+          <IconSearch size={17} className="shrink-0 text-faint" aria-hidden />
           <input
+            aria-label="ค้นหารายการ"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="ค้นหารายการ..."
+            placeholder="ค้นหาโน้ตรายการ..."
             className="w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
           />
+          {searchInput && (
+            <button
+              aria-label="ล้างคำค้นหา"
+              onClick={() => setSearchInput('')}
+              className="-mr-1 flex h-8 w-8 shrink-0 items-center justify-center"
+            >
+              <IconX size={16} className="text-faint" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -75,17 +87,40 @@ export function HistoryPage() {
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
-              className={`shrink-0 rounded-pill px-[14px] py-1.5 text-[12px] ${
-                active
-                  ? 'bg-brand-tint font-medium text-brand-ink'
-                  : 'border-[0.5px] border-hairline text-muted'
-              }`}
+              aria-pressed={active}
+              className="flex min-h-[44px] shrink-0 items-center"
             >
-              {f.label}
+              <span
+                className={`rounded-pill px-[14px] py-1.5 text-[12px] ${
+                  active
+                    ? 'bg-brand-tint font-medium text-brand-ink'
+                    : 'border-[0.5px] border-hairline text-muted'
+                }`}
+              >
+                {f.label}
+              </span>
             </button>
           )
         })}
       </div>
+
+      {totals.data && totals.data.count > 0 && (
+        <div className="mx-4 mb-1 mt-2.5 flex items-center gap-3 rounded-[14px] bg-brand-tint px-[15px] py-3">
+          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-white">
+            <IconChartBar size={18} className="text-brand-ink" aria-hidden />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[13.5px] font-medium text-brand-ink">
+              {totals.data.count} รายการ{filterLabel ? ` (${filterLabel})` : ''}
+            </p>
+            <p className="mt-px text-[11px]">
+              <span className="text-income">+{formatBaht(totals.data.income)}</span>
+              {' · '}
+              <span className="text-expense">-{formatBaht(totals.data.expense)}</span>
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 pb-4">
         {isLoading ? (

@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { formatDayShort } from '@/lib/format'
@@ -62,6 +62,56 @@ export function useHistory(filter: HistoryFilter, search: string) {
     // A full-size page means there may be more; a short page is the end.
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length === HISTORY_PAGE_SIZE ? allPages.length : undefined,
+  })
+}
+
+export interface HistoryTotals {
+  count: number
+  income: number
+  expense: number
+}
+
+/**
+ * True totals for the active filter + search — NOT derived from `rows` in
+ * HistoryPage, which only holds whatever pages useHistory() has paged in so
+ * far. Runs its own narrow `type, amount` select against the same filter
+ * predicates as useHistory()'s queryFn above.
+ *
+ * NOTE: the filter branches below are intentionally a copy of the ones in
+ * useHistory()'s queryFn, not a shared helper — supabase-js's query builder
+ * generics make a generic wrapper awkward under strict mode. If you change
+ * one, change the other, or the summary card and the filtered list below it
+ * will silently disagree (the same class of bug just fixed on the Stock
+ * page's age threshold — see PR-N).
+ */
+export function useHistoryTotals(filter: HistoryFilter, search: string) {
+  const { user } = useAuth()
+  const q = search.trim()
+  return useQuery({
+    queryKey: ['transactions', 'history-totals', user?.id, filter, q],
+    enabled: !!user,
+    queryFn: async (): Promise<HistoryTotals> => {
+      let query = supabase.from('transactions').select('type, amount')
+
+      if (filter === 'income') query = query.eq('type', 'income')
+      else if (filter === 'expense')
+        query = query.eq('type', 'expense').eq('is_stock_purchase', false)
+      else if (filter === 'stock')
+        query = query.or('is_stock_purchase.eq.true,stock_item_id.not.is.null')
+
+      if (q) query = query.ilike('note', `%${q}%`)
+
+      const { data, error } = await query
+      if (error) throw error
+      const rows = data ?? []
+      let income = 0
+      let expense = 0
+      for (const r of rows) {
+        if (r.type === 'income') income += Number(r.amount) || 0
+        else expense += Number(r.amount) || 0
+      }
+      return { count: rows.length, income, expense }
+    },
   })
 }
 
