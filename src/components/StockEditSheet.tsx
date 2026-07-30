@@ -203,7 +203,7 @@ export function StockEditSheet({
               {!sellOpen ? (
                 <button
                   onClick={() => setSellOpen(true)}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-btn bg-mint-deep py-3 text-[14px] font-medium text-white"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-btn bg-brand-deep py-3 text-[14px] font-medium text-white"
                 >
                   <IconTag size={16} />
                   ขายสินค้า (เหลือ {remaining})
@@ -220,7 +220,7 @@ export function StockEditSheet({
                           setConfirmingZero(false)
                         }}
                         inputMode="numeric"
-                        className="w-full rounded-input border-[0.5px] border-hairline bg-white px-[11px] py-[9px] text-[13px] outline-none focus:border-mint"
+                        className="w-full rounded-input border-[0.5px] border-hairline bg-white px-[11px] py-[9px] text-[13px] outline-none focus:border-brand"
                       />
                     </div>
                     <div className="flex-1">
@@ -249,7 +249,7 @@ export function StockEditSheet({
                         value={sellDate}
                         max={today}
                         onChange={(e) => setSellDate(e.target.value || today)}
-                        className="w-full rounded-input border-[0.5px] border-hairline bg-white px-[11px] py-[8px] text-[13px] outline-none focus:border-mint"
+                        className="w-full rounded-input border-[0.5px] border-hairline bg-white px-[11px] py-[8px] text-[13px] outline-none focus:border-brand"
                       />
                     </div>
                     {walletsQ.data && walletsQ.data.length > 0 && (
@@ -258,7 +258,7 @@ export function StockEditSheet({
                         <select
                           value={sellWallet ?? ''}
                           onChange={(e) => setSellWallet(e.target.value || null)}
-                          className="w-full rounded-input border-[0.5px] border-hairline bg-white px-[11px] py-[9px] text-[13px] outline-none focus:border-mint"
+                          className="w-full rounded-input border-[0.5px] border-hairline bg-white px-[11px] py-[9px] text-[13px] outline-none focus:border-brand"
                         >
                           <option value="">— ไม่ระบุ —</option>
                           {walletsQ.data.map((w) => (
@@ -274,7 +274,7 @@ export function StockEditSheet({
                   {sellProfit != null && sellQtyNum >= 1 && (
                     <p className="mb-2 text-[12px] text-muted">
                       กำไร{' '}
-                      <span className={sellProfit >= 0 ? 'text-mint-deep' : 'text-expense'}>
+                      <span className={sellProfit >= 0 ? 'text-brand-deep' : 'text-expense'}>
                         {sellProfit >= 0 ? '+' : '-'}
                         {formatBaht(Math.abs(sellProfit))}
                       </span>{' '}
@@ -302,7 +302,7 @@ export function StockEditSheet({
                     <button
                       onClick={doSell}
                       disabled={!canSell}
-                      className="flex-1 rounded-btn bg-mint-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
+                      className="flex-1 rounded-btn bg-brand-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
                     >
                       {sell.isPending ? 'กำลังบันทึก…' : confirmingZero ? 'ยืนยันขาย ฿0' : 'ขาย'}
                     </button>
@@ -327,7 +327,7 @@ export function StockEditSheet({
                     </p>
                     <p className="mt-px text-[10.5px] text-faint">
                       {formatDayShort(new Date(s.sold_on + 'T00:00:00'))} · กำไร{' '}
-                      <span className={s.profit >= 0 ? 'text-mint-deep' : 'text-expense'}>
+                      <span className={s.profit >= 0 ? 'text-brand-deep' : 'text-expense'}>
                         {s.profit >= 0 ? '+' : '-'}
                         {formatBaht(Math.abs(s.profit))}
                       </span>
@@ -462,7 +462,7 @@ export function StockEditSheet({
           <button
             onClick={save}
             disabled={!name.trim() || busy}
-            className="w-full rounded-btn bg-mint-deep py-3.5 text-[15px] font-medium text-white disabled:opacity-40"
+            className="w-full rounded-btn bg-brand-deep py-3.5 text-[15px] font-medium text-white disabled:opacity-40"
           >
             {update.isPending ? 'กำลังบันทึก…' : 'บันทึก'}
           </button>

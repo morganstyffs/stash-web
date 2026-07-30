@@ -147,7 +147,7 @@ export function AddPage() {
         </button>
         <p className="text-[16px] font-medium">เพิ่มรายการ</p>
         {/* date pill — opens the native date picker; backdating is allowed up to today */}
-        <label className="relative flex items-center gap-1 rounded-pill bg-mint-tint px-[11px] py-1 text-[12px] font-medium text-mint-text">
+        <label className="relative flex items-center gap-1 rounded-pill bg-brand-tint px-[11px] py-1 text-[12px] font-medium text-brand-ink">
           <IconCalendar size={13} />
           {dateLabel}
           <input
@@ -163,7 +163,7 @@ export function AddPage() {
 
       {/* input mode tabs — only "กดเร็ว" is wired; พิมพ์/พูด + สแกน รอฟีเจอร์ AI */}
       <div className="mx-4 mb-1.5 flex rounded-[11px] bg-fill p-[3px]">
-        <div className="flex-1 rounded-lg bg-mint-tint py-[7px] text-center text-[12px] font-medium text-mint-text">
+        <div className="flex-1 rounded-lg bg-brand-tint py-[7px] text-center text-[12px] font-medium text-brand-ink">
           กดเร็ว
         </div>
         <button
@@ -193,7 +193,7 @@ export function AddPage() {
             onClick={() => switchType(t)}
             className={`rounded-pill px-4 py-[5px] text-[12px] ${
               type === t
-                ? 'bg-mint-tint font-medium text-mint-text'
+                ? 'bg-brand-tint font-medium text-brand-ink'
                 : 'border-[0.5px] border-hairline text-muted'
             }`}
           >
@@ -222,7 +222,7 @@ export function AddPage() {
               onClick={() => pickCategory(c.id)}
               className={`flex shrink-0 items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
                 active
-                  ? 'bg-mint-tint font-medium text-mint-text'
+                  ? 'bg-brand-tint font-medium text-brand-ink'
                   : 'bg-fill text-muted'
               }`}
             >
@@ -256,7 +256,7 @@ export function AddPage() {
                 onClick={() => setWalletId(w.id)}
                 className={`shrink-0 rounded-pill px-[13px] py-[6px] text-[12px] ${
                   active
-                    ? 'bg-mint-tint font-medium text-mint-text'
+                    ? 'bg-brand-tint font-medium text-brand-ink'
                     : 'bg-fill text-muted'
                 }`}
               >
@@ -273,7 +273,7 @@ export function AddPage() {
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="โน้ต (ไม่ใส่ก็ได้)"
-          className="w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[9px] text-[13px] outline-none placeholder:text-faint focus:border-mint"
+          className="w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[9px] text-[13px] outline-none placeholder:text-faint focus:border-brand"
         />
       </div>
 
@@ -283,7 +283,7 @@ export function AddPage() {
           <button
             onClick={saveFavorite}
             disabled={saveFav.isPending || favSaved}
-            className="flex items-center gap-1 text-[12px] font-medium text-mint-deep disabled:text-faint"
+            className="flex items-center gap-1 text-[12px] font-medium text-brand-deep disabled:text-faint"
           >
             <IconStar size={13} />
             {favSaved ? 'บันทึกเป็นรายการโปรดแล้ว' : 'บันทึกเป็นรายการโปรด'}
@@ -344,7 +344,7 @@ export function AddPage() {
           <button
             onClick={save}
             disabled={!canSave}
-            className="flex w-full items-center justify-center gap-1 rounded-btn bg-mint-deep py-3.5 text-[15px] font-medium text-white disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-1 rounded-btn bg-brand-deep py-3.5 text-[15px] font-medium text-white disabled:opacity-40"
           >
             <IconCheck size={17} />
             {add.isPending ? 'กำลังบันทึก…' : 'บันทึก'}

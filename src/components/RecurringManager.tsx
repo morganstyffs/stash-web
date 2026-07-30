@@ -161,7 +161,7 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       action={
         <button aria-label="เพิ่มรายการประจำ" onClick={startNew}>
-          <IconPlus size={20} className="text-mint-deep" />
+          <IconPlus size={20} className="text-brand-deep" />
         </button>
       }
     >
@@ -172,7 +172,7 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
             value={form.label}
             onChange={(e) => setForm({ ...form, label: e.target.value })}
             placeholder="ชื่อรายการ เช่น ค่าเช่าห้อง"
-            className="mb-2.5 w-full rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+            className="mb-2.5 w-full rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
           />
 
           <div className="mb-2.5 flex gap-1.5">
@@ -182,7 +182,7 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
                 onClick={() => setForm({ ...form, type: k, categoryId: '' })}
                 className={`rounded-pill px-4 py-[5px] text-[12px] ${
                   form.type === k
-                    ? 'bg-mint-tint font-medium text-mint-text'
+                    ? 'bg-brand-tint font-medium text-brand-ink'
                     : 'border-[0.5px] border-hairline text-muted'
                 }`}
               >
@@ -207,7 +207,7 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
           <select
             value={form.categoryId}
             onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-            className="mb-2.5 w-full appearance-none rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+            className="mb-2.5 w-full appearance-none rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
           >
             <option value="">ไม่ระบุหมวด</option>
             {options.map((c) => (
@@ -221,7 +221,7 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
             <select
               value={form.walletId}
               onChange={(e) => setForm({ ...form, walletId: e.target.value })}
-              className="mb-2.5 w-full appearance-none rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+              className="mb-2.5 w-full appearance-none rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
             >
               <option value="">ไม่ระบุกระเป๋า</option>
               {wallets.map((w) => (
@@ -240,7 +240,7 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
                 onClick={() => setForm({ ...form, freq: f.key })}
                 className={`rounded-pill px-3.5 py-[5px] text-[12px] ${
                   form.freq === f.key
-                    ? 'bg-mint-tint font-medium text-mint-text'
+                    ? 'bg-brand-tint font-medium text-brand-ink'
                     : 'border-[0.5px] border-hairline text-muted'
                 }`}
               >
@@ -257,7 +257,7 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
             value={form.startDate}
             min={isEdit ? undefined : today}
             onChange={(e) => setForm({ ...form, startDate: e.target.value || today })}
-            className="mb-1.5 w-full rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+            className="mb-1.5 w-full rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
           />
           <p className="mb-3 ml-0.5 text-[10.5px] text-faint">
             {scheduleLabel(buildSchedule(form.freq, form.startDate))} · เริ่ม{' '}
@@ -274,7 +274,7 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
             <button
               disabled={!canSave}
               onClick={submit}
-              className="flex-1 rounded-btn bg-mint-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
+              className="flex-1 rounded-btn bg-brand-deep py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
             >
               {upsert.isPending ? 'กำลังบันทึก…' : 'บันทึก'}
             </button>
@@ -300,10 +300,10 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
             >
               <div
                 className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] ${
-                  r.active ? 'bg-mint-tint' : 'bg-fill'
+                  r.active ? 'bg-brand-tint' : 'bg-fill'
                 }`}
               >
-                <IconRepeat size={16} className={r.active ? 'text-mint-deep' : 'text-faint'} />
+                <IconRepeat size={16} className={r.active ? 'text-brand-deep' : 'text-faint'} />
               </div>
               <div className="min-w-0 flex-1">
                 <p className={`truncate text-[13.5px] ${r.active ? '' : 'text-muted'}`}>

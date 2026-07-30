@@ -52,14 +52,14 @@ export function AppLayout() {
           {RAIL.map(({ to, icon: I }) => (
             <NavLink key={to} to={to} end={to === '/'} aria-label={to}>
               {({ isActive }) => (
-                <I size={22} className={isActive ? 'text-mint-deep' : 'text-faint'} />
+                <I size={22} className={isActive ? 'text-brand-deep' : 'text-faint'} />
               )}
             </NavLink>
           ))}
           <button
             aria-label="เพิ่มรายการ"
             onClick={() => navigate('/add')}
-            className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-mint-deep"
+            className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-brand-deep"
           >
             <IconPlus size={22} className="text-white" />
           </button>
@@ -68,9 +68,9 @@ export function AppLayout() {
           disabled
           aria-label="ถาม AI (เร็วๆ นี้)"
           title="เร็วๆ นี้"
-          className="flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-[13px] bg-mint-tint opacity-50"
+          className="flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-[13px] bg-brand-tint opacity-50"
         >
-          <IconSparkles size={20} className="text-mint-deep" />
+          <IconSparkles size={20} className="text-brand-deep" />
         </button>
       </nav>
 
@@ -87,7 +87,7 @@ export function AppLayout() {
             disabled
             aria-label="ถาม AI (เร็วๆ นี้)"
             title="เร็วๆ นี้"
-            className="absolute -top-[52px] right-4 flex cursor-not-allowed items-center gap-1.5 rounded-pill bg-mint-deep/60 px-3.5 py-2 shadow-card"
+            className="absolute -top-[52px] right-4 flex cursor-not-allowed items-center gap-1.5 rounded-pill bg-brand-deep/60 px-3.5 py-2 shadow-card"
           >
             <IconSparkles size={16} className="text-white" />
             <span className="text-xs font-medium text-white">ถาม AI</span>
@@ -100,21 +100,21 @@ export function AppLayout() {
             {LEFT.map(({ to, icon: I }) => (
               <NavLink key={to} to={to} end={to === '/'} aria-label={to}>
                 {({ isActive }) => (
-                  <I size={22} className={isActive ? 'text-mint-deep' : 'text-faint'} />
+                  <I size={22} className={isActive ? 'text-brand-deep' : 'text-faint'} />
                 )}
               </NavLink>
             ))}
             <button
               aria-label="เพิ่มรายการ"
               onClick={() => navigate('/add')}
-              className="-mt-1.5 flex h-11 w-11 items-center justify-center rounded-[15px] bg-mint-deep"
+              className="-mt-1.5 flex h-11 w-11 items-center justify-center rounded-[15px] bg-brand-deep"
             >
               <IconPlus size={24} className="text-white" />
             </button>
             {RIGHT.map(({ to, icon: I }) => (
               <NavLink key={to} to={to} end={to === '/'} aria-label={to}>
                 {({ isActive }) => (
-                  <I size={22} className={isActive ? 'text-mint-deep' : 'text-faint'} />
+                  <I size={22} className={isActive ? 'text-brand-deep' : 'text-faint'} />
                 )}
               </NavLink>
             ))}

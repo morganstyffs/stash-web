@@ -44,7 +44,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={busy}
             className={`flex-1 rounded-btn py-3 text-[14px] font-medium text-white disabled:opacity-40 ${
-              destructive ? 'bg-expense' : 'bg-mint-deep'
+              destructive ? 'bg-expense' : 'bg-brand-deep'
             }`}
           >
             {busy ? busyLabel : confirmLabel}

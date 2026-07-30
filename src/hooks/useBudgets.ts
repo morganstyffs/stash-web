@@ -166,7 +166,6 @@ export interface Pace {
   /** used / budget, 0..∞ */
   ratio: number
   pct: number
-  color: string
   note: string
 }
 
@@ -189,12 +188,11 @@ export function computePace(used: number, budget: number, now = new Date()): Pac
       state: 'over',
       ratio,
       pct,
-      color: '#E24B4A',
       note: `เกินงบ ${Math.round(used - budget).toLocaleString('th-TH')} ฿`,
     }
   }
   if (budget > 0 && ratio > elapsed * 1.1) {
-    return { state: 'fast', ratio, pct, color: '#BA7517', note: 'ใช้เร็วกว่ากำหนด' }
+    return { state: 'fast', ratio, pct, note: 'ใช้เร็วกว่ากำหนด' }
   }
-  return { state: 'on_track', ratio, pct, color: '#2CC0A0', note: 'พอดีจังหวะ' }
+  return { state: 'on_track', ratio, pct, note: 'พอดีจังหวะ' }
 }

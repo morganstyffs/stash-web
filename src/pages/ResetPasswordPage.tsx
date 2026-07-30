@@ -63,7 +63,7 @@ export function ResetPasswordPage() {
             </p>
             <Link
               to="/forgot-password"
-              className="rounded-btn bg-mint-deep py-3 text-center text-[14px] font-medium text-white"
+              className="rounded-btn bg-brand-deep py-3 text-center text-[14px] font-medium text-white"
             >
               ขอลิงก์ใหม่
             </Link>
@@ -79,7 +79,7 @@ export function ResetPasswordPage() {
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+                className="rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
                 placeholder="อย่างน้อย 6 ตัวอักษร"
               />
             </label>
@@ -92,7 +92,7 @@ export function ResetPasswordPage() {
                 autoComplete="new-password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                className="rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-mint"
+                className="rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 text-[13px] outline-none focus:border-brand"
                 placeholder="พิมพ์รหัสผ่านอีกครั้ง"
               />
             </label>
@@ -102,7 +102,7 @@ export function ResetPasswordPage() {
             <button
               type="submit"
               disabled={busy}
-              className="mt-1 rounded-btn bg-mint-deep py-3 text-[14px] font-medium text-white disabled:opacity-60"
+              className="mt-1 rounded-btn bg-brand-deep py-3 text-[14px] font-medium text-white disabled:opacity-60"
             >
               {busy ? 'กำลังบันทึก…' : 'บันทึกรหัสผ่านใหม่'}
             </button>

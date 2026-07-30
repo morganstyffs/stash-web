@@ -77,7 +77,7 @@ export function HistoryPage() {
               onClick={() => setFilter(f.key)}
               className={`shrink-0 rounded-pill px-[14px] py-1.5 text-[12px] ${
                 active
-                  ? 'bg-mint-tint font-medium text-mint-text'
+                  ? 'bg-brand-tint font-medium text-brand-ink'
                   : 'border-[0.5px] border-hairline text-muted'
               }`}
             >
@@ -164,10 +164,10 @@ function LedgerRow({ row, onOpen }: { row: HistoryRow; onOpen: () => void }) {
     >
       <div
         className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] ${
-          isStock ? 'bg-mint-tint' : 'bg-fill'
+          isStock ? 'bg-brand-tint' : 'bg-fill'
         }`}
       >
-        <Icon size={16} className={isStock ? 'text-mint-deep' : 'text-muted'} />
+        <Icon size={16} className={isStock ? 'text-brand-deep' : 'text-muted'} />
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px]">{row.note || row.category?.name || 'รายการ'}</p>

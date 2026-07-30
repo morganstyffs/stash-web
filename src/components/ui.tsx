@@ -18,7 +18,7 @@ export function Toggle({
       aria-label={label}
       onClick={() => onChange(!on)}
       className={`relative h-[22px] w-[38px] shrink-0 rounded-pill transition-colors ${
-        on ? 'bg-mint-deep' : 'bg-chevron'
+        on ? 'bg-brand-deep' : 'bg-chevron'
       }`}
     >
       <span

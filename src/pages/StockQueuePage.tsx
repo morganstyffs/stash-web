@@ -43,13 +43,13 @@ export function StockQueuePage() {
         <span className="w-5" />
       </div>
 
-      <div className="mx-4 mb-3.5 flex items-center gap-3 rounded-[14px] bg-mint-tint px-[15px] py-3">
-        <IconClipboardList size={22} className="text-mint-text" />
+      <div className="mx-4 mb-3.5 flex items-center gap-3 rounded-[14px] bg-brand-tint px-[15px] py-3">
+        <IconClipboardList size={22} className="text-brand-ink" />
         <div className="flex-1">
-          <p className="text-[14px] font-medium text-mint-text">
+          <p className="text-[14px] font-medium text-brand-ink">
             {items.length} ชิ้นรอเติมรายละเอียด
           </p>
-          <p className="mt-px text-[11px] text-mint-deep">
+          <p className="mt-px text-[11px] text-brand-deep">
             ต้นทุนรวม {formatBaht(totalCost)} · เติมให้ครบเพื่อพร้อมขาย
           </p>
         </div>
@@ -106,7 +106,7 @@ function QueueRow({
           {tags.map((t) => (
             <span
               key={t}
-              className="rounded-pill bg-miss-bg px-2 py-0.5 text-[10px] text-cat-coral-ink"
+              className="rounded-pill bg-expense-bg px-2 py-0.5 text-[10px] text-expense"
             >
               {t}
             </span>
@@ -264,7 +264,7 @@ function QueueEditSheet({ item, onClose }: { item: StockItem; onClose: () => voi
           <button
             onClick={save}
             disabled={!name.trim() || update.isPending}
-            className="w-full rounded-btn bg-mint-deep py-3.5 text-[15px] font-medium text-white disabled:opacity-40"
+            className="w-full rounded-btn bg-brand-deep py-3.5 text-[15px] font-medium text-white disabled:opacity-40"
           >
             {update.isPending ? 'กำลังบันทึก…' : 'บันทึกรายละเอียด'}
           </button>

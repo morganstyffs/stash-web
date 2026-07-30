@@ -266,7 +266,7 @@ export function StockPage() {
       <div className="flex items-center justify-between px-[18px] pb-3 pt-[18px]">
         <p className="text-[17px] font-medium">คลังสินค้า</p>
         <button aria-label="รับเข้าสต็อก" onClick={() => navigate('/stock/intake')}>
-          <IconPackageImport size={20} className="text-mint-deep" />
+          <IconPackageImport size={20} className="text-brand-deep" />
         </button>
       </div>
 
@@ -340,7 +340,7 @@ export function StockPage() {
             <p className="text-[11px] text-muted">กำไรที่รับรู้แล้ว</p>
             <p
               className={`mt-[2px] text-[16px] font-medium ${
-                salesQ.data!.profit >= 0 ? 'text-mint-deep' : 'text-expense'
+                salesQ.data!.profit >= 0 ? 'text-brand-deep' : 'text-expense'
               }`}
             >
               {salesQ.data!.profit >= 0 ? '+' : '-'}
@@ -380,13 +380,13 @@ export function StockPage() {
                   <span
                     className={`flex h-8 items-center gap-1.5 rounded-pill px-3.5 text-[12px] ${
                       active
-                        ? 'bg-mint-tint font-medium text-mint-text'
+                        ? 'bg-brand-tint font-medium text-brand-ink'
                         : 'border-[0.5px] border-hairline text-muted'
                     }`}
                   >
                     {f.label}
                     <span
-                      className={`tabular-nums ${active ? 'text-mint-text/70' : 'text-faint'}`}
+                      className={`tabular-nums ${active ? 'text-brand-ink/70' : 'text-faint'}`}
                     >
                       {counts[f.key]}
                     </span>
@@ -585,7 +585,7 @@ function RackCell({
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
-              <Icon size={40} className={sold ? 'text-faint/60' : 'text-mint-deep/70'} aria-hidden />
+              <Icon size={40} className={sold ? 'text-faint/60' : 'text-brand-deep/70'} aria-hidden />
             </div>
           )}
 
@@ -662,13 +662,13 @@ function StockRow({
 
       <div
         className={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[11px] ${
-          sold ? 'bg-fill opacity-70' : thumb ? 'bg-fill' : 'bg-mint-tint'
+          sold ? 'bg-fill opacity-70' : thumb ? 'bg-fill' : 'bg-brand-tint'
         }`}
       >
         {thumb ? (
           <img src={thumb} alt="" className="h-full w-full object-cover" />
         ) : (
-          <Icon size={22} className={sold ? 'text-faint' : 'text-mint-deep'} aria-hidden />
+          <Icon size={22} className={sold ? 'text-faint' : 'text-brand-deep'} aria-hidden />
         )}
       </div>
 
@@ -709,12 +709,12 @@ function StockRow({
             ขายแล้ว
           </span>
         ) : (
-          <span className="rounded-pill bg-mint-tint px-[9px] py-[3px] text-[11px] font-medium text-mint-text">
+          <span className="rounded-pill bg-brand-tint px-[9px] py-[3px] text-[11px] font-medium text-brand-ink">
             เหลือ {item.qty_remaining}
           </span>
         )}
         {profitPer != null && !sold && (
-          <p className="mt-1.5 text-[12px] text-mint-deep">+{formatBaht(profitPer)}/ชิ้น</p>
+          <p className="mt-1.5 text-[12px] text-brand-deep">+{formatBaht(profitPer)}/ชิ้น</p>
         )}
       </div>
     </button>

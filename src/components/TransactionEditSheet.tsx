@@ -126,9 +126,9 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
           ) : (
             <>
               {stockLinked && (
-                <div className="mb-3 flex items-start gap-2 rounded-card bg-mint-tint px-3 py-2.5">
-                  <IconBox size={15} className="mt-px shrink-0 text-mint-deep" />
-                  <p className="text-[11.5px] leading-relaxed text-mint-text">
+                <div className="mb-3 flex items-start gap-2 rounded-card bg-brand-tint px-3 py-2.5">
+                  <IconBox size={15} className="mt-px shrink-0 text-brand-deep" />
+                  <p className="text-[11.5px] leading-relaxed text-brand-ink">
                     {saleLinked
                       ? 'รายการนี้มาจากการขายสต็อก — ยอด หมวด และวันที่ล็อกไว้ ที่นี่แก้ได้เฉพาะกระเป๋าและโน้ต ถ้าจะแก้ต้องย้อนการขายที่หน้าคลังสินค้า'
                       : 'รายการนี้มาจากการซื้อเข้าสต็อก — ยอดเงินและหมวดแก้ที่หน้าคลังสินค้า ที่นี่แก้ได้เฉพาะกระเป๋า วันที่ และโน้ต'}
@@ -170,7 +170,7 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                         onClick={() => setCategoryId(c.id)}
                         className={`flex shrink-0 items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
                           active
-                            ? 'bg-mint-tint font-medium text-mint-text'
+                            ? 'bg-brand-tint font-medium text-brand-ink'
                             : 'bg-fill text-muted'
                         }`}
                       >
@@ -195,7 +195,7 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                           onClick={() => setWalletId(w.id)}
                           className={`shrink-0 rounded-pill px-[13px] py-[6px] text-[12px] ${
                             active
-                              ? 'bg-mint-tint font-medium text-mint-text'
+                              ? 'bg-brand-tint font-medium text-brand-ink'
                               : 'bg-fill text-muted'
                           }`}
                         >
@@ -239,7 +239,7 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="เพิ่มโน้ต (ไม่ใส่ก็ได้)"
-                className="mb-4 w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] text-[13px] outline-none placeholder:text-faint focus:border-mint"
+                className="mb-4 w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] text-[13px] outline-none placeholder:text-faint focus:border-brand"
               />
 
               {/* delete / stock hint */}
@@ -249,7 +249,7 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                     onClose()
                     navigate('/stock')
                   }}
-                  className="flex items-center gap-1.5 text-[13px] font-medium text-mint-deep"
+                  className="flex items-center gap-1.5 text-[13px] font-medium text-brand-deep"
                 >
                   <IconBox size={15} />
                   {saleLinked ? 'ไปที่คลังสินค้าเพื่อย้อนการขาย' : 'ไปที่คลังสินค้าเพื่อลบ'}
@@ -271,7 +271,7 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
           <button
             onClick={save}
             disabled={!canSave}
-            className="w-full rounded-btn bg-mint-deep py-3.5 text-[15px] font-medium text-white disabled:opacity-40"
+            className="w-full rounded-btn bg-brand-deep py-3.5 text-[15px] font-medium text-white disabled:opacity-40"
           >
             {update.isPending ? 'กำลังบันทึก…' : 'บันทึก'}
           </button>

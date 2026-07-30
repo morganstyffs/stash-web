@@ -158,8 +158,8 @@ export function StockIntakePage() {
           <span className="w-5" />
         </div>
         <div className="flex flex-1 flex-col items-center justify-center px-8 pb-16 text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-mint-tint">
-            <IconAlertCircle size={26} className="text-mint-deep" />
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-tint">
+            <IconAlertCircle size={26} className="text-brand-deep" />
           </div>
           <p className="text-[15px] font-medium">ยังไม่มีหมวดสต็อก</p>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
@@ -168,7 +168,7 @@ export function StockIntakePage() {
           </p>
           <button
             onClick={() => navigate('/settings')}
-            className="mt-5 rounded-btn bg-mint-deep px-6 py-3 text-[14px] font-medium text-white"
+            className="mt-5 rounded-btn bg-brand-deep px-6 py-3 text-[14px] font-medium text-white"
           >
             ไปสร้างหมวดสต็อก
           </button>
@@ -185,13 +185,13 @@ export function StockIntakePage() {
           <IconArrowLeft size={20} className="text-muted" />
         </button>
         <p className="text-[16px] font-medium">รับเข้าสต็อก</p>
-        <span className="rounded-pill bg-mint-tint px-[11px] py-1 text-[12px] font-medium text-mint-text">
+        <span className="rounded-pill bg-brand-tint px-[11px] py-1 text-[12px] font-medium text-brand-ink">
           โหมดรวบรวม
         </span>
       </div>
 
       {/* session counter */}
-      <div className="relative mx-4 mb-3.5 flex items-center justify-between rounded-[14px] bg-mint-deep px-[15px] py-3">
+      <div className="relative mx-4 mb-3.5 flex items-center justify-between rounded-[14px] bg-brand-deep px-[15px] py-3">
         <div className="pointer-events-none absolute inset-[5px] rounded-[10px] border-[1.5px] border-dashed border-white/20" />
         <div className="relative">
           <p className="text-[11px] text-white/70">รอบนี้เพิ่มแล้ว</p>
@@ -227,7 +227,7 @@ export function StockIntakePage() {
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full appearance-none rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] text-[13px] outline-none focus:border-mint"
+                className="w-full appearance-none rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] text-[13px] outline-none focus:border-brand"
               >
                 <option value="" disabled>
                   เลือกหมวด
@@ -250,7 +250,7 @@ export function StockIntakePage() {
               value={qty}
               onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ''))}
               inputMode="numeric"
-              className="w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] text-[13px] outline-none focus:border-mint"
+              className="w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] text-[13px] outline-none focus:border-brand"
             />
           </div>
         </div>
@@ -328,7 +328,7 @@ export function StockIntakePage() {
                   />
                 </div>
                 {profit != null && profit >= 0 && (
-                  <span className="rounded-pill bg-mint-tint px-[10px] py-[3px] text-[11px] font-medium text-mint-text">
+                  <span className="rounded-pill bg-brand-tint px-[10px] py-[3px] text-[11px] font-medium text-brand-ink">
                     กำไร {formatBaht(profit)} · {profitPct}%
                   </span>
                 )}
@@ -336,7 +336,7 @@ export function StockIntakePage() {
             </div>
             <div className="mb-1">
               <Label>
-                SKU <span className="text-mint-deep">(สร้างอัตโนมัติ)</span>
+                SKU <span className="text-brand-deep">(สร้างอัตโนมัติ)</span>
               </Label>
               <div className="rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] font-mono text-[13px] text-muted">
                 {skuQ.data ?? '…'}
@@ -355,7 +355,7 @@ export function StockIntakePage() {
         <button
           onClick={() => save(false)}
           disabled={!canSave}
-          className="flex flex-1 items-center justify-center gap-1 rounded-[13px] bg-mint-deep py-[13px] text-[14px] font-medium text-white disabled:opacity-40"
+          className="flex flex-1 items-center justify-center gap-1 rounded-[13px] bg-brand-deep py-[13px] text-[14px] font-medium text-white disabled:opacity-40"
         >
           <IconPlus size={16} />
           {intake.isPending ? 'กำลังบันทึก…' : 'บันทึก + เพิ่มต่อ'}
@@ -375,8 +375,8 @@ export function StockIntakePage() {
           <p className="mb-2.5 text-[12px] text-muted">เพิ่มล่าสุดรอบนี้</p>
           {session.map((s) => (
             <div key={s.id} className="mb-2.5 flex items-center gap-[10px] last:mb-0">
-              <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-mint-tint">
-                <IconCheck size={17} className="text-mint-deep" />
+              <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-brand-tint">
+                <IconCheck size={17} className="text-brand-deep" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[12.5px]">{s.name}</p>
@@ -393,7 +393,7 @@ export function StockIntakePage() {
                   )}
                 </p>
               </div>
-              <IconCheck size={16} className="shrink-0 text-mint-deep" />
+              <IconCheck size={16} className="shrink-0 text-brand-deep" />
             </div>
           ))}
         </div>
