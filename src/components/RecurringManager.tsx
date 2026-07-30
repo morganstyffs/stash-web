@@ -309,7 +309,7 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
                 <p className={`truncate text-[13.5px] ${r.active ? '' : 'text-muted'}`}>
                   {r.label}
                 </p>
-                <p className="text-[11px] text-faint">
+                <p className="truncate text-[11px] text-faint">
                   {scheduleLabel(r.schedule)} · {r.type === 'income' ? 'รายรับ' : 'รายจ่าย'}
                   {catName ? ` · ${catName}` : ''} · {formatBaht(r.amount)}
                 </p>
@@ -319,11 +319,16 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
                 onChange={(v) => toggle.mutate({ id: r.id, active: v })}
                 label={`เปิด/ปิด ${r.label}`}
               />
-              <button aria-label="แก้ไข" onClick={() => startEdit(r)}>
+              <button
+                aria-label="แก้ไข"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-fill"
+                onClick={() => startEdit(r)}
+              >
                 <IconPencil size={16} className="text-faint" />
               </button>
               <button
                 aria-label="ลบ"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-expense-bg disabled:opacity-50"
                 disabled={del.isPending}
                 onClick={() => setConfirming(r)}
               >
