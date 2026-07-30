@@ -110,13 +110,16 @@ export function deltaChip(deltaPct: number | null): { up: boolean; text: string 
 
 // ── geometry (px, viewport width 390–414) ────────────────────────────────────
 
-const CONTAINER_H = 246
+const CONTAINER_H = 254
 const LABEL_H = 158
 
-/** transform + stacking for the front label (index 0) and the two folded behind. */
+/** transform + stacking for the front label (index 0) and the two folded behind.
+ *  Each folded label peeks 48px — enough to reveal its whole header strip
+ *  (selvedge + eyebrow title + compact figure) above the fold, so the title
+ *  reads as a heading and signals the card can be tapped, not as blank fabric. */
 const POSITIONS: { transform: string; z: number }[] = [
-  { transform: 'translateY(80px)', z: 4 },
-  { transform: 'translateY(40px) scale(.976) rotate(-1deg)', z: 3 },
+  { transform: 'translateY(96px)', z: 4 },
+  { transform: 'translateY(48px) scale(.976) rotate(-1deg)', z: 3 },
   { transform: 'translateY(0) scale(.951) rotate(.8deg)', z: 2 },
 ]
 
@@ -189,7 +192,9 @@ export function WovenHero({
             {/* header strip — always visible (this is what peeks when folded) */}
             <div className="relative mt-[7px] flex h-[34px] items-center justify-between px-[18px]">
               <span
-                className="text-[10px] font-medium uppercase opacity-[.86]"
+                className={`text-[10px] font-medium uppercase ${
+                  isFront ? 'opacity-[.86]' : 'opacity-100'
+                }`}
                 style={{ letterSpacing: '0.17em' }}
               >
                 {EYEBROW[key]}

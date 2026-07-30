@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { IconArrowDownRight, IconArrowUpRight, IconBell } from '@tabler/icons-react'
+import { IconBell } from '@tabler/icons-react'
 import { useCategories } from '@/hooks/useLookups'
 import { useAttentionSignals } from '@/hooks/useAttention'
 import { useDialogA11y } from '@/lib/useDialogA11y'
@@ -12,14 +12,14 @@ import {
   type DonutSlice,
   type RecentRow,
 } from '@/hooks/useHome'
-import { Donut, TrendLine } from '@/components/charts'
+import { Donut } from '@/components/charts'
 import { WovenHero } from '@/components/WovenHero'
 import { useMonthBudgetTotal } from '@/hooks/useBudgets'
 import { useStockSalesSummary } from '@/hooks/useStockSales'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 import { categoryIcon } from '@/lib/icons'
-import { currentMonthAnchor, formatRecentDayLabel } from '@/lib/dates'
-import { formatBaht, formatMonthLong, formatSigned } from '@/lib/format'
+import { formatRecentDayLabel } from '@/lib/dates'
+import { formatBaht, formatSigned } from '@/lib/format'
 
 interface LegendRow {
   key: string
@@ -157,74 +157,40 @@ export function HomePage() {
         />
       </div>
 
-      {/* month trend (left) + category donut (right), one row on wider screens */}
-      <div className="mx-4 mt-3.5 flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
-        {/* left — cumulative in/out trend */}
-        <div className="min-w-0 sm:flex-1">
-          <div className="mb-1.5 flex items-baseline justify-between">
-            <p className="text-[15px] font-medium">{formatMonthLong(currentMonthAnchor())}</p>
-            <Link to="/history" className="text-[12px] text-muted">
-              ดูทั้งหมด ›
-            </Link>
+      {/* category donut */}
+      <div className="mx-4 mt-3.5 border-t-[0.5px] border-hairline pt-3.5">
+        <p className="mb-3 text-[15px] font-medium">หมวดใช้จ่าย</p>
+        {summary.donut.length > 0 ? (
+          <div className="flex items-center gap-[18px]">
+            <Donut slices={summary.donut} />
+            <div className="min-w-0 flex-1">
+              {buildDonutLegend(summary.donut).map((row) => (
+                <div
+                  key={row.key}
+                  className="mb-[9px] flex items-center justify-between gap-2 last:mb-0"
+                >
+                  <span className="flex min-w-0 items-center text-[12.5px]">
+                    <span
+                      className={`mr-2 inline-block h-2 w-2 shrink-0 rounded-full${
+                        row.color ? '' : ' bg-faint'
+                      }`}
+                      style={row.color ? { background: row.color } : undefined}
+                    />
+                    <span className="truncate">{row.name}</span>
+                  </span>
+                  <span className="flex shrink-0 items-baseline gap-1.5">
+                    <span className="text-[12.5px] font-medium">{formatBaht(row.total)}</span>
+                    <span className="text-[10.5px] text-faint">{row.pct}%</span>
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="mb-1.5 flex gap-5">
-            <div>
-              <p className="text-[11px] text-muted">
-                <IconArrowUpRight size={13} className="-mb-0.5 mr-0.5 inline text-income" />
-                เงินเข้า
-              </p>
-              <p className="mt-0.5 text-[15px] font-medium text-income">
-                {formatBaht(summary.income)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] text-muted">
-                <IconArrowDownRight size={13} className="-mb-0.5 mr-0.5 inline text-expense" />
-                เงินออก
-              </p>
-              <p className="mt-0.5 text-[15px] font-medium text-expense">
-                {formatBaht(summary.expense)}
-              </p>
-            </div>
-          </div>
-          <TrendLine income={summary.dailyCumIncome} expense={summary.dailyCumExpense} />
-        </div>
-
-        {/* right — category donut (divider above on mobile, beside on wider) */}
-        <div className="border-t-[0.5px] border-hairline pt-3.5 sm:w-[250px] sm:shrink-0 sm:border-l-[0.5px] sm:border-t-0 sm:pl-6 sm:pt-0">
-          <p className="mb-3 text-[15px] font-medium">หมวดใช้จ่าย</p>
-          {summary.donut.length > 0 ? (
-            <div className="flex items-center gap-[18px]">
-              <Donut slices={summary.donut} />
-              <div className="min-w-0 flex-1">
-                {buildDonutLegend(summary.donut).map((row) => (
-                  <div
-                    key={row.key}
-                    className="mb-[9px] flex items-center justify-between gap-2 last:mb-0"
-                  >
-                    <span className="flex min-w-0 items-center text-[12.5px]">
-                      <span
-                        className={`mr-2 inline-block h-2 w-2 shrink-0 rounded-full${
-                          row.color ? '' : ' bg-faint'
-                        }`}
-                        style={row.color ? { background: row.color } : undefined}
-                      />
-                      <span className="truncate">{row.name}</span>
-                    </span>
-                    <span className="flex shrink-0 items-baseline gap-1.5">
-                      <span className="text-[12.5px] font-medium">{formatBaht(row.total)}</span>
-                      <span className="text-[10.5px] text-faint">{row.pct}%</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="py-3 text-[13px] text-faint">
-              {loading ? 'กำลังโหลด…' : 'ยังไม่มีรายจ่ายเดือนนี้'}
-            </p>
-          )}
-        </div>
+        ) : (
+          <p className="py-3 text-[13px] text-faint">
+            {loading ? 'กำลังโหลด…' : 'ยังไม่มีรายจ่ายเดือนนี้'}
+          </p>
+        )}
       </div>
 
       {/* recent transactions */}
@@ -335,7 +301,7 @@ function HomeSkeleton() {
         <div className="h-5 w-5 rounded bg-fill" />
       </div>
       <div className="px-4 pb-1 pt-1.5">
-        <div className="h-[246px] rounded-pocket bg-fill" />
+        <div className="h-[254px] rounded-pocket bg-fill" />
       </div>
       <div className="mx-4 mt-3.5">
         <div className="h-4 w-40 rounded bg-fill" />
