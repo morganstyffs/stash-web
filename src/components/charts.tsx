@@ -1,47 +1,64 @@
 import type { DonutSlice } from '@/hooks/useHome'
 import { formatBaht, MASKED_BAHT } from '@/lib/format'
 
-// ── donut centre total: font size by string length ───────────────────────────
-// The total sits inside the ring, so a long value (฿48,052, and worse) overruns
-// the hole. Geometry of the Donut below: R=32, strokeWidth=11 → inner hole
-// radius 26.5 viewBox units; viewBox 80 rendered at 76px → scale 0.95 → ~25.2px
-// inner radius. The total is the top line of a two-line stack (number + "รวม"),
-// so the number's band is ~±12.5px off-centre; the usable chord there is
-// 2·√(25.2² − 12.5²) ≈ 43.8px.
-//
-// "฿48,052" (7 chars) measures ~50px at 13px / Prompt 500 with tabular figures
-// (~7.14px per char at 13px). tnum ⇒ fixed advance ⇒ width scales linearly with
-// char count and size, so the largest size that fits is
-//   13 · 43.8 / (chars · 7.14),  capped at 13, floored at 11.
-// 11px is the readability floor: a value that needs < 11px to fit (≥10 chars,
-// i.e. ≥7 figures) is clamped to 11 and WILL still overflow — that's the signal
-// the number belongs OUTSIDE the ring (owner decision), not shrunk further.
+// ── donut geometry + centre-total sizing ─────────────────────────────────────
+// The total sits inside the ring; whether it fits depends on the hole size AND
+// where the text sits in the hole. PR #68 shrank the font to cope; the real fix
+// (owner's call, over shortening to ฿1.23M or moving the number out) is to widen
+// the hole, done two ways:
+//   • Ring: R=32 vbu, strokeWidth 9 (was 11) → inner hole radius 27.5 vbu.
+//     viewBox 80 rendered at 90px (was 76) → scale 1.125 → inner radius ≈ 30.9px
+//     (hole ⌀ ≈ 61.9px).
+//   • Text: ONE line, centred (the "รวม" label is gone — the card is titled
+//     "หมวดใช้จ่าย" and a number inside a ring reads as a total). A single line
+//     sits on the widest chord — the diameter through the centre — which returns
+//     MORE room than the thinner ring does; a second line would push the number
+//     onto a narrower chord.
+// A box of height h centred in a circle of radius r fits when its CORNERS do:
+// (w/2)² + (h/2)² ≤ r². With leading-none the box height ≈ font size F, so the
+// largest F whose box fits is  F ≤ 2r / √((k·chars)² + 1),  where k = per-char
+// advance ÷ F. k=0.5 is a safe upper bound for Prompt 500 tabular baht strings
+// (measured in a real browser: digit 0.50em, comma 0.25em, ฿ 0.63em; long totals
+// average ~0.46em, so 0.5 never under-shrinks a real total). Capped at 13,
+// floored at 11. With this hole every realistic total up to ฿1,234,567 fits at
+// ≥12px; a value that would need <11px to fit is clamped to 11 and caught by the
+// visual guard (charts.visual.test.ts), never silently shrunk into the ring.
+export const DONUT_RENDER_PX = 90
+const DONUT_STROKE = 9
+const DONUT_R_VBU = 32
+const DONUT_VIEWBOX = 80
+const DONUT_INNER_RADIUS_PX =
+  (DONUT_R_VBU - DONUT_STROKE / 2) * (DONUT_RENDER_PX / DONUT_VIEWBOX) // ≈ 30.94
+const DONUT_CENTER_CHAR_RATIO = 0.5
 export const DONUT_CENTER_FONT_MAX = 13
 export const DONUT_CENTER_FONT_MIN = 11
-const DONUT_CENTER_INNER_CHORD = 43.8
-const DONUT_CENTER_CHAR_W_AT_MAX = 50 / 7 // ≈7.14px per char at 13px (฿48,052)
 
 /** Font size (px) for the donut's centre total, chosen from the display string's
- *  length. Pure + unit-tested (charts.test.ts). See the geometry note above. */
+ *  length so its box fits inside the ring's inner hole. Pure + unit-tested
+ *  (charts.test.ts) and geometry-verified in a real browser (charts.visual.test.ts).
+ *  See the geometry note above. */
 export function donutCenterFontSize(charCount: number): number {
   if (charCount <= 0) return DONUT_CENTER_FONT_MAX
-  const widthAtMax = charCount * DONUT_CENTER_CHAR_W_AT_MAX
-  const fit = Math.floor(DONUT_CENTER_FONT_MAX * (DONUT_CENTER_INNER_CHORD / widthAtMax))
-  return Math.max(DONUT_CENTER_FONT_MIN, Math.min(DONUT_CENTER_FONT_MAX, fit))
+  const fit =
+    (2 * DONUT_INNER_RADIUS_PX) / Math.sqrt((DONUT_CENTER_CHAR_RATIO * charCount) ** 2 + 1)
+  return Math.max(DONUT_CENTER_FONT_MIN, Math.min(DONUT_CENTER_FONT_MAX, Math.floor(fit)))
 }
 
 /** Category donut — one arc per slice, sized by share of total expense. The
  *  centre total is masked (name/percent stay) when the balance is hidden. */
 export function Donut({ slices, hideBalance = false }: { slices: DonutSlice[]; hideBalance?: boolean }) {
-  const R = 32
+  const R = DONUT_R_VBU
   const C = 2 * Math.PI * R // ≈ 201
   const total = slices.reduce((s, x) => s + x.total, 0) || 1
 
   let offset = 0
   return (
     <div className="relative shrink-0">
-      <svg viewBox="0 0 80 80" className="h-[76px] w-[76px]">
-        <circle cx="40" cy="40" r={R} fill="none" className="stroke-fill" strokeWidth="11" />
+      <svg
+        viewBox="0 0 80 80"
+        style={{ width: DONUT_RENDER_PX, height: DONUT_RENDER_PX }}
+      >
+        <circle cx="40" cy="40" r={R} fill="none" className="stroke-fill" strokeWidth={DONUT_STROKE} />
         {slices.map((s) => {
           const dash = (s.total / total) * C
           const el = (
@@ -52,7 +69,7 @@ export function Donut({ slices, hideBalance = false }: { slices: DonutSlice[]; h
               r={R}
               fill="none"
               stroke={s.color}
-              strokeWidth="11"
+              strokeWidth={DONUT_STROKE}
               strokeDasharray={`${dash} ${C - dash}`}
               strokeDashoffset={-offset}
               transform="rotate(-90 40 40)"
@@ -62,8 +79,8 @@ export function Donut({ slices, hideBalance = false }: { slices: DonutSlice[]; h
           return el
         })}
       </svg>
-      {/* total spend in the middle of the ring */}
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+      {/* total spend in the middle of the ring — one line, on the widest chord */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         {(() => {
           const label = hideBalance
             ? MASKED_BAHT
@@ -77,7 +94,6 @@ export function Donut({ slices, hideBalance = false }: { slices: DonutSlice[]; h
             </span>
           )
         })()}
-        <span className="mt-0.5 text-[9px] leading-none text-faint">รวม</span>
       </div>
     </div>
   )
