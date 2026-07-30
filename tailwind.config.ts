@@ -34,7 +34,7 @@ export default {
         // neutrals
         ink: '#1B1A17', // primary text
         muted: '#5B5850', // secondary text
-        faint: '#6D6A60', // tertiary / placeholder
+        faint: '#696558', // tertiary / placeholder (4.5:1 on fill, surface, white)
         hairline: '#E2DED3', // 0.5px separators + borders
         surface: '#F6F3EC', // app background
         fill: '#EDE9DE', // inset field / neutral chip bg
