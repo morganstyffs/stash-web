@@ -122,6 +122,109 @@ export type Database = {
         }
         Relationships: []
       }
+      debt_events: {
+        Row: {
+          action: string
+          actor_id: string
+          at: string
+          debt_id: string
+          id: string
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          at?: string
+          debt_id: string
+          id?: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          at?: string
+          debt_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debt_events_debt_id_fkey"
+            columns: ["debt_id"]
+            isOneToOne: false
+            referencedRelation: "debts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      debts: {
+        Row: {
+          amount: number
+          cancelled_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          created_by: string
+          creditor_id: string
+          debtor_id: string
+          due_date: string | null
+          id: string
+          reason: string | null
+          rejected_at: string | null
+          rejected_reason: string | null
+          settled_at: string | null
+          settled_by: string | null
+          settlement_transaction_id: string | null
+          status: Database["public"]["Enums"]["debt_status"]
+          updated_at: string
+          visibility: Database["public"]["Enums"]["debt_visibility"]
+        }
+        Insert: {
+          amount: number
+          cancelled_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          created_by: string
+          creditor_id: string
+          debtor_id: string
+          due_date?: string | null
+          id?: string
+          reason?: string | null
+          rejected_at?: string | null
+          rejected_reason?: string | null
+          settled_at?: string | null
+          settled_by?: string | null
+          settlement_transaction_id?: string | null
+          status?: Database["public"]["Enums"]["debt_status"]
+          updated_at?: string
+          visibility?: Database["public"]["Enums"]["debt_visibility"]
+        }
+        Update: {
+          amount?: number
+          cancelled_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string
+          creditor_id?: string
+          debtor_id?: string
+          due_date?: string | null
+          id?: string
+          reason?: string | null
+          rejected_at?: string | null
+          rejected_reason?: string | null
+          settled_at?: string | null
+          settled_by?: string | null
+          settlement_transaction_id?: string | null
+          status?: Database["public"]["Enums"]["debt_status"]
+          updated_at?: string
+          visibility?: Database["public"]["Enums"]["debt_visibility"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debts_settlement_transaction_id_fkey"
+            columns: ["settlement_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       favorites: {
         Row: {
           amount: number | null
@@ -175,6 +278,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      friend_connections: {
+        Row: {
+          addressee_id: string
+          created_at: string
+          id: string
+          requester_id: string
+          responded_at: string | null
+          status: Database["public"]["Enums"]["friend_status"]
+        }
+        Insert: {
+          addressee_id: string
+          created_at?: string
+          id?: string
+          requester_id: string
+          responded_at?: string | null
+          status?: Database["public"]["Enums"]["friend_status"]
+        }
+        Update: {
+          addressee_id?: string
+          created_at?: string
+          id?: string
+          requester_id?: string
+          responded_at?: string | null
+          status?: Database["public"]["Enums"]["friend_status"]
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string
+          friend_code: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          friend_code: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          friend_code?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       recurring: {
         Row: {
@@ -435,6 +589,7 @@ export type Database = {
           created_at: string
           date: string
           id: string
+          is_debt_settlement: boolean
           is_stock_cogs: boolean
           is_stock_purchase: boolean
           note: string | null
@@ -450,6 +605,7 @@ export type Database = {
           created_at?: string
           date?: string
           id?: string
+          is_debt_settlement?: boolean
           is_stock_cogs?: boolean
           is_stock_purchase?: boolean
           note?: string | null
@@ -465,6 +621,7 @@ export type Database = {
           created_at?: string
           date?: string
           id?: string
+          is_debt_settlement?: boolean
           is_stock_cogs?: boolean
           is_stock_purchase?: boolean
           note?: string | null
@@ -530,6 +687,209 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      debt_cancel: {
+        Args: { p_debt_id: string }
+        Returns: {
+          amount: number
+          cancelled_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          created_by: string
+          creditor_id: string
+          debtor_id: string
+          due_date: string | null
+          id: string
+          reason: string | null
+          rejected_at: string | null
+          rejected_reason: string | null
+          settled_at: string | null
+          settled_by: string | null
+          settlement_transaction_id: string | null
+          status: Database["public"]["Enums"]["debt_status"]
+          updated_at: string
+          visibility: Database["public"]["Enums"]["debt_visibility"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "debts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      debt_confirm: {
+        Args: { p_debt_id: string }
+        Returns: {
+          amount: number
+          cancelled_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          created_by: string
+          creditor_id: string
+          debtor_id: string
+          due_date: string | null
+          id: string
+          reason: string | null
+          rejected_at: string | null
+          rejected_reason: string | null
+          settled_at: string | null
+          settled_by: string | null
+          settlement_transaction_id: string | null
+          status: Database["public"]["Enums"]["debt_status"]
+          updated_at: string
+          visibility: Database["public"]["Enums"]["debt_visibility"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "debts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      debt_create: {
+        Args: {
+          p_amount: number
+          p_creditor_id: string
+          p_debtor_id: string
+          p_due_date?: string
+          p_private?: boolean
+          p_reason?: string
+        }
+        Returns: {
+          amount: number
+          cancelled_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          created_by: string
+          creditor_id: string
+          debtor_id: string
+          due_date: string | null
+          id: string
+          reason: string | null
+          rejected_at: string | null
+          rejected_reason: string | null
+          settled_at: string | null
+          settled_by: string | null
+          settlement_transaction_id: string | null
+          status: Database["public"]["Enums"]["debt_status"]
+          updated_at: string
+          visibility: Database["public"]["Enums"]["debt_visibility"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "debts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      debt_delete_private: { Args: { p_debt_id: string }; Returns: undefined }
+      debt_reject: {
+        Args: { p_debt_id: string; p_reason?: string }
+        Returns: {
+          amount: number
+          cancelled_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          created_by: string
+          creditor_id: string
+          debtor_id: string
+          due_date: string | null
+          id: string
+          reason: string | null
+          rejected_at: string | null
+          rejected_reason: string | null
+          settled_at: string | null
+          settled_by: string | null
+          settlement_transaction_id: string | null
+          status: Database["public"]["Enums"]["debt_status"]
+          updated_at: string
+          visibility: Database["public"]["Enums"]["debt_visibility"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "debts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      debt_settle: {
+        Args: { p_debt_id: string; p_wallet_id: string }
+        Returns: {
+          debt: Database["public"]["Tables"]["debts"]["Row"]
+          transaction_id: string
+        }[]
+      }
+      debt_settle_reverse: {
+        Args: { p_debt_id: string }
+        Returns: {
+          amount: number
+          cancelled_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          created_by: string
+          creditor_id: string
+          debtor_id: string
+          due_date: string | null
+          id: string
+          reason: string | null
+          rejected_at: string | null
+          rejected_reason: string | null
+          settled_at: string | null
+          settled_by: string | null
+          settlement_transaction_id: string | null
+          status: Database["public"]["Enums"]["debt_status"]
+          updated_at: string
+          visibility: Database["public"]["Enums"]["debt_visibility"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "debts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      friend_debts_summary: {
+        Args: { p_friend_id: string }
+        Returns: {
+          i_owe_them: number
+          net: number
+          they_owe_me: number
+        }[]
+      }
+      friend_request_respond: {
+        Args: { p_accept: boolean; p_connection_id: string }
+        Returns: {
+          addressee_id: string
+          created_at: string
+          id: string
+          requester_id: string
+          responded_at: string | null
+          status: Database["public"]["Enums"]["friend_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "friend_connections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      friend_request_send: {
+        Args: { p_code: string }
+        Returns: {
+          addressee_id: string
+          created_at: string
+          id: string
+          requester_id: string
+          responded_at: string | null
+          status: Database["public"]["Enums"]["friend_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "friend_connections"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      generate_friend_code: { Args: never; Returns: string }
       recurring_next_date: {
         Args: { p_from: string; p_schedule: string }
         Returns: string
@@ -620,6 +980,14 @@ export type Database = {
     }
     Enums: {
       category_kind: "income" | "expense"
+      debt_status:
+        | "pending_confirmation"
+        | "confirmed"
+        | "rejected"
+        | "cancelled"
+        | "settled"
+      debt_visibility: "private" | "shared"
+      friend_status: "pending" | "accepted"
       item_condition: "new" | "used_good" | "flawed"
       stock_status: "in_stock" | "partial" | "sold"
       transaction_type: "income" | "expense"
@@ -755,6 +1123,15 @@ export const Constants = {
   public: {
     Enums: {
       category_kind: ["income", "expense"],
+      debt_status: [
+        "pending_confirmation",
+        "confirmed",
+        "rejected",
+        "cancelled",
+        "settled",
+      ],
+      debt_visibility: ["private", "shared"],
+      friend_status: ["pending", "accepted"],
       item_condition: ["new", "used_good", "flawed"],
       stock_status: ["in_stock", "partial", "sold"],
       transaction_type: ["income", "expense"],
