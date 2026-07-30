@@ -139,13 +139,21 @@ export function AddPage() {
   }, [walletsQ.data, walletId])
 
   // Category chips: categories of the chosen kind, excluding stock-intake
-  // categories and the COGS system category (those have their own flow).
-  // 'ขายสต็อก' income (system_key stock_sale_income) stays selectable so off-book
-  // resale income can be logged by hand.
+  // categories and three system categories that only ever come from their own
+  // flows — 'stock_cogs' (a sale's cost leg) and both debt-repayment categories
+  // ('debt_repayment_income' / 'debt_repayment_expense', only ever from
+  // debt_settle). 'ขายสต็อก' income (system_key stock_sale_income) stays
+  // selectable so off-book resale income can be logged by hand; there is no
+  // equivalent off-book case for a debt settlement.
   const categories = useMemo(
     () =>
       (catsQ.data ?? []).filter(
-        (c) => c.kind === type && !c.is_stock_category && c.system_key !== 'stock_cogs',
+        (c) =>
+          c.kind === type &&
+          !c.is_stock_category &&
+          c.system_key !== 'stock_cogs' &&
+          c.system_key !== 'debt_repayment_income' &&
+          c.system_key !== 'debt_repayment_expense',
       ),
     [catsQ.data, type],
   )

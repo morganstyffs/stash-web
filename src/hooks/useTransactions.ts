@@ -15,6 +15,7 @@ export interface EditableTx {
   note: string | null
   is_stock_purchase: boolean
   is_stock_cogs: boolean
+  is_debt_settlement: boolean
   stock_item_id: string | null
 }
 
@@ -36,7 +37,7 @@ export function useTransaction(id: string | null) {
       const { data, error } = await supabase
         .from('transactions')
         .select(
-          'id, type, amount, category_id, wallet_id, date, note, is_stock_purchase, is_stock_cogs, stock_item_id',
+          'id, type, amount, category_id, wallet_id, date, note, is_stock_purchase, is_stock_cogs, is_debt_settlement, stock_item_id',
         )
         .eq('id', id!)
         .single()
