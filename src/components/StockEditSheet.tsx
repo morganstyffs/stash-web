@@ -328,47 +328,53 @@ export function StockEditSheet({
             <div className="mb-3 rounded-card border-[0.5px] border-hairline p-3">
               <p className="mb-2 text-[11px] font-medium text-muted">ประวัติการขาย</p>
               {sales.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center gap-2 border-b-[0.5px] border-hairline py-2 last:border-b-0"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[12.5px]">
-                      {s.qty_sold} ชิ้น × {formatBaht(s.sale_price)}
-                    </p>
-                    <p className="mt-px text-[10.5px] text-faint">
-                      {formatDayShort(new Date(s.sold_on + 'T00:00:00'))} · กำไร{' '}
-                      <span className={s.profit >= 0 ? 'text-brand-deep' : 'text-expense'}>
-                        {s.profit >= 0 ? '+' : '-'}
-                        {formatBaht(Math.abs(s.profit))}
-                      </span>
-                    </p>
-                  </div>
-                  {reversingId === s.id ? (
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button
-                        onClick={() => doReverse(s.id)}
-                        disabled={reverse.isPending}
-                        className="rounded-btn bg-expense px-2.5 py-1.5 text-[11px] font-medium text-white disabled:opacity-40"
-                      >
-                        {reverse.isPending ? '…' : 'ยืนยันย้อน'}
-                      </button>
-                      <button
-                        onClick={() => setReversingId(null)}
-                        disabled={reverse.isPending}
-                        className="rounded-btn border-[0.5px] border-hairline px-2 py-1.5 text-[11px] disabled:opacity-40"
-                      >
-                        ยกเลิก
-                      </button>
+                <div key={s.id} className="border-b-[0.5px] border-hairline py-2 last:border-b-0">
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12.5px]">
+                        {s.qty_sold} ชิ้น × {formatBaht(s.sale_price)}
+                      </p>
+                      <p className="mt-px text-[10.5px] text-faint">
+                        {formatDayShort(new Date(s.sold_on + 'T00:00:00'))} · กำไร{' '}
+                        <span className={s.profit >= 0 ? 'text-brand-deep' : 'text-expense'}>
+                          {s.profit >= 0 ? '+' : '-'}
+                          {formatBaht(Math.abs(s.profit))}
+                        </span>
+                      </p>
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => setReversingId(s.id)}
-                      className="flex shrink-0 items-center gap-1 text-[11.5px] font-medium text-expense"
-                    >
-                      <IconArrowBackUp size={14} />
-                      ย้อน
-                    </button>
+                    {reversingId !== s.id && (
+                      <button
+                        onClick={() => setReversingId(s.id)}
+                        className="flex shrink-0 items-center gap-1 text-[11.5px] font-medium text-expense"
+                      >
+                        <IconArrowBackUp size={14} />
+                        ย้อน
+                      </button>
+                    )}
+                  </div>
+                  {reversingId === s.id && (
+                    <div className="mt-2 rounded-card border-[0.5px] border-hairline bg-fill p-3">
+                      <p className="mb-2.5 text-[12.5px]">
+                        ย้อนการขายนี้? สต็อกจะกลับเข้าคลัง {s.qty_sold} ชิ้น และรายรับ{' '}
+                        {formatBaht(s.sale_price * s.qty_sold)} จะถูกลบ ย้อนกลับไม่ได้
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setReversingId(null)}
+                          disabled={reverse.isPending}
+                          className="flex-1 rounded-btn border-[0.5px] border-hairline py-2.5 text-[13px] font-medium disabled:opacity-40"
+                        >
+                          ยกเลิก
+                        </button>
+                        <button
+                          onClick={() => doReverse(s.id)}
+                          disabled={reverse.isPending}
+                          className="flex-1 rounded-btn bg-expense py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
+                        >
+                          {reverse.isPending ? 'กำลังย้อน…' : 'ยืนยันย้อน'}
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               ))}

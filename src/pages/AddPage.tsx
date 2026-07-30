@@ -343,22 +343,28 @@ export function AddPage() {
                   key={c.id}
                   onClick={() => pickCategory(c.id)}
                   aria-pressed={active}
-                  className={`flex min-h-[34px] items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
-                    active ? 'bg-brand-tint font-medium text-brand-ink' : 'bg-fill text-muted'
-                  }`}
+                  className="flex min-h-[44px] items-center"
                 >
-                  <Icon size={14} />
-                  {c.name}
+                  <span
+                    className={`flex items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
+                      active ? 'bg-brand-tint font-medium text-brand-ink' : 'bg-fill text-muted'
+                    }`}
+                  >
+                    <Icon size={14} />
+                    {c.name}
+                  </span>
                 </button>
               )
             })}
             <button
               type="button"
               onClick={() => setManagingCats(true)}
-              className="flex min-h-[34px] shrink-0 items-center gap-1 rounded-pill bg-fill px-[13px] py-[7px] text-[12px] text-faint"
+              className="flex min-h-[44px] shrink-0 items-center"
             >
-              <IconPlus size={14} />
-              เพิ่มหมวด
+              <span className="flex items-center gap-1 rounded-pill bg-fill px-[13px] py-[7px] text-[12px] text-faint">
+                <IconPlus size={14} />
+                เพิ่มหมวด
+              </span>
             </button>
           </div>
         </div>
@@ -377,11 +383,15 @@ export function AddPage() {
                   key={w.id}
                   onClick={() => setWalletId(w.id)}
                   aria-pressed={active}
-                  className={`shrink-0 rounded-pill px-[13px] py-[6px] text-[12px] ${
-                    active ? 'bg-brand-tint font-medium text-brand-ink' : 'bg-fill text-muted'
-                  }`}
+                  className="flex min-h-[44px] shrink-0 items-center"
                 >
-                  {w.name}
+                  <span
+                    className={`rounded-pill px-[13px] py-[6px] text-[12px] ${
+                      active ? 'bg-brand-tint font-medium text-brand-ink' : 'bg-fill text-muted'
+                    }`}
+                  >
+                    {w.name}
+                  </span>
                 </button>
               )
             })}
