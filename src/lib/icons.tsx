@@ -56,3 +56,7 @@ export function categoryIcon(name: string | null | undefined): Icon {
   if (name && ICONS[name]) return ICONS[name]
   return IconTag
 }
+
+/** The icon names a category may use — the single source the picker lists from
+ *  (so it can never offer a name categoryIcon() doesn't know). */
+export const ICON_NAMES: readonly string[] = Object.keys(ICONS)

@@ -19,7 +19,9 @@ import { useStockSalesSummary } from '@/hooks/useStockSales'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
 import { useHomeMoments } from '@/hooks/useHomeMoments'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
+import { LedgerIcon } from '@/components/LedgerIcon'
 import { categoryIcon } from '@/lib/icons'
+import { catColorVar } from '@/lib/catColor'
 import { formatRecentDayLabel, monthKey } from '@/lib/dates'
 import { largestRemainderPercents } from '@/lib/percent'
 import { loadHideBalance, saveHideBalance } from '@/lib/prefs'
@@ -28,8 +30,8 @@ import { formatBaht, formatSigned, MASKED_BAHT } from '@/lib/format'
 interface LegendRow {
   key: string
   name: string
-  /** category colour, or null for the neutral "อื่นๆ" roll-up swatch */
-  color: string | null
+  /** category colour slot 1–6, or null for the neutral "อื่นๆ" roll-up swatch */
+  colorIndex: number | null
   total: number
   /** share of the ring total, rounded to a whole percent */
   pct: number
@@ -46,7 +48,7 @@ function buildDonutLegend(slices: DonutSlice[]): LegendRow[] {
   const base = slices.slice(0, 3).map((s) => ({
     key: s.categoryId,
     name: s.name,
-    color: s.color as string | null,
+    colorIndex: s.colorIndex,
     total: s.total,
   }))
   const rest = slices.slice(3)
@@ -54,7 +56,7 @@ function buildDonutLegend(slices: DonutSlice[]): LegendRow[] {
     base.push({
       key: '__other__',
       name: `อื่นๆ (${rest.length} หมวด)`,
-      color: null,
+      colorIndex: null,
       total: rest.reduce((s, x) => s + x.total, 0),
     })
   }
@@ -184,10 +186,8 @@ export function HomePage() {
                 >
                   <span className="flex min-w-0 items-center text-[12.5px]">
                     <span
-                      className={`mr-2 inline-block h-2 w-2 shrink-0 rounded-full${
-                        row.color ? '' : ' bg-faint'
-                      }`}
-                      style={row.color ? { background: row.color } : undefined}
+                      className="mr-2 inline-block h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: catColorVar(row.colorIndex) }}
                     />
                     <span className="truncate">{row.name}</span>
                   </span>
@@ -377,9 +377,7 @@ function RecentItem({
         last ? '' : ' border-b-[0.5px] border-hairline'
       }`}
     >
-      <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] bg-fill">
-        <Icon size={16} className="text-muted" />
-      </div>
+      <LedgerIcon icon={Icon} color={catColorVar(tx.category?.color_index)} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px]">{headerText}</p>
         <p className="mt-px text-[11px] text-faint">{showCat ? `${catName} · ${time}` : time}</p>

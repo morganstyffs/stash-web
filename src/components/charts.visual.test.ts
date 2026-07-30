@@ -21,8 +21,8 @@ import { runVisualTest } from '@/components/visual-harness'
  */
 
 // Everyday value, 6-figure, 7-figure, zero — plus the hide-balance mask, which
-// must fit too. Slice colour is a CSS keyword (not a hex) — it's fixture data for
-// a geometry check, and keeps `grep '#[0-9A-Fa-f]{6}' src/` clean.
+// must fit too. Slice colour is a colour slot (colorIndex), resolved to a
+// palette var by the component — this test only checks the centre total's fit.
 const CASES: { id: string; total: number; hideBalance?: boolean }[] = [
   { id: 'zero', total: 0 },
   { id: 'everyday', total: 48_052 },
@@ -41,7 +41,7 @@ describe('Donut centre total fits inside the ring (real browser)', () => {
       const markup = CASES.map((c) => {
         const inner = renderToStaticMarkup(
           createElement(Donut, {
-            slices: [{ categoryId: 'a', name: 'x', color: 'gray', total: c.total }],
+            slices: [{ categoryId: 'a', name: 'x', colorIndex: 1, total: c.total }],
             hideBalance: c.hideBalance,
           }),
         )

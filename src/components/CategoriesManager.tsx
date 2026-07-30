@@ -3,7 +3,8 @@ import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react'
 import { Overlay, Toggle } from '@/components/ui'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useToast } from '@/components/Toast'
-import { categoryIcon } from '@/lib/icons'
+import { categoryIcon, ICON_NAMES } from '@/lib/icons'
+import { catColorVar } from '@/lib/catColor'
 import { useCategories } from '@/hooks/useLookups'
 import {
   useDeleteCategory,
@@ -18,7 +19,12 @@ interface FormState {
   name: string
   kind: CategoryKind
   is_stock_category: boolean
+  icon: string
+  /** chosen slot 1–6, or null (create only) = let the DB assign an unused one */
+  colorIndex: number | null
 }
+
+const COLOR_SLOTS = [1, 2, 3, 4, 5, 6] as const
 
 export function CategoriesManager({ onClose }: { onClose: () => void }) {
   const { data: categories } = useCategories()
@@ -30,6 +36,9 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
   const [confirming, setConfirming] = useState<Category | null>(null)
 
   const list = categories ?? []
+  // colour slots already taken by OTHER categories — marked in the picker so a
+  // duplicate is a conscious choice, not a surprise (donut collisions only).
+  const usedColors = new Set(list.filter((c) => c.id !== form?.id).map((c) => c.color_index))
   const groups: { kind: CategoryKind; label: string }[] = [
     { kind: 'expense', label: 'รายจ่าย' },
     { kind: 'income', label: 'รายรับ' },
@@ -54,7 +63,9 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
       action={
         <button
           aria-label="เพิ่มหมวด"
-          onClick={() => setForm({ name: '', kind: 'expense', is_stock_category: false })}
+          onClick={() =>
+            setForm({ name: '', kind: 'expense', is_stock_category: false, icon: 'tag', colorIndex: null })
+          }
         >
           <IconPlus size={20} className="text-brand-deep" />
         </button>
@@ -84,6 +95,67 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
               </button>
             ))}
           </div>
+
+          {/* colour — 6 slots; a dot marks slots another category already uses */}
+          <p className="mb-1.5 text-[11px] uppercase tracking-[0.5px] text-faint">สี</p>
+          <div className="mb-1.5 flex gap-2.5">
+            {COLOR_SLOTS.map((ci) => {
+              const selected = form.colorIndex === ci
+              return (
+                <button
+                  key={ci}
+                  type="button"
+                  aria-label={`สีที่ ${ci}${usedColors.has(ci) ? ' (มีหมวดอื่นใช้แล้ว)' : ''}`}
+                  aria-pressed={selected}
+                  onClick={() => setForm({ ...form, colorIndex: ci })}
+                  className={`relative h-7 w-7 rounded-full ${
+                    selected ? 'ring-2 ring-ink ring-offset-2 ring-offset-surface' : ''
+                  }`}
+                  style={{ background: catColorVar(ci) }}
+                >
+                  {usedColors.has(ci) && (
+                    <span
+                      aria-hidden
+                      className="absolute -right-0.5 -top-0.5 h-[7px] w-[7px] rounded-full bg-ink ring-1 ring-surface"
+                    />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          {form.colorIndex != null && usedColors.has(form.colorIndex) ? (
+            <p className="mb-3 text-[11px] text-warn-ink">
+              สีนี้มีหมวดอื่นใช้อยู่แล้ว — ใช้ซ้ำได้ แต่ในโดนัทอาจดูคล้ายกัน
+            </p>
+          ) : !form.id && form.colorIndex == null ? (
+            <p className="mb-3 text-[11px] text-faint">ไม่เลือก = ระบบจะเลือกสีที่ยังว่างให้อัตโนมัติ</p>
+          ) : (
+            <div className="mb-3" />
+          )}
+
+          {/* icon — only names lib/icons.tsx knows (single source) */}
+          <p className="mb-1.5 text-[11px] uppercase tracking-[0.5px] text-faint">ไอคอน</p>
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {ICON_NAMES.map((n) => {
+              const I = categoryIcon(n)
+              const selected = form.icon === n
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  aria-label={`ไอคอน ${n}`}
+                  aria-pressed={selected}
+                  onClick={() => setForm({ ...form, icon: n })}
+                  className={`flex h-9 w-9 items-center justify-center rounded-[10px] border-[0.5px] ${
+                    selected ? 'border-brand bg-brand-tint' : 'border-hairline'
+                  }`}
+                >
+                  <I size={18} className={selected ? 'text-brand-deep' : 'text-muted'} />
+                </button>
+              )
+            })}
+          </div>
+
           <div className="flex gap-2">
             <button
               onClick={() => setForm(null)}
@@ -100,6 +172,8 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                     name: form.name.trim(),
                     kind: form.kind,
                     is_stock_category: form.is_stock_category,
+                    icon: form.icon,
+                    colorIndex: form.colorIndex,
                   })
                   toast.success(form.id ? 'บันทึกหมวดแล้ว' : 'เพิ่มหมวดแล้ว')
                   setForm(null)
@@ -131,7 +205,7 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                   className="flex items-center gap-3 border-b-[0.5px] border-hairline py-2.5 last:border-b-0"
                 >
                   <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] bg-fill">
-                    <Icon size={16} className="text-muted" />
+                    <Icon size={16} style={{ color: catColorVar(c.color_index) }} />
                   </div>
                   <span className="flex-1 truncate text-[13.5px]">{c.name}</span>
                   {c.kind === 'expense' && (
@@ -153,6 +227,8 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                         name: c.name,
                         kind: c.kind,
                         is_stock_category: c.is_stock_category,
+                        icon: c.icon,
+                        colorIndex: c.color_index,
                       })
                     }
                   >

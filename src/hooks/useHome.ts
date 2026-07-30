@@ -24,7 +24,7 @@ export interface RecentRow {
   date: string
   note: string | null
   created_at: string
-  category: { name: string; icon: string | null; color: string | null } | null
+  category: { name: string; icon: string; color_index: number } | null
 }
 
 /**
@@ -60,7 +60,7 @@ export function useRecentTransactions(limit = 8) {
       const { data, error } = await supabase
         .from('transactions')
         .select(
-          'id, type, amount, date, note, created_at, category:categories(name, icon, color)',
+          'id, type, amount, date, note, created_at, category:categories(name, icon, color_index)',
         )
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
@@ -74,7 +74,8 @@ export function useRecentTransactions(limit = 8) {
 export interface DonutSlice {
   categoryId: string
   name: string
-  color: string
+  /** category colour slot 1–6, or null for the uncategorised bucket (→ neutral) */
+  colorIndex: number | null
   total: number
 }
 
@@ -102,11 +103,6 @@ export interface HomeSummary {
   /** expense grouped by category, largest first */
   donut: DonutSlice[]
 }
-
-// Donut slice colours when a category has no colour of its own. Passed as the
-// `color` prop straight to the SVG, so these stay raw hex (not Tailwind classes).
-// Must mirror cat.1–6 in tailwind.config.ts, in the same order.
-const FALLBACK_SLICE_COLORS = ['#4A57B5', '#CE6A22', '#0D8F6A', '#9B4BB0', '#7D7708', '#BC2F60']
 
 /**
  * Pure aggregation of the month rows into everything the home screen renders.
@@ -176,12 +172,12 @@ export function computeHomeSummary(
   const dailyAllowance = daysLeft > 0 && safeToSpend > 0 ? safeToSpend / daysLeft : 0
 
   const donut: DonutSlice[] = [...byCat.entries()]
-    .map(([id, total], i) => {
+    .map(([id, total]) => {
       const cat = catById.get(id)
       return {
         categoryId: id,
         name: cat?.name ?? 'อื่นๆ',
-        color: cat?.color || FALLBACK_SLICE_COLORS[i % FALLBACK_SLICE_COLORS.length],
+        colorIndex: cat?.color_index ?? null,
         total,
       }
     })
