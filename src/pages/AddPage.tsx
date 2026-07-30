@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  IconAlertCircle,
   IconArrowLeft,
   IconBackspace,
   IconCalendar,
@@ -13,14 +14,96 @@ import { useCategories, useFavorites, useUpsertFavorite } from '@/hooks/useLooku
 import { useAddTransaction } from '@/hooks/useAddTransaction'
 import { useWallets } from '@/hooks/useSettings'
 import { CategoriesManager } from '@/components/CategoriesManager'
+import { FavoritesManager } from '@/components/FavoritesManager'
 import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
 import { formatBaht, formatDayShort } from '@/lib/format'
 import { todayISO } from '@/lib/dates'
 import { translateError } from '@/lib/errors'
-import type { TransactionType } from '@/lib/db'
+import type { Favorite, TransactionType } from '@/lib/db'
 
 const intFmt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 })
+/** Amount as it appears inside a fast-label's default name — grouped, up to 2dp, no ฿. */
+const labelAmountFmt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 })
+
+const MAX_DIGITS = 9
+
+// ── Pure logic (exported for tests) ─────────────────────────────────────────
+
+/**
+ * Default name for a fast-label (favorite). B11: the old code used the bare
+ * category name, so "กาแฟ 60" and "กาแฟ 120" both saved as "กาแฟ" and became
+ * indistinguishable. Now the amount is folded into the name when present, and a
+ * missing category falls back to a generic label.
+ */
+export function favoriteLabel(
+  categoryName: string | null | undefined,
+  amount: number | null,
+): string {
+  const name = categoryName?.trim() || 'รายการโปรด'
+  if (amount != null && amount > 0) return `${name} ${labelAmountFmt.format(amount)}`
+  return name
+}
+
+/**
+ * Why the save button is disabled, as user-facing text — or null when the entry
+ * is complete and the bar should hide. The four states the spec enumerates.
+ */
+export function saveBlockedReason(amount: number, categoryId: string | null): string | null {
+  const noAmount = amount <= 0
+  const noCategory = !categoryId
+  if (noAmount && noCategory) return 'ใส่จำนวนเงิน และเลือกหมวด'
+  if (noAmount) return 'ใส่จำนวนเงิน'
+  if (noCategory) return 'เลือกหมวด'
+  return null
+}
+
+/** Digits currently entered (the decimal point doesn't count toward the cap). */
+function digitCount(s: string): number {
+  return s.replace('.', '').length
+}
+
+/**
+ * Reducer for the amount string driven by every keypad/aux button. Kept pure so
+ * the 000 / clear / decimal / cap rules can be unit-tested without the DOM.
+ * Keys: a digit ('0'–'9'), '.', 'back', '000', 'clear'.
+ */
+export function pressKey(prev: string, key: string): string {
+  switch (key) {
+    case 'back':
+      return prev.slice(0, -1)
+    case 'clear':
+      return ''
+    case '000': {
+      // Only meaningful on a non-zero integer with no decimal yet, and never
+      // past the 9-digit ceiling (append nothing rather than overflow).
+      if (prev === '' || prev === '0' || prev.includes('.')) return prev
+      if (digitCount(prev) + 3 > MAX_DIGITS) return prev
+      return prev + '000'
+    }
+    case '.': {
+      if (prev.includes('.')) return prev
+      return (prev === '' ? '0' : prev) + '.'
+    }
+    default: {
+      // a single digit
+      if (prev.includes('.')) {
+        const [, dec = ''] = prev.split('.')
+        if (dec.length >= 2) return prev // max 2 decimals
+      }
+      if (prev === '0') return key // no leading zero
+      if (digitCount(prev) >= MAX_DIGITS) return prev // sane cap
+      return prev + key
+    }
+  }
+}
+
+/** Accessible name for a fast-label button (spec: `${ชื่อป้าย} ${ยอด} บาท`). */
+function favoriteAria(label: string, amount: number | null): string {
+  return amount != null ? `${label} ${intFmt.format(amount)} บาท` : `${label} ยังไม่ระบุยอด`
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export function AddPage() {
   const navigate = useNavigate()
@@ -40,7 +123,11 @@ export function AddPage() {
   const [note, setNote] = useState('')
   const [favSaved, setFavSaved] = useState(false)
   const [managingCats, setManagingCats] = useState(false)
+  const [managingFavs, setManagingFavs] = useState(false)
 
+  // Local midnight from the numeric parts (via formatDayShort's device-local
+  // formatter) cancels out — the label is the correct day in every timezone.
+  // Keep the 'T00:00:00' suffix: it is verified-correct, not a rule-18 slip.
   const dateLabel = dateStr === today ? 'วันนี้' : formatDayShort(new Date(dateStr + 'T00:00:00'))
 
   // Default the wallet to the first one once wallets load (wallet_id is optional
@@ -51,38 +138,29 @@ export function AddPage() {
     }
   }, [walletsQ.data, walletId])
 
-  // Quick-add chips: categories of the chosen kind, excluding stock categories
-  // (those have their own intake flow).
+  // Category chips: categories of the chosen kind, excluding stock-intake
+  // categories and the COGS system category (those have their own flow).
+  // 'ขายสต็อก' income (system_key stock_sale_income) stays selectable so off-book
+  // resale income can be logged by hand.
   const categories = useMemo(
     () =>
-      // Hide stock-intake categories and the COGS system category from manual
-      // entry. 'ขายสต็อก' income (system_key stock_sale_income) stays selectable
-      // so off-book resale income can be logged by hand.
       (catsQ.data ?? []).filter(
         (c) => c.kind === type && !c.is_stock_category && c.system_key !== 'stock_cogs',
       ),
     [catsQ.data, type],
   )
 
+  const favorites = favQ.data ?? []
+
   const amount = Number(amountStr || '0')
-  const canSave = amount > 0 && !!categoryId && !add.isPending
+  const reason = saveBlockedReason(amount, categoryId)
+  const canSave = reason == null && !add.isPending
+
+  const selectedCat = categories.find((c) => c.id === categoryId)
+  const pendingFavName = favoriteLabel(selectedCat?.name, amount > 0 ? amount : null)
 
   function press(key: string) {
-    setAmountStr((prev) => {
-      if (key === 'back') return prev.slice(0, -1)
-      if (key === '.') {
-        if (prev.includes('.')) return prev
-        return (prev === '' ? '0' : prev) + '.'
-      }
-      // digit
-      if (prev.includes('.')) {
-        const [, dec = ''] = prev.split('.')
-        if (dec.length >= 2) return prev // max 2 decimals
-      }
-      if (prev === '0') return key // no leading zero
-      if (prev.replace('.', '').length >= 9) return prev // sane cap
-      return prev + key
-    })
+    setAmountStr((prev) => pressKey(prev, key))
   }
 
   function switchType(next: TransactionType) {
@@ -93,6 +171,15 @@ export function AddPage() {
 
   function pickCategory(id: string) {
     setCategoryId(id)
+    setFavSaved(false)
+  }
+
+  // Apply a fast-label. B13: the amount is set on *every* tap — a label with no
+  // amount clears whatever was in the box, so it can't fuse with a stale value.
+  function applyFavorite(f: Favorite) {
+    setType(f.type)
+    setAmountStr(f.amount != null ? String(f.amount) : '')
+    setCategoryId(f.category_id)
     setFavSaved(false)
   }
 
@@ -114,20 +201,19 @@ export function AddPage() {
     }
   }
 
-  // Save the current entry as a one-tap preset. Label defaults to the category
-  // name; the amount is captured only when one has been entered.
+  // Save the current entry as a fast-label. Name defaults to category + amount
+  // (B11); the amount is captured only when one has been entered.
   async function saveFavorite() {
     if (!categoryId) return
-    const cat = categories.find((c) => c.id === categoryId)
     try {
       await saveFav.mutateAsync({
-        label: cat?.name ?? 'รายการโปรด',
+        label: favoriteLabel(selectedCat?.name, amount > 0 ? amount : null),
         type,
         amount: amount > 0 ? amount : null,
         category_id: categoryId,
       })
       setFavSaved(true)
-      toast.success('บันทึกเป็นรายการโปรดแล้ว')
+      toast.success('บันทึกเป็นป้ายด่วนแล้ว')
     } catch (e) {
       toast.error(translateError(e))
     }
@@ -138,10 +224,13 @@ export function AddPage() {
   const intDisplay = intFmt.format(Number(intRaw || '0'))
   const decSuffix = amountStr.includes('.') ? `.${decRaw ?? ''}` : '.00'
 
+  const zeroDisabled = amountStr === '' || amountStr === '0' || amountStr.includes('.')
+  const clearDisabled = amountStr === ''
+
   return (
-    <div className="mx-auto flex min-h-full max-w-md flex-col bg-white">
+    <div className="mx-auto flex h-full max-w-md flex-col bg-white">
       {/* header */}
-      <div className="flex items-center justify-between px-[18px] pb-3 pt-4">
+      <div className="flex shrink-0 items-center justify-between px-[18px] pb-3 pt-4">
         <button aria-label="ย้อนกลับ" onClick={() => navigate('/')}>
           <IconArrowLeft size={20} className="text-muted" />
         </button>
@@ -161,164 +250,169 @@ export function AddPage() {
         </label>
       </div>
 
-      {/* input mode tabs — only "กดเร็ว" is wired; พิมพ์/พูด + สแกน รอฟีเจอร์ AI */}
-      <div className="mx-4 mb-1.5 flex rounded-[11px] bg-fill p-[3px]">
-        <div className="flex-1 rounded-lg bg-brand-tint py-[7px] text-center text-[12px] font-medium text-brand-ink">
-          กดเร็ว
-        </div>
-        <button
-          disabled
-          title="เร็วๆ นี้"
-          aria-label="พิมพ์/พูด (เร็วๆ นี้)"
-          className="flex-1 cursor-not-allowed py-[7px] text-center text-[12px] text-faint disabled:opacity-100"
-        >
-          พิมพ์/พูด
-        </button>
-        <button
-          disabled
-          title="เร็วๆ นี้"
-          aria-label="สแกน (เร็วๆ นี้)"
-          className="flex-1 cursor-not-allowed py-[7px] text-center text-[12px] text-faint disabled:opacity-100"
-        >
-          สแกน
-        </button>
-      </div>
-      <p className="mb-3 px-4 text-[10px] text-faint">โหมด “พิมพ์/พูด” และ “สแกน” — เร็วๆ นี้</p>
+      {/* scrollzone — everything above the dock. Shrinks/scrolls on short screens
+          so the keypad + save button below stay pinned to the bottom. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* fast-labels (favorites) on top — the fastest path to a saved entry.
+            Hidden entirely until the user has some, so it never wastes space. */}
+        {favorites.length > 0 && (
+          <div className="pt-1">
+            <div className="flex items-center justify-between px-4 pb-[7px]">
+              <p className="flex items-center gap-1 text-[11px] text-muted">
+                <IconStar size={12} />
+                กดครั้งเดียวจบ
+              </p>
+              <button
+                type="button"
+                onClick={() => setManagingFavs(true)}
+                className="text-[11px] font-medium text-brand-deep"
+              >
+                จัดการ
+              </button>
+            </div>
+            <div className="no-scrollbar flex gap-[7px] overflow-x-auto px-4 pb-2.5">
+              {favorites.map((f) => (
+                <FastLabel key={f.id} fav={f} onClick={() => applyFavorite(f)} />
+              ))}
+            </div>
+          </div>
+        )}
 
-      {/* จ่าย / รับ */}
-      <div className="mb-2 flex justify-center gap-1.5">
-        {(['expense', 'income'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => switchType(t)}
-            className={`rounded-pill px-4 py-[5px] text-[12px] ${
-              type === t
-                ? 'bg-brand-tint font-medium text-brand-ink'
-                : 'border-[0.5px] border-hairline text-muted'
-            }`}
-          >
-            {t === 'expense' ? 'จ่าย' : 'รับ'}
-          </button>
-        ))}
-      </div>
-
-      {/* amount */}
-      <div className="py-0.5 pb-3.5 text-center">
-        <p className="text-[40px] font-medium tracking-[-1px]">
-          <span className="text-[26px] text-muted">฿</span>
-          {intDisplay}
-          <span className="text-muted">{decSuffix}</span>
-        </p>
-      </div>
-
-      {/* category chips */}
-      <div className="no-scrollbar flex gap-[7px] overflow-x-auto px-4 pb-3">
-        {categories.map((c) => {
-          const Icon = categoryIcon(c.icon)
-          const active = c.id === categoryId
-          return (
+        {/* จ่าย / รับ */}
+        <div className="mb-1.5 flex justify-center gap-1.5">
+          {(['expense', 'income'] as const).map((t) => (
             <button
-              key={c.id}
-              onClick={() => pickCategory(c.id)}
-              className={`flex shrink-0 items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
-                active
+              key={t}
+              onClick={() => switchType(t)}
+              aria-pressed={type === t}
+              className={`rounded-pill px-4 py-[5px] text-[12px] ${
+                type === t
                   ? 'bg-brand-tint font-medium text-brand-ink'
-                  : 'bg-fill text-muted'
+                  : 'border-[0.5px] border-hairline text-muted'
               }`}
             >
-              <Icon size={14} />
-              {c.name}
+              {t === 'expense' ? 'จ่าย' : 'รับ'}
             </button>
-          )
-        })}
-        <button
-          type="button"
-          onClick={() => setManagingCats(true)}
-          className="flex shrink-0 items-center gap-1 rounded-pill bg-fill px-[13px] py-[7px] text-[12px] text-faint"
-        >
-          <IconPlus size={14} />
-          เพิ่ม
-        </button>
-      </div>
-
-      {/* wallet selector (only when the user has wallets) */}
-      {walletsQ.data && walletsQ.data.length > 0 && (
-        <div className="no-scrollbar flex items-center gap-[7px] overflow-x-auto px-4 pb-3">
-          <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted">
-            <IconWallet size={13} />
-            กระเป๋า
-          </span>
-          {walletsQ.data.map((w) => {
-            const active = w.id === walletId
-            return (
-              <button
-                key={w.id}
-                onClick={() => setWalletId(w.id)}
-                className={`shrink-0 rounded-pill px-[13px] py-[6px] text-[12px] ${
-                  active
-                    ? 'bg-brand-tint font-medium text-brand-ink'
-                    : 'bg-fill text-muted'
-                }`}
-              >
-                {w.name}
-              </button>
-            )
-          })}
+          ))}
         </div>
-      )}
 
-      {/* optional note */}
-      <div className="px-4 pb-3">
-        <input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="โน้ต (ไม่ใส่ก็ได้)"
-          className="w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[9px] text-[13px] outline-none placeholder:text-faint focus:border-brand"
-        />
-      </div>
-
-      {/* save current entry as a favorite */}
-      {categoryId && (
-        <div className="px-4 pb-3">
-          <button
-            onClick={saveFavorite}
-            disabled={saveFav.isPending || favSaved}
-            className="flex items-center gap-1 text-[12px] font-medium text-brand-deep disabled:text-faint"
-          >
-            <IconStar size={13} />
-            {favSaved ? 'บันทึกเป็นรายการโปรดแล้ว' : 'บันทึกเป็นรายการโปรด'}
-          </button>
-        </div>
-      )}
-
-      {/* favorites (only when the user has some) */}
-      {favQ.data && favQ.data.length > 0 && (
-        <div className="px-4 pb-3">
-          <p className="mb-[7px] text-[11px] text-muted">
-            <IconStar size={12} className="-mb-px mr-1 inline" />
-            รายการโปรด
+        {/* amount + 000 / ล้าง (stacked to the right, number stays centred) */}
+        <div className="relative px-4 pb-2.5 pt-0.5 text-center">
+          <p className="text-[40px] font-medium tracking-[-1px]">
+            <span className="text-[26px] text-muted">฿</span>
+            {intDisplay}
+            <span className="text-muted">{decSuffix}</span>
           </p>
-          <div className="flex flex-wrap gap-[7px]">
-            {favQ.data.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => {
-                  setType(f.type)
-                  if (f.amount != null) setAmountStr(String(f.amount))
-                  setCategoryId(f.category_id)
-                }}
-                className="rounded-[9px] border-[0.5px] border-hairline bg-fill px-[11px] py-1.5 text-[12px]"
-              >
-                {f.label}
-                {f.amount != null ? ` ${formatBaht(f.amount)}` : ''}
-              </button>
-            ))}
+          <div className="absolute right-4 top-1/2 flex -translate-y-1/2 flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={() => press('000')}
+              disabled={zeroDisabled}
+              aria-label="เติมศูนย์สามตัว"
+              className="rounded-[9px] bg-fill px-2.5 py-1 text-[12px] font-medium text-muted disabled:opacity-40"
+            >
+              000
+            </button>
+            <button
+              type="button"
+              onClick={() => press('clear')}
+              disabled={clearDisabled}
+              aria-label="ล้างจำนวนเงิน"
+              className="rounded-[9px] bg-fill px-2.5 py-1 text-[12px] font-medium text-muted disabled:opacity-40"
+            >
+              ล้าง
+            </button>
           </div>
         </div>
-      )}
 
-      {/* keypad */}
-      <div className="mt-auto">
+        {/* category — wraps so every category is visible at once (no hidden overflow) */}
+        <div className="px-4 pb-2.5">
+          <p className="mb-[7px] text-[11px] text-muted">
+            {type === 'expense' ? 'หมวดรายจ่าย' : 'หมวดรายรับ'}
+          </p>
+          <div className="flex flex-wrap gap-[7px]">
+            {categories.map((c) => {
+              const Icon = categoryIcon(c.icon)
+              const active = c.id === categoryId
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => pickCategory(c.id)}
+                  aria-pressed={active}
+                  className={`flex min-h-[34px] items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
+                    active ? 'bg-brand-tint font-medium text-brand-ink' : 'bg-fill text-muted'
+                  }`}
+                >
+                  <Icon size={14} />
+                  {c.name}
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => setManagingCats(true)}
+              className="flex min-h-[34px] shrink-0 items-center gap-1 rounded-pill bg-fill px-[13px] py-[7px] text-[12px] text-faint"
+            >
+              <IconPlus size={14} />
+              เพิ่มหมวด
+            </button>
+          </div>
+        </div>
+
+        {/* wallet selector (only when the user has wallets) */}
+        {walletsQ.data && walletsQ.data.length > 0 && (
+          <div className="no-scrollbar flex items-center gap-[7px] overflow-x-auto px-4 pb-2.5">
+            <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted">
+              <IconWallet size={13} />
+              กระเป๋า
+            </span>
+            {walletsQ.data.map((w) => {
+              const active = w.id === walletId
+              return (
+                <button
+                  key={w.id}
+                  onClick={() => setWalletId(w.id)}
+                  aria-pressed={active}
+                  className={`shrink-0 rounded-pill px-[13px] py-[6px] text-[12px] ${
+                    active ? 'bg-brand-tint font-medium text-brand-ink' : 'bg-fill text-muted'
+                  }`}
+                >
+                  {w.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* optional note */}
+        <div className="px-4 pb-2.5">
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="โน้ต (ไม่ใส่ก็ได้)"
+            className="w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[9px] text-[13px] outline-none placeholder:text-faint focus:border-brand"
+          />
+        </div>
+
+        {/* save current entry as a fast-label — names the label it will create */}
+        <div className="px-4 pb-2.5 pt-0.5">
+          <button
+            onClick={saveFavorite}
+            disabled={!categoryId || saveFav.isPending || favSaved}
+            className="flex items-center gap-1 text-left text-[12px] font-medium text-brand-deep disabled:text-faint"
+          >
+            <IconStar size={13} className="shrink-0" />
+            {!categoryId
+              ? 'บันทึกเป็นป้ายด่วน'
+              : favSaved
+                ? `บันทึก “${pendingFavName}” แล้ว`
+                : `บันทึก “${pendingFavName}” เป็นป้ายด่วน`}
+          </button>
+        </div>
+      </div>
+
+      {/* dock — keypad + reason + save. Always pinned to the bottom. */}
+      <div className="shrink-0">
         <div className="grid grid-cols-3 px-3 pb-2 text-center">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((k) => (
             <KeypadKey key={k} onClick={() => press(k)}>
@@ -333,6 +427,18 @@ export function AddPage() {
             <IconBackspace size={21} className="mx-auto text-muted" />
           </KeypadKey>
         </div>
+
+        {/* why-you-can't-save bar — icon + text (never colour alone); role=status
+            so a screen reader announces it as the reason changes */}
+        {reason && (
+          <div
+            role="status"
+            className="mx-4 mb-2 flex items-center gap-1.5 rounded-input bg-warn-bg px-3 py-2 text-[12px] font-medium text-warn-ink"
+          >
+            <IconAlertCircle size={15} className="shrink-0" />
+            {reason}
+          </div>
+        )}
 
         {add.error && (
           <p className="px-4 pb-2 text-center text-[12px] text-expense">
@@ -353,7 +459,33 @@ export function AddPage() {
       </div>
 
       {managingCats && <CategoriesManager onClose={() => setManagingCats(false)} />}
+      {managingFavs && <FavoritesManager onClose={() => setManagingFavs(false)} />}
     </div>
+  )
+}
+
+/**
+ * A woven fast-label chip — same fabric/thread language as the SKU labels on the
+ * stock page. Amount reads big on top, name small below (the eye hunts the
+ * amount first); income labels wear the green fabric so จ่าย/รับ tell apart
+ * before the tap. `amount = null` shows "ใส่ยอด" in the amount slot.
+ */
+function FastLabel({ fav, onClick }: { fav: Favorite; onClick: () => void }) {
+  const fabric = fav.type === 'income' ? 'bg-brand-fabric-income' : 'bg-brand-fabric-stock'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={favoriteAria(fav.label, fav.amount)}
+      className={`woven relative flex min-h-[46px] shrink-0 flex-col justify-center overflow-hidden rounded-[9px] px-3 py-1.5 text-left text-brand-thread ${fabric}`}
+    >
+      <span aria-hidden className="selvedge absolute inset-x-0 top-0 h-[3px]" />
+      <span aria-hidden className="selvedge absolute inset-x-0 bottom-0 h-[3px]" />
+      <span className="text-[15px] font-medium leading-tight tabular-nums">
+        {fav.amount != null ? formatBaht(fav.amount) : 'ใส่ยอด'}
+      </span>
+      <span className="text-[10px] leading-tight text-brand-thread/70">{fav.label}</span>
+    </button>
   )
 }
 
@@ -370,7 +502,7 @@ function KeypadKey({
   return (
     <button
       onClick={onClick}
-      className={`rounded-[12px] py-[13px] text-[23px] font-medium active:bg-fill ${
+      className={`min-h-[44px] rounded-[12px] py-[13px] text-[23px] font-medium active:bg-fill ${
         muted ? 'text-muted' : ''
       }`}
       {...rest}

@@ -18,7 +18,8 @@ export default {
           ink: '#2A3260', // text on tint (10.07:1)
           fabric: '#1E2547', // safe label fabric — locked
           'fabric-budget': '#4A3A14', // budget label fabric — locked
-          'fabric-stock': '#2B2E34', // stock label fabric — locked
+          'fabric-stock': '#2B2E34', // stock label fabric — locked (expense fast-labels)
+          'fabric-income': '#1E3A2C', // income fast-label fabric — tells รับ apart from จ่าย
           thread: '#F3ECDB', // woven thread = text on every label — locked
         },
         // semantic (each with a light surface; -soft pairs read on dark bg)
