@@ -651,7 +651,6 @@ function StockRow({
   const Icon = thumbIcon(item)
   const days = daysSince(item.created_at, now)
   const tier = ageTier(days)
-  const stale = !sold && days > AGE_FRESH_MAX
   const meta = [item.brand, item.size, item.color].filter(Boolean).join(' · ')
   const profitPer = profitPerUnit(item)
   // Sold rows carry no age meaning → neutral spine; live rows tint by tier.
@@ -696,8 +695,8 @@ function StockRow({
         {/* flags — every one carries an icon AND text, never colour alone */}
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <SkuTag sku={item.sku} />
-          {stale && (
-            <Flag icon={IconClock} tone="warn">
+          {!sold && tier !== 'fresh' && (
+            <Flag icon={IconClock} tone={tier === 'old' ? 'warn' : 'age'}>
               ค้าง {days} วัน
             </Flag>
           )}
