@@ -1,6 +1,6 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { IconBell } from '@tabler/icons-react'
+import { IconBell, IconClock } from '@tabler/icons-react'
 import { useCategories } from '@/hooks/useLookups'
 import { useAttentionSignals } from '@/hooks/useAttention'
 import { useDialogA11y } from '@/lib/useDialogA11y'
@@ -12,6 +12,7 @@ import {
   type DonutSlice,
   type RecentRow,
 } from '@/hooks/useHome'
+import { useUpcomingBills, type PendingItem } from '@/hooks/useUpcomingBills'
 import { Donut } from '@/components/charts'
 import { WovenHero } from '@/components/WovenHero'
 import { useMonthBudgetTotal } from '@/hooks/useBudgets'
@@ -19,11 +20,13 @@ import { useStockSalesSummary } from '@/hooks/useStockSales'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
 import { useHomeMoments } from '@/hooks/useHomeMoments'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
-import { LedgerIcon } from '@/components/LedgerIcon'
+import { LedgerRow } from '@/components/LedgerRow'
+import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
 import { catColorVar } from '@/lib/catColor'
-import { formatRecentDayLabel, monthKey } from '@/lib/dates'
+import { formatRecentDayLabel, formatUpcomingDayLabel, monthKey } from '@/lib/dates'
 import { largestRemainderPercents } from '@/lib/percent'
+import { translateError } from '@/lib/errors'
 import { loadHideBalance, saveHideBalance } from '@/lib/prefs'
 import { formatBaht, formatSigned, MASKED_BAHT } from '@/lib/format'
 
@@ -71,13 +74,25 @@ export function HomePage() {
   const monthQ = useMonthTransactions()
   const catsQ = useCategories()
   const recentQ = useRecentTransactions()
+  const upcomingQ = useUpcomingBills()
   const budgetTotalQ = useMonthBudgetTotal()
   const stockQ = useStockSalesSummary()
   const navigate = useNavigate()
   const attention = useAttentionSignals()
+  const toast = useToast()
   const [panelOpen, setPanelOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [hideBalance, setHideBalance] = useState(loadHideBalance)
+  // Which ledger tab is showing. Always starts on "recent" — not remembered across
+  // visits (no prefs entry), per spec.
+  const [tab, setTab] = useState<'recent' | 'pending'>('recent')
+
+  // The upcoming-bills query can throw (a rule whose schedule won't advance, or a
+  // dead RPC) — surface it, never swallow (rule 6). The sub-line/tab then fall back
+  // to "no bills" rather than a wrong figure.
+  useEffect(() => {
+    if (upcomingQ.error) toast.error(`รายการรอจ่ายไม่ทำงาน: ${translateError(upcomingQ.error)}`)
+  }, [upcomingQ.error, toast])
 
   function toggleHideBalance() {
     setHideBalance((v) => {
@@ -158,7 +173,7 @@ export function HomePage() {
         <WovenHero
           safeToSpend={summary.safeToSpend}
           daysLeft={summary.daysLeft}
-          dailyAllowance={summary.dailyAllowance}
+          upcomingBills={upcomingQ.data?.total ?? 0}
           deltaPct={summary.deltaPct}
           budgetTotal={budgetTotalQ.data ?? 0}
           budgetSpending={summary.budgetSpending}
@@ -209,35 +224,30 @@ export function HomePage() {
       </div>
       )}
 
-      {/* recent transactions */}
+      {/* ledger — recent transactions and upcoming bills as two tabs. The "รอจ่าย"
+          tab exists only when there are active recurring expense rules; with none,
+          this is just the plain recent list (no lone empty tab). */}
       {!isNewUser && (
-      <div className="mx-4 mb-4 mt-3.5 border-t-[0.5px] border-hairline pt-3.5">
-        <p className="mb-1 text-[15px] font-medium">รายการล่าสุด</p>
-        {recentQ.data && recentQ.data.length > 0 ? (
-          recentQ.data.map((t, i) => {
-            const rows = recentQ.data!
-            const newDay = i === 0 || rows[i - 1].date !== t.date
-            return (
-              <Fragment key={t.id}>
-                {newDay && (
-                  <p
-                    className={`mb-1 text-[11px] font-medium text-faint${i === 0 ? '' : ' mt-3'}`}
-                  >
-                    {formatRecentDayLabel(t.date)}
-                  </p>
-                )}
-                <RecentItem
-                  tx={t}
-                  onOpen={() => setEditingId(t.id)}
-                  last={i === rows.length - 1}
-                />
-              </Fragment>
-            )
-          })
-        ) : (
-          <p className="py-3 text-[13px] text-faint">ยังไม่มีรายการ — แตะ “เพิ่มเร็ว” เพื่อเริ่ม</p>
-        )}
-      </div>
+        <div className="mx-4 mb-4 mt-3.5 border-t-[0.5px] border-hairline pt-3.5">
+          {upcomingQ.data?.hasRules ? (
+            <div role="tablist" aria-label="รายการ" className="mb-1.5 flex gap-4">
+              <LedgerTab active={tab === 'recent'} onSelect={() => setTab('recent')}>
+                ล่าสุด
+              </LedgerTab>
+              <LedgerTab active={tab === 'pending'} onSelect={() => setTab('pending')}>
+                รอจ่าย
+              </LedgerTab>
+            </div>
+          ) : (
+            <p className="mb-1 text-[15px] font-medium">รายการล่าสุด</p>
+          )}
+
+          {upcomingQ.data?.hasRules && tab === 'pending' ? (
+            <PendingList items={upcomingQ.data.items} hideBalance={hideBalance} />
+          ) : (
+            <RecentList rows={recentQ.data ?? []} onOpen={setEditingId} />
+          )}
+        </div>
       )}
 
       {editingId && (
@@ -350,6 +360,55 @@ function HomeSkeleton() {
   )
 }
 
+/** One tab in the ledger header (ล่าสุด / รอจ่าย). */
+function LedgerTab({
+  active,
+  onSelect,
+  children,
+}: {
+  active: boolean
+  onSelect: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onSelect}
+      className={`pb-1 text-[15px] font-medium ${
+        active ? 'border-b-2 border-brand text-ink' : 'text-faint'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** The "ล่าสุด" tab: recent transactions, grouped by day. */
+function RecentList({ rows, onOpen }: { rows: RecentRow[]; onOpen: (id: string) => void }) {
+  if (rows.length === 0) {
+    return <p className="py-3 text-[13px] text-faint">ยังไม่มีรายการ — แตะ “เพิ่มเร็ว” เพื่อเริ่ม</p>
+  }
+  return (
+    <>
+      {rows.map((t, i) => {
+        const newDay = i === 0 || rows[i - 1].date !== t.date
+        return (
+          <Fragment key={t.id}>
+            {newDay && (
+              <p className={`mb-1 text-[11px] font-medium text-faint${i === 0 ? '' : ' mt-3'}`}>
+                {formatRecentDayLabel(t.date)}
+              </p>
+            )}
+            <RecentItem tx={t} onOpen={() => onOpen(t.id)} last={i === rows.length - 1} />
+          </Fragment>
+        )
+      })}
+    </>
+  )
+}
+
 function RecentItem({
   tx,
   onOpen,
@@ -359,7 +418,6 @@ function RecentItem({
   onOpen: () => void
   last?: boolean
 }) {
-  const Icon = categoryIcon(tx.category?.icon)
   const time = new Date(tx.created_at).toLocaleTimeString('th-TH', {
     hour: '2-digit',
     minute: '2-digit',
@@ -371,24 +429,74 @@ function RecentItem({
   const catName = tx.category?.name
   const showCat = !!catName && catName !== headerText
   return (
-    <button
+    <LedgerRow
+      icon={categoryIcon(tx.category?.icon)}
+      iconColor={catColorVar(tx.category?.color_index)}
+      title={headerText}
+      subtitle={showCat ? `${catName} · ${time}` : time}
+      right={
+        <span
+          className={`shrink-0 text-[13px] font-medium ${
+            tx.type === 'income' ? 'text-income' : 'text-expense'
+          }`}
+        >
+          {formatSigned(tx.amount, tx.type)}
+        </span>
+      }
       onClick={onOpen}
-      className={`flex w-full items-center gap-[11px] py-2.5 text-left${
-        last ? '' : ' border-b-[0.5px] border-hairline'
-      }`}
-    >
-      <LedgerIcon icon={Icon} color={catColorVar(tx.category?.color_index)} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px]">{headerText}</p>
-        <p className="mt-px text-[11px] text-faint">{showCat ? `${catName} · ${time}` : time}</p>
-      </div>
-      <span
-        className={`text-[13px] font-medium ${
-          tx.type === 'income' ? 'text-income' : 'text-expense'
-        }`}
-      >
-        {formatSigned(tx.amount, tx.type)}
-      </span>
-    </button>
+      last={last}
+    />
+  )
+}
+
+/** The "รอจ่าย" tab: recurring expense charges still to hit this month, nearest
+ *  first. Same row as ล่าสุด, but dimmed with a "รอตัด · <date>" cue so it reads
+ *  as not-yet-happened without relying on colour. */
+function PendingList({ items, hideBalance }: { items: PendingItem[]; hideBalance: boolean }) {
+  if (items.length === 0) {
+    return <p className="py-3 text-[13px] text-faint">ไม่เหลือรายการรอจ่ายในเดือนนี้</p>
+  }
+  return (
+    <>
+      {items.map((item, i) => (
+        <PendingRow
+          key={item.key}
+          item={item}
+          hideBalance={hideBalance}
+          last={i === items.length - 1}
+        />
+      ))}
+    </>
+  )
+}
+
+function PendingRow({
+  item,
+  hideBalance,
+  last,
+}: {
+  item: PendingItem
+  hideBalance: boolean
+  last: boolean
+}) {
+  return (
+    <LedgerRow
+      icon={categoryIcon(item.icon)}
+      iconColor={catColorVar(item.colorIndex)}
+      title={item.label}
+      subtitle={
+        <span className="inline-flex items-center gap-1">
+          <IconClock size={11} className="shrink-0" aria-hidden />
+          รอตัด · {formatUpcomingDayLabel(item.date)}
+        </span>
+      }
+      right={
+        <span className="shrink-0 text-[13px] font-medium text-muted">
+          {hideBalance ? MASKED_BAHT : formatSigned(item.amount, 'expense')}
+        </span>
+      }
+      last={last}
+      muted
+    />
   )
 }

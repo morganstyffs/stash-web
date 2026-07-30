@@ -8,7 +8,8 @@ import {
   IconTrendingDown,
   IconTrendingUp,
 } from '@tabler/icons-react'
-import { formatBaht } from '@/lib/format'
+import { formatBaht, MASKED_BAHT } from '@/lib/format'
+import { computeSpendable, type SpendableView } from '@/lib/spendable'
 import type { SalesSummary } from '@/hooks/useStockSales'
 
 /**
@@ -28,7 +29,9 @@ export type HeroKey = 'safe' | 'budget' | 'stock'
 export interface WovenHeroProps {
   safeToSpend: number
   daysLeft: number
-  dailyAllowance: number
+  /** recurring expense charges still to hit this month (see useUpcomingBills);
+   *  the SAFE sub-line deducts them so "ใช้ได้วันละ" isn't a lie. Default 0. */
+  upcomingBills?: number
   deltaPct: number | null
   budgetTotal: number
   budgetSpending: number
@@ -57,19 +60,6 @@ export function safeBig(safeToSpend: number, hideBalance: boolean): string {
  *  genuinely hides the balance — otherwise the number still leaks on the strip. */
 export function safeMini(safeToSpend: number, hideBalance: boolean): string {
   return hideBalance ? MASK_MINI : formatBaht(safeToSpend)
-}
-
-/** SAFE sub-line. Drops the daily-average clause once the month is over
- *  (daysLeft <= 0) or there is nothing left to spend (safeToSpend <= 0). The
- *  negative safeToSpend is shown as-is, never clamped to zero. */
-export function safeSubline(
-  safeToSpend: number,
-  daysLeft: number,
-  dailyAllowance: number,
-): string {
-  const left = `เหลืออีก ${daysLeft} วัน`
-  if (daysLeft <= 0 || safeToSpend <= 0) return left
-  return `${left} · เฉลี่ยวันละ ${formatBaht(dailyAllowance)}`
 }
 
 /** Over-budget amount, or null when within budget / no budget set. Threshold
@@ -153,7 +143,7 @@ const FABRIC: Record<HeroKey, string> = {
 export function WovenHero({
   safeToSpend,
   daysLeft,
-  dailyAllowance,
+  upcomingBills = 0,
   deltaPct,
   budgetTotal,
   budgetSpending,
@@ -265,7 +255,7 @@ export function WovenHero({
                   <SafeBody
                     safeToSpend={safeToSpend}
                     daysLeft={daysLeft}
-                    dailyAllowance={dailyAllowance}
+                    upcomingBills={upcomingBills}
                     deltaPct={deltaPct}
                     hideBalance={hideBalance}
                   />
@@ -313,26 +303,60 @@ function Chip({
 function SafeBody({
   safeToSpend,
   daysLeft,
-  dailyAllowance,
+  upcomingBills,
   deltaPct,
   hideBalance,
 }: {
   safeToSpend: number
   daysLeft: number
-  dailyAllowance: number
+  upcomingBills: number
   deltaPct: number | null
   hideBalance: boolean
 }) {
-  const delta = deltaChip(deltaPct)
+  const view = computeSpendable(safeToSpend, upcomingBills, daysLeft)
+  // With bills the sub-line runs to two lines; the fixed 158px label then has no
+  // room left for the delta chip (measured: it lands flush on the bottom edge at
+  // 390px). Bills are the priority here, so drop the secondary month-over-month
+  // chip in that case rather than clip it — never both at once.
+  const delta = view.bills > 0 ? null : deltaChip(deltaPct)
   return (
     <>
       <BigNumber>{safeBig(safeToSpend, hideBalance)}</BigNumber>
-      <SubLine>{safeSubline(safeToSpend, daysLeft, dailyAllowance)}</SubLine>
+      <SubLine>{safeSublineContent(view, hideBalance)}</SubLine>
       {delta && (
         <Chip icon={delta.up ? IconTrendingUp : IconTrendingDown}>{delta.text}</Chip>
       )}
     </>
   )
+}
+
+/**
+ * Render the SAFE sub-line from the pure SpendableView. Every baht is masked when
+ * the balance is hidden (the days-left text stays), so the sub-line hides in step
+ * with the headline. The over-committed case leads with a warning icon so it never
+ * signals by wording (or colour) alone.
+ */
+function safeSublineContent(view: SpendableView, hideBalance: boolean): ReactNode {
+  const money = (v: number) => (hideBalance ? MASKED_BAHT : formatBaht(v))
+  const daysText = `เหลืออีก ${view.daysLeft} วัน`
+  if (view.over > 0) {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-x-1">
+        <IconAlertTriangle size={12} className="shrink-0" aria-hidden />
+        <span>
+          {daysText} · หักบิลที่จะมาถึง {money(view.bills)} · เกินยอดที่ใช้ได้ {money(view.over)}
+        </span>
+      </span>
+    )
+  }
+  if (view.bills > 0) {
+    return view.perDay != null
+      ? `${daysText} · หักบิลที่จะมาถึง ${money(view.bills)} · ใช้ได้วันละ ${money(view.perDay)}`
+      : `${daysText} · หักบิลที่จะมาถึง ${money(view.bills)}`
+  }
+  return view.perDay != null
+    ? `${daysText} · เฉลี่ยวันละ ${money(view.perDay)}`
+    : daysText
 }
 
 function BudgetBody({

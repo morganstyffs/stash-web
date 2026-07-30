@@ -32,7 +32,10 @@ describe('WovenHero folded labels are actually visible (real browser)', () => {
           createElement(WovenHero, {
             safeToSpend: 9_000,
             daysLeft: 10,
-            dailyAllowance: 900,
+            // a non-zero bills total gives the longest SAFE sub-line (days · หักบิล
+            // · ใช้ได้วันละ) — so this guard also covers that it doesn't shove the
+            // folded labels off or overflow the front label at 390px.
+            upcomingBills: 3_000,
             deltaPct: null,
             budgetTotal: 10_000,
             budgetSpending: 4_000,

@@ -7,6 +7,7 @@ import {
   currentMonthAnchor,
   toISODate,
   formatRecentDayLabel,
+  formatUpcomingDayLabel,
   daysSince,
 } from '@/lib/dates'
 
@@ -160,5 +161,43 @@ describe('formatRecentDayLabel — grouped ledger day labels', () => {
   it('handles yesterday across a month boundary', () => {
     const aug1 = new Date('2026-08-01T00:30:00+07:00') // today = 2026-08-01 (Bangkok)
     expect(formatRecentDayLabel('2026-07-31', aug1).startsWith('เมื่อวาน')).toBe(true)
+  })
+})
+
+describe('formatUpcomingDayLabel — forward-looking labels for รอจ่าย', () => {
+  const fmt = (iso: string, withYear = false) => {
+    const y = Number(iso.slice(0, 4))
+    const m = Number(iso.slice(5, 7))
+    const d = Number(iso.slice(8, 10))
+    return new Intl.DateTimeFormat('th-TH', {
+      day: 'numeric',
+      month: 'short',
+      ...(withYear ? { year: 'numeric' as const } : {}),
+    }).format(new Date(y, m - 1, d))
+  }
+
+  const now = new Date('2026-07-29T10:00:00+07:00') // today = 2026-07-29 (Bangkok)
+
+  it('prefixes today with วันนี้', () => {
+    expect(formatUpcomingDayLabel('2026-07-29', now)).toBe(`วันนี้ · ${fmt('2026-07-29')}`)
+  })
+
+  it('prefixes tomorrow with พรุ่งนี้ (forward, not เมื่อวาน)', () => {
+    expect(formatUpcomingDayLabel('2026-07-30', now)).toBe(`พรุ่งนี้ · ${fmt('2026-07-30')}`)
+  })
+
+  it('shows a bare day/month for later same-year dates', () => {
+    expect(formatUpcomingDayLabel('2026-08-05', now)).toBe(fmt('2026-08-05'))
+  })
+
+  it('appends the Buddhist-era year for a different year', () => {
+    const label = formatUpcomingDayLabel('2027-01-09', now)
+    expect(label).toBe(fmt('2027-01-09', true))
+    expect(label).toContain('2570') // 2027 CE === 2570 BE
+  })
+
+  it('reckons tomorrow across a month boundary in the Bangkok calendar', () => {
+    const jul31 = new Date('2026-07-31T23:30:00+07:00') // today = 2026-07-31 (Bangkok)
+    expect(formatUpcomingDayLabel('2026-08-01', jul31).startsWith('พรุ่งนี้')).toBe(true)
   })
 })
