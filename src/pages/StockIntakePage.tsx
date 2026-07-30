@@ -1,17 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconAlertCircle,
   IconArrowDownRight,
   IconArrowLeft,
-  IconCheck,
   IconChevronDown,
   IconPlus,
 } from '@tabler/icons-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useLookups'
 import { useCreateStockIntake } from '@/hooks/useStockIntake'
+import { useStockItems } from '@/hooks/useStock'
 import { useSkuPreview } from '@/hooks/useSku'
+import { StockEditSheet } from '@/components/StockEditSheet'
+import { SkuTag } from '@/pages/StockPage'
 import { useToast } from '@/components/Toast'
 import { uploadStockPhotos } from '@/lib/storage'
 import { formatBaht } from '@/lib/format'
@@ -27,7 +29,8 @@ import {
 import type { ItemCondition } from '@/lib/db'
 
 interface SessionItem {
-  id: string
+  id: string // real stock_items.id (from the intake RPC's return, not a local UUID)
+  sku: string // real committed SKU (same source), not the approximate preview
   name: string
   cost: number
   qty: number
@@ -67,8 +70,19 @@ export function StockIntakePage() {
 
   // session (โหมดรวบรวม)
   const [session, setSession] = useState<SessionItem[]>([])
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const stockQ = useStockItems()
   const sessionCount = session.reduce((n, s) => n + s.qty, 0)
   const sessionCost = session.reduce((n, s) => n + s.cost * s.qty, 0)
+
+  // Keep the session strip honest if an item gets deleted from the edit sheet —
+  // prune anything that no longer exists once we have a fresh read, rather than
+  // showing a tag for a row that's gone.
+  useEffect(() => {
+    if (!stockQ.data) return
+    const liveIds = new Set(stockQ.data.items.map((i) => i.id))
+    setSession((prev) => prev.filter((s) => liveIds.has(s.id)))
+  }, [stockQ.data])
 
   const costNum = Number(cost || '0')
   const qtyNum = Math.max(1, Math.floor(Number(qty || '1')))
@@ -121,7 +135,7 @@ export function StockIntakePage() {
       photoCount: photos.length,
     })
     try {
-      await intake.mutateAsync({
+      const result = await intake.mutateAsync({
         p_name: name.trim(),
         p_cost_per_unit: costNum,
         p_qty: qtyNum,
@@ -136,7 +150,7 @@ export function StockIntakePage() {
         p_needs_details: needsDetails,
       })
       setSession((prev) => [
-        { id: crypto.randomUUID(), name: name.trim(), cost: costNum, qty: qtyNum, needsDetails },
+        { id: result.stock_item_id, sku: result.sku, name: name.trim(), cost: costNum, qty: qtyNum, needsDetails },
         ...prev,
       ])
       resetItem()
@@ -190,16 +204,20 @@ export function StockIntakePage() {
         </span>
       </div>
 
-      {/* session counter */}
-      <div className="relative mx-4 mb-3.5 flex items-center justify-between rounded-[14px] bg-brand-deep px-[15px] py-3">
-        <div className="pointer-events-none absolute inset-[5px] rounded-[10px] border-[1.5px] border-dashed border-white/20" />
-        <div className="relative">
-          <p className="text-[11px] text-white/70">รอบนี้เพิ่มแล้ว</p>
-          <p className="mt-0.5 text-[21px] font-medium text-white">{sessionCount} ชิ้น</p>
-        </div>
-        <div className="relative text-right">
-          <p className="text-[11px] text-white/70">ต้นทุนรวม</p>
-          <p className="mt-0.5 text-[21px] font-medium text-white">{formatBaht(sessionCost)}</p>
+      {/* session rail — same fabric as the STOCK label everywhere else, so this
+          screen visually ties to the cabinet it's filling */}
+      <div className="woven relative mx-4 mb-3.5 overflow-hidden rounded-[14px] bg-brand-fabric-stock text-brand-thread shadow-card">
+        <span aria-hidden className="selvedge absolute inset-x-0 top-0 h-[6px]" />
+        <span aria-hidden className="selvedge absolute inset-x-0 bottom-0 h-[6px]" />
+        <div className="relative flex items-center justify-between px-[15px] py-3">
+          <div>
+            <p className="text-[11px] opacity-[.84]">รอบนี้เพิ่มแล้ว</p>
+            <p className="mt-0.5 text-[21px] font-medium">{sessionCount} ชิ้น</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] opacity-[.84]">ต้นทุนรวม</p>
+            <p className="mt-0.5 text-[21px] font-medium">{formatBaht(sessionCost)}</p>
+          </div>
         </div>
       </div>
 
@@ -218,6 +236,13 @@ export function StockIntakePage() {
         <div className="mb-3">
           <Label>ชื่อสินค้า</Label>
           <TextInput value={name} onChange={setName} placeholder="เช่น เสื้อ Carhartt น้ำตาล" />
+        </div>
+
+        <div className="mb-3 flex items-center gap-2 rounded-[8px] border-[1.5px] border-dashed border-chevron bg-surface px-[10px] py-2">
+          <span className="woven rounded-[4px] bg-brand-fabric-stock px-[7px] py-[3px] font-mono text-[9.5px] font-medium tracking-wide text-brand-thread">
+            {skuQ.data ?? '…'}
+          </span>
+          <span className="text-[11px] text-faint">จะได้ป้ายนี้ติดของชิ้นนี้</span>
         </div>
 
         <div className="mb-3 flex gap-[10px]">
@@ -334,14 +359,6 @@ export function StockIntakePage() {
                 )}
               </div>
             </div>
-            <div className="mb-1">
-              <Label>
-                SKU <span className="text-brand-deep">(สร้างอัตโนมัติ)</span>
-              </Label>
-              <div className="rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] font-mono text-[13px] text-muted">
-                {skuQ.data ?? '…'}
-              </div>
-            </div>
           </div>
         )}
       </div>
@@ -369,35 +386,68 @@ export function StockIntakePage() {
         </button>
       </div>
 
-      {/* recent this session */}
+      {/* recent this session — a strand of woven SKU tags. Tap one to fix a typo
+          without leaving the batch-intake flow (cost/qty stay read-only here, same
+          as everywhere else StockEditSheet is used — this isn't a new limitation). */}
       {session.length > 0 && (
         <div className="border-t-[0.5px] border-hairline px-4 pb-6 pt-3">
-          <p className="mb-2.5 text-[12px] text-muted">เพิ่มล่าสุดรอบนี้</p>
-          {session.map((s) => (
-            <div key={s.id} className="mb-2.5 flex items-center gap-[10px] last:mb-0">
-              <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-brand-tint">
-                <IconCheck size={17} className="text-brand-deep" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[12.5px]">{s.name}</p>
-                <p className="mt-px text-[10.5px]">
-                  {s.needsDetails ? (
-                    <span className="text-warn">
-                      <IconAlertCircle size={12} className="-mb-0.5 mr-0.5 inline" />
-                      รอเติมรูป/รายละเอียด
-                    </span>
-                  ) : (
-                    <span className="text-faint">
-                      {formatBaht(s.cost)} · ลงสต็อก + รายจ่ายแล้ว
-                    </span>
-                  )}
-                </p>
-              </div>
-              <IconCheck size={16} className="shrink-0 text-brand-deep" />
-            </div>
-          ))}
+          <p className="mb-2.5 text-[12px] text-muted">เพิ่มล่าสุดรอบนี้ · แตะเพื่อแก้ไข</p>
+          <div className="relative pl-[7px]">
+            <div
+              aria-hidden
+              className="absolute bottom-2 left-0 top-1 w-[2px]"
+              style={{
+                backgroundImage:
+                  'repeating-linear-gradient(180deg, #C8C2B4 0 4px, transparent 4px 8px)',
+              }}
+            />
+            {session.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setEditingId(s.id)}
+                className="mb-2.5 flex w-full items-center gap-[10px] pl-[13px] text-left last:mb-0"
+              >
+                <span
+                  aria-hidden
+                  className={`absolute h-2 w-2 shrink-0 rounded-full ${s.needsDetails ? 'bg-warn' : 'bg-brand-deep'}`}
+                  style={{ marginLeft: '-13px' }}
+                />
+                <span className="flex min-w-0 flex-1 items-center gap-2 rounded-[9px] bg-surface px-2.5 py-[7px]">
+                  <SkuTag sku={s.sku} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12.5px]">{s.name}</span>
+                    {s.needsDetails ? (
+                      <span className="mt-px block text-[10.5px] text-warn">
+                        <IconAlertCircle size={11} className="-mb-0.5 mr-0.5 inline" />
+                        รอเติมรูป/รายละเอียด
+                      </span>
+                    ) : (
+                      <span className="mt-px block text-[10.5px] text-faint">
+                        {formatBaht(s.cost)} · ลงสต็อก + รายจ่ายแล้ว
+                      </span>
+                    )}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
+
+      {editingId &&
+        (() => {
+          const item = stockQ.data?.items.find((i) => i.id === editingId)
+          if (!item) return null // rare race right after save, before the invalidated
+          // query refetches — closes silently rather than crash
+          return (
+            <StockEditSheet
+              item={item}
+              hasSales={(stockQ.data?.salesCount?.[item.id] ?? 0) > 0}
+              onClose={() => setEditingId(null)}
+            />
+          )
+        })()}
     </div>
   )
 }

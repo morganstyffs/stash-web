@@ -194,7 +194,7 @@ const AGE_ACCENT: Record<AgeTier, { spine: string; pinText: string }> = {
 }
 
 /** Woven SKU label — same fabric/thread as the STOCK hero (spec §ป้ายทอ SKU). */
-function SkuTag({ sku, className = '' }: { sku: string; className?: string }) {
+export function SkuTag({ sku, className = '' }: { sku: string; className?: string }) {
   return (
     <span
       className={`woven inline-flex items-center rounded-[4px] bg-brand-fabric-stock px-1.5 py-[2px] text-[9.5px] font-medium tabular-nums tracking-wide text-brand-thread ${className}`}
