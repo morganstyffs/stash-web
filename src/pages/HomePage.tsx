@@ -1,7 +1,10 @@
 import { Fragment, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { IconArrowDownRight, IconArrowUpRight, IconBell } from '@tabler/icons-react'
 import { useCategories } from '@/hooks/useLookups'
+import { useAttentionSignals } from '@/hooks/useAttention'
+import { useDialogA11y } from '@/lib/useDialogA11y'
+import type { StockFilter } from '@/pages/StockPage'
 import {
   computeHomeSummary,
   useMonthTransactions,
@@ -65,6 +68,9 @@ export function HomePage() {
   const recentQ = useRecentTransactions()
   const budgetTotalQ = useMonthBudgetTotal()
   const stockQ = useStockSalesSummary()
+  const navigate = useNavigate()
+  const attention = useAttentionSignals()
+  const [panelOpen, setPanelOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [hideBalance, setHideBalance] = useState(() => {
     try {
@@ -103,14 +109,37 @@ export function HomePage() {
           <img src="/stash-mark.svg" alt="Stash" className="h-[30px] w-[30px]" />
         </Link>
         <p className="text-[17px] font-medium">ยินดีต้อนรับกลับ</p>
-        <button
-          type="button"
-          disabled
-          aria-label="การแจ้งเตือน (ยังไม่เปิดใช้งาน)"
-          className="opacity-40"
-        >
-          <IconBell size={20} className="text-muted" />
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setPanelOpen((v) => !v)}
+            aria-label={
+              attention.data && attention.data.total > 0
+                ? `เรื่องที่รอดู ${attention.data.total} รายการ`
+                : 'เรื่องที่รอดู — ไม่มีตอนนี้'
+            }
+            aria-expanded={panelOpen}
+            className="relative"
+          >
+            <IconBell size={20} className="text-muted" />
+            {!!attention.data?.total && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-fabric-stock px-1 text-[9px] font-medium text-brand-thread">
+                {attention.data.total > 9 ? '9+' : attention.data.total}
+              </span>
+            )}
+          </button>
+          {panelOpen && (
+            <AttentionPanel
+              needsDetails={attention.data?.needsDetails ?? 0}
+              stale={attention.data?.stale ?? 0}
+              onNavigate={(path, filter) => {
+                setPanelOpen(false)
+                navigate(path, filter ? { state: { filter } } : undefined)
+              }}
+              onClose={() => setPanelOpen(false)}
+            />
+          )}
+        </div>
       </div>
 
       {/* woven-label hero */}
@@ -233,6 +262,66 @@ export function HomePage() {
         <TransactionEditSheet id={editingId} onClose={() => setEditingId(null)} />
       )}
     </div>
+  )
+}
+
+function AttentionPanel({
+  needsDetails,
+  stale,
+  onNavigate,
+  onClose,
+}: {
+  needsDetails: number
+  stale: number
+  onNavigate: (path: string, filter?: StockFilter) => void
+  onClose: () => void
+}) {
+  const panelRef = useDialogA11y(onClose)
+  const empty = needsDetails === 0 && stale === 0
+  return (
+    <>
+      {/* transparent click-outside catcher — this is a light anchored dropdown,
+          not a full modal takeover, so no dark scrim like the bottom sheets */}
+      <div className="fixed inset-0 z-30" onClick={onClose} />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="เรื่องที่รอดู"
+        className="absolute right-0 top-[calc(100%+8px)] z-40 w-[250px] rounded-card border-[0.5px] border-hairline bg-white p-1.5 shadow-card"
+      >
+        {empty ? (
+          <p className="px-3 py-4 text-center text-[12px] text-faint">ไม่มีเรื่องรอดูตอนนี้</p>
+        ) : (
+          <>
+            {needsDetails > 0 && (
+              <button
+                type="button"
+                onClick={() => onNavigate('/stock/queue')}
+                className="flex w-full items-center justify-between rounded-[10px] px-3 py-2.5 text-left active:bg-fill"
+              >
+                <span className="text-[13px]">รอเติมข้อมูล</span>
+                <span className="rounded-pill bg-warn-bg px-2 py-0.5 text-[11px] font-medium text-warn-ink">
+                  {needsDetails}
+                </span>
+              </button>
+            )}
+            {stale > 0 && (
+              <button
+                type="button"
+                onClick={() => onNavigate('/stock', 'stale')}
+                className="flex w-full items-center justify-between rounded-[10px] px-3 py-2.5 text-left active:bg-fill"
+              >
+                <span className="text-[13px]">ค้างนาน</span>
+                <span className="rounded-pill bg-fill px-2 py-0.5 text-[11px] font-medium text-muted">
+                  {stale}
+                </span>
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </>
   )
 }
 

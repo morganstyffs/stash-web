@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   IconChevronRight,
   IconClipboardList,
@@ -51,12 +51,14 @@ export const FILTERS: { key: StockFilter; label: string }[] = [
 export type StockCounts = Record<StockFilter, number>
 
 /** True when an item is still on the rack (any non-sold status). */
-function inStock(it: StockItem): boolean {
+function inStock(it: Pick<StockItem, 'status'>): boolean {
   return it.status !== 'sold'
 }
 
-/** "ค้างนาน" — in stock and older than the aging cap (spec: in-stock & >60 days). */
-function isStale(it: StockItem, now: Date): boolean {
+/** "ค้างนาน" — in stock and older than the aging cap (spec: in-stock & >60 days).
+ *  Exported: the header bell's attention counter reuses this exact predicate
+ *  against a narrower row shape than the full Stock page query. */
+export function isStale(it: Pick<StockItem, 'status' | 'created_at'>, now: Date): boolean {
   return inStock(it) && daysSince(it.created_at, now) > AGE_OLD_MAX
 }
 
@@ -230,7 +232,11 @@ function Flag({
 
 export function StockPage() {
   const navigate = useNavigate()
-  const [filter, setFilter] = useState<StockFilter>('all')
+  const location = useLocation()
+  const initialFilter = (location.state as { filter?: StockFilter } | null)?.filter
+  const [filter, setFilter] = useState<StockFilter>(
+    initialFilter && FILTERS.some((f) => f.key === initialFilter) ? initialFilter : 'all',
+  )
   const [search, setSearch] = useState('')
   const [view, setView] = useState<StockView>(loadStockView)
   const [editing, setEditing] = useState<StockItem | null>(null)
