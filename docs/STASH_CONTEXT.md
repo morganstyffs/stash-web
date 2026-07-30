@@ -62,7 +62,7 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 ทุกตาราง RLS เปิด + policy บน `auth.uid() = user_id`
 ยกเว้น `schema_migrations`: RLS เปิด · 0 policy · ถอนสิทธิ์ anon/authenticated ทั้งหมด (ตั้งใจ)
 
-> **ระวัง:** กลุ่มตาราง/RPC หนี้เพื่อน (`debts`/`profiles`/`friend_connections`/`debt_events`) **มีอยู่จริงใน DB และใน `database.types.ts` แล้ว แต่ไฟล์ migration `0015` ยังไม่เข้า main** — ดู §6 และ §10
+> กลุ่มตาราง/RPC หนี้เพื่อน (`debts`/`profiles`/`friend_connections`/`debt_events`) เข้ามากับ `0015_friend_debts.sql` — เป็น**ฟีเจอร์ cross-user ตัวแรก** จึงใช้ security model ต่างจากตารางอื่น (RLS select-only + เขียนผ่าน SECURITY DEFINER RPC ที่เช็คคู่กรณีเอง) ดู §6 และหัวไฟล์ 0015
 
 ---
 
@@ -91,7 +91,7 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 - `cost_per_unit` และ `qty_total` **ถูกล็อกเมื่อมีการขายแล้ว** (trigger ระดับ DB)
 - **transaction ที่ผูกกับ `stock_sales` แก้/ลบตรงไม่ได้** (trigger ระดับ DB) ต้องผ่าน `stock_sale_reverse`
   `reverse` ผ่าน guard ได้เพราะลบแถว `stock_sales` **ก่อน** ลบ transaction — ไม่ใช้ flag ใด ๆ
-- รายการจ่ายคืนหนี้ก็มี trigger กันแก้/ลบตรงเช่นกัน (`debt_settlement_txn_guard` — อ้างจาก PR #65; นิยาม trigger อยู่ใน 0015 ที่ไฟล์ยังไม่เข้า main จึง **ยังไม่ได้ตรวจโค้ด trigger จริง**)
+- รายการจ่ายคืนหนี้ก็มี trigger กันแก้/ลบตรงเช่นกัน (`debt_settlement_txn_guard` — `0015` §10) · ย้อนด้วย `debt_settle_reverse` ที่เคลียร์ `debts.settlement_transaction_id` **ก่อน** ลบ transaction (ทริกเดียวกับ `stock_sale_reverse`) · แก้ note/wallet ของรายการเคลียร์หนี้ได้ แต่แก้ยอด/ประเภท/วันที่ไม่ได้
 - สินค้าที่มีประวัติขาย **ลบไม่ได้** (FK RESTRICT) ต้อง reverse ก่อน
 - **SKU สร้างจาก DB ตาม `stock_sku_config` ของแต่ละ user** ตัวนับเดินหน้าอย่างเดียว ห้ามพึ่ง `count(*)` ห้ามรีเซ็ตเมื่อเปลี่ยนรูปแบบ ห้ามตัดหลักเมื่อเลขยาวเกิน
 - สูตรประกอบ SKU อยู่ที่ `stock_sku_build` **ที่เดียว** — ทั้ง intake และ preview เรียกตัวนี้
@@ -106,8 +106,8 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 
 หนี้เพื่อน (มาจาก 0015): `debt_create` · `debt_confirm` · `debt_cancel` · `debt_reject` · `debt_settle` · `debt_settle_reverse` · `debt_delete_private` · `friend_debts_summary` · `friend_request_send` · `friend_request_respond` · `generate_friend_code`
 
-ทุกตัว: `security invoker` (ยกเว้น `seed_defaults_internal` = definer) · `set search_path = ''` · `grant execute to authenticated` · prefix `p_` สำหรับพารามิเตอร์ `v_` สำหรับตัวแปร
-(convention นี้ยืนยันจากไฟล์ migration 0001–0014 · ตัวกลุ่มหนี้เพื่อนอยู่ใน 0015 ที่ยังไม่เข้า main จึง **ยังไม่ได้ตรวจว่าตาม convention ครบทุกข้อ**)
+ทุกตัว: `security invoker` · `set search_path = ''` · `grant execute to authenticated` · prefix `p_` สำหรับพารามิเตอร์ `v_` สำหรับตัวแปร
+**ยกเว้นกลุ่มหนี้เพื่อน (0015) = `security definer`:** ตาราง `friend_connections`/`debts`/`debt_events` เป็น select-only RLS ไม่มี write policy → ทุก RPC เขียนแบบ definer และ **re-check `auth.uid()` ว่าเป็นคู่กรณีเองในแต่ละฟังก์ชัน** (ไม่มี owner column ให้ RLS พึ่ง) · `generate_friend_code()` เป็น definer + **ไม่ grant ให้ role ใด** (เรียกจากใน seed path เท่านั้น) · `friend_debts_summary` เป็น invoker (อ่านผ่าน select policy พอ) · `seed_defaults_internal` definer เหมือนเดิม
 
 ---
 
@@ -115,8 +115,11 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 
 `seed_defaults_internal(uid)` สร้างค่าเริ่มต้นให้ user ใหม่ · **3 wallets** (ไม่มีคอลัมน์ `balance` แล้ว) · **1 แถว `stock_sku_config`** (prefix เริ่มต้น `STZ-` เห็นในหน้าตั้งค่า `SettingsPage.tsx`)
 
-**หมวดหมู่ (categories):** เดิม **11 หมวด** (expense 8 รวมหมวดสต็อก 2 + system COGS 1 · income 3 รวม system 1) — ดูตารางด้านล่าง
-**หลัง 0015 เพิ่มหมวด system การคืนหนี้ 2 หมวด** (`debt_repayment_income` / `debt_repayment_expense` — อ้างจาก `AddPage.tsx:150-155` ที่ซ่อน 2 หมวดนี้จากการกรอกมือ) → **จำนวนหมวดรวมที่แน่นอนหลัง 0015 ยังไม่ได้ตรวจ** เพราะ logic seed อยู่ในไฟล์ 0015 ที่ยังไม่เข้า main
+**หมวดหมู่ (categories): 13 หมวด** (ยืนยันจาก `0015` SECTION 5 `seed_defaults_internal`)
+- expense 9: อาหาร · เดินทาง · ช้อปปิ้ง · บิล/ค่าบ้าน · บันเทิง · เสื้อเข้าร้าน (stock) · รองเท้าเข้าร้าน (stock) · ต้นทุนขายสต็อก (system `stock_cogs`) · จ่ายชำระหนี้ (system `debt_repayment_expense`)
+- income 4: เงินเดือน · ฟรีแลนซ์ · ขายสต็อก (system `stock_sale_income`) · ได้รับชำระหนี้ (system `debt_repayment_income`)
+
+0015 ยัง **backfill** หมวด system คืนหนี้ 2 หมวด + สร้าง `profiles` row (พร้อม `friend_code` สุ่ม) ให้ user เดิมทุกคน · การค้นหาเพื่อน**ไม่ใช้อีเมล** (กันกฎ 16) แต่ใช้ `friend_code` 8 หลัก สุ่มไม่ซ้ำ แชร์นอกแอป
 
 | system_key | หมวด | ลบได้ | เห็นในหน้ากรอกมือ |
 |---|---|---|---|
@@ -170,7 +173,7 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 | `qty_remaining` เป็นทั้ง OUT param และคอลัมน์ → การขายพังตอนกดจริง ทั้งที่ verification ผ่านครบ | qualify ทุกคอลัมน์ · smoke test ก่อนใช้งานจริง |
 | `npm run typecheck` เป็น `tsc --noEmit` บน solution-style tsconfig → **ตรวจ 0 ไฟล์ ผ่านเสมอ** | คำยืนยันว่า "ผ่าน" ต้องมาจากคำสั่งเดียวกับ CI (`npm run build` = `tsc -b && vite build`) |
 | `getDate()` บน date-only string → วันที่เลื่อนใน timezone ติดลบ | อ่านวันจาก string ตรง ๆ |
-| **DB รัน migration ไปแล้วแต่ไฟล์ยังไม่เข้า main** (ล่าสุด: `0015_friend_debts.sql` — PR #65 อ้างว่า "apply แล้ว + regenerate types แล้ว" แต่ diff ของ PR ไม่มีไฟล์ `.sql` เลย) | ไฟล์ migration ต้องอยู่ใน diff ของ PR · `schema_migrations` คือ ledger ของจริง · **ห้ามประกอบไฟล์ migration ขึ้นเองจากการอ่าน types** จะไม่ตรงกับที่รันไปจริง |
+| **DB รัน migration ไปแล้วแต่ไฟล์ยังไม่เข้า main** (เคส `0015_friend_debts.sql`: PR #65 อ้างว่า "apply แล้ว" แต่ diff ไม่มีไฟล์ `.sql` เลย — เจ้าของนำไฟล์ต้นฉบับกลับเข้า main ใน PR นี้ ยืนยันตรงกับ `schema_migrations` + `database.types.ts`) | ไฟล์ migration ต้องอยู่ใน diff ของ PR · `schema_migrations` คือ ledger ของจริง · **ห้ามประกอบไฟล์ migration ขึ้นเองจากการอ่าน types** — ต้องได้ไฟล์ต้นฉบับที่รันไปจริงจากเจ้าของ |
 | "test/verification ผ่าน" แต่ของจริงไม่ขึ้น (เช่น ป้ายพับดูเป็นแถบเปล่าบน production) | อาจเป็นเรื่อง **shell เก่าค้าง** ไม่ใช่บั๊ก DOM → ต้องมี version stamp + ปุ่มโหลดใหม่ของ PWA (ดู §10) |
 | push งานเข้า branch หลัง PR ปิดไปแล้ว → commit ค้าง เอกสารบน main ล้าสมัย | เช็คว่า PR เปิดอยู่ก่อน push |
 | Supabase free tier pause เอง แล้วหน้า login ค้างไม่บอกอะไร | error ต้องถึงผู้ใช้ · `getSession()` ต้องมีตัวดัก |
@@ -179,10 +182,10 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 
 ## 10. สถานะปัจจุบัน (ณ commit `c193ff8`)
 
-**ไฟล์ migration บน main: `0001`–`0014`** (ล่าสุด `0014_favorites_wallet_note.sql`)
-0010 = timezone · 0011 = SKU config + unique + drop `wallets.balance` · 0012 = ระบบขาย · 0013 = แก้ ambiguous column · 0014 = `favorites.wallet_id` + `favorites.note`
+**ไฟล์ migration บน main: `0001`–`0015`** (ล่าสุด `0015_friend_debts.sql`)
+0010 = timezone · 0011 = SKU config + unique + drop `wallets.balance` · 0012 = ระบบขาย · 0013 = แก้ ambiguous column · 0014 = `favorites.wallet_id` + `favorites.note` · 0015 = หนี้เพื่อน (tables + RPC + `is_debt_settlement`)
 
-> ⚠️ **`0015_friend_debts.sql` หายไปจาก main:** DB รัน 0015 ไปแล้ว (`database.types.ts` มี `debts`/`profiles`/`friend_connections`/`debt_events` + RPC หนี้เพื่อน + คอลัมน์ `transactions.is_debt_settlement` ครบ) แต่ **ค้นทั้ง git history และทุก branch แล้วไม่พบไฟล์นี้** (PR #65 ที่อ้างว่า apply ไม่ได้ commit ไฟล์ `.sql`) → ต้องให้เจ้าของรัน `select * from schema_migrations order by version;` เพื่อยืนยันเลขที่ apply จริง แล้วนำไฟล์ต้นฉบับที่รันไปกลับเข้า main **(ห้ามประกอบใหม่จากการอ่าน types)**
+> ✅ **`0015` เข้า main แล้ว (PR นี้):** เดิมหายไป (DB รันแล้วแต่ PR #65 ไม่ได้ commit ไฟล์ `.sql`) · เจ้าของยืนยัน `schema_migrations` มี `0015` (apply 2026-07-30 11:31) เป็นเลขล่าสุด และส่งไฟล์ต้นฉบับมา · ตรวจ signature/คอลัมน์ทุกตัวตรงกับ `database.types.ts` ก่อน commit
 
 **หน้าจริงในแอป (11 ไฟล์ใน `src/pages/`, 10 เส้นทางใน `router.tsx`):**
 Home `/` · History `/history` · Add `/add` · Stock `/stock` · StockIntake `/stock/intake` · StockQueue `/stock/queue` · Budget `/budget` · Settings `/settings` · Login · ForgotPassword · ResetPassword
@@ -196,7 +199,7 @@ Home `/` · History `/history` · Add `/add` · Stock `/stock` · StockIntake `/
 - **ชั้นข้อมูลหนี้เพื่อน (PR #65):** thread `is_debt_settlement` เข้า `ledger.ts`/hooks/`AddPage.tsx` + type alias ใน `db.ts` — **แต่ยังไม่มีหน้า/route หนี้เพื่อน** (UI ยังไม่ทำ)
 
 **ยังไม่ได้ทำ:**
-- **UI หนี้เพื่อน** (ตาราง+RPC พร้อมใน DB แล้ว เหลือหน้า/route ทั้งหมด) + นำไฟล์ 0015 กลับเข้า main
+- **UI หนี้เพื่อน** (ตาราง+RPC+ไฟล์ 0015 พร้อมแล้ว เหลือหน้า/route ทั้งหมด — เพิ่มเพื่อน · สร้าง/ยืนยัน/เคลียร์หนี้ · สรุปยอดกับเพื่อน)
 - หน้าตั้งค่ารูปแบบ SKU แบบแก้ได้ (ตอนนี้ `SettingsPage.tsx` โชว์ `STZ-` แบบ read-only) + ช่องกรอกตัวย่อแบรนด์ตอนรับของเข้า (`p_brand_code` รับได้แล้ว)
 - ยอดเงินคงเหลือรายกระเป๋า (ตัดสินใจว่าจะทำหรือไม่ — ถ้าทำต้องคำนวณจาก transactions ไม่ใช่เก็บตัวเลขค้างไว้)
 - **ใช้งาน offline** — `src/lib/offlineQueue.ts` มีอยู่แต่ **ไม่มีไฟล์ไหน import** (ยังไม่ต่อเข้าแอป) → ทำต่อหรือลบทิ้ง *(หมายเหตุ: `useQueue.ts` เป็นคิว "รอเติมข้อมูล" ของสต็อก คนละเรื่องกับ offline)*
@@ -284,4 +287,4 @@ Home `/` · History `/history` · Add `/add` · Stock `/stock` · StockIntake `/
 9. PR-I ยุบ `new Date(iso+'T00:00:00')` เป็น helper — ⬜ ยังไม่เริ่ม
 10. ถัดจากนั้น: หน้ารับเข้าสต็อก (#55) · คิวสต็อก (#58) · ประวัติ (#59) · ตั้งค่า (#60) · **dark mode (#63 — ทำแล้ว)** · กระดิ่งแจ้งเตือน (#56) · หน้าแรกถอด trend (#64)
 
-**งานใหญ่ถัดไปที่ยังเปิดอยู่:** UI หนี้เพื่อน (ตาราง+RPC พร้อมแล้ว) + นำไฟล์ migration `0015` กลับเข้า main
+**งานใหญ่ถัดไปที่ยังเปิดอยู่:** UI หนี้เพื่อน — ชั้น DB + RPC + ไฟล์ `0015` พร้อมครบแล้ว เหลือหน้า/route (เพิ่มเพื่อนด้วย friend_code · สร้าง/ยืนยัน/ปฏิเสธ/เคลียร์/ย้อนหนี้ · สรุปยอดสุทธิกับเพื่อน)
