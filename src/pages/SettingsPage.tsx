@@ -18,6 +18,8 @@ import {
   IconWand,
 } from '@tabler/icons-react'
 import { Toggle } from '@/components/ui'
+import { useToast } from '@/components/Toast'
+import { formatBuildStamp } from '@/lib/format'
 import { CategoriesManager } from '@/components/CategoriesManager'
 import { WalletsManager } from '@/components/WalletsManager'
 import { FavoritesManager } from '@/components/FavoritesManager'
@@ -30,6 +32,7 @@ import { loadAiPrefs, saveAiPrefs, type AiPrefs } from '@/lib/prefs'
 
 export function SettingsPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const { user, signOut } = useAuth()
   const { data: categories } = useCategories()
   const { data: wallets } = useWallets()
@@ -46,6 +49,20 @@ export function SettingsPage() {
     const next = { ...ai, ...patch }
     setAi(next)
     saveAiPrefs(next)
+  }
+
+  // Version stamp — which commit/build production is running (see vite.config.ts
+  // define). Tap to copy so it's easy to quote when comparing notes.
+  const version = `${__COMMIT_SHA__} · ${formatBuildStamp(__BUILD_TIME__)}`
+  async function copyVersion() {
+    try {
+      await navigator.clipboard.writeText(version)
+      toast.success('คัดลอกเวอร์ชันแล้ว')
+    } catch {
+      // Clipboard blocked (insecure context / permission) — tell the user, don't
+      // swallow it (convention 17).
+      toast.error('คัดลอกไม่สำเร็จ')
+    }
   }
 
   const stockCatNames = useMemo(
@@ -163,6 +180,17 @@ export function SettingsPage() {
         >
           <IconLogout size={17} />
           ออกจากระบบ
+        </button>
+      </div>
+
+      <div className="px-4 pb-8 text-center">
+        <button
+          type="button"
+          onClick={copyVersion}
+          aria-label="คัดลอกเวอร์ชัน"
+          className="text-[11px] text-faint"
+        >
+          เวอร์ชัน {version}
         </button>
       </div>
 
