@@ -180,6 +180,8 @@ export function AddPage() {
     setType(f.type)
     setAmountStr(f.amount != null ? String(f.amount) : '')
     setCategoryId(f.category_id)
+    if (f.wallet_id) setWalletId(f.wallet_id)
+    if (f.note) setNote(f.note)
     setFavSaved(false)
   }
 
@@ -211,6 +213,8 @@ export function AddPage() {
         type,
         amount: amount > 0 ? amount : null,
         category_id: categoryId,
+        wallet_id: walletId,
+        note: note.trim() || null,
       })
       setFavSaved(true)
       toast.success('บันทึกเป็นป้ายด่วนแล้ว')

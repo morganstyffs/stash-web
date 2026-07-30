@@ -48,6 +48,8 @@ export interface FavoriteInput {
   type: TransactionType
   amount: number | null
   category_id: string | null
+  wallet_id: string | null
+  note: string | null
 }
 
 /** Create or update a favorite preset (user_id set explicitly; RLS enforces it). */
@@ -62,6 +64,8 @@ export function useUpsertFavorite() {
         type: input.type,
         amount: input.amount,
         category_id: input.category_id,
+        wallet_id: input.wallet_id,
+        note: input.note,
       }
       if (input.id) {
         const { error } = await supabase.from('favorites').update(fields).eq('id', input.id)
