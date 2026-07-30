@@ -180,14 +180,18 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                       <button
                         key={c.id}
                         onClick={() => setCategoryId(c.id)}
-                        className={`flex shrink-0 items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
-                          active
-                            ? 'bg-brand-tint font-medium text-brand-ink'
-                            : 'bg-fill text-muted'
-                        }`}
+                        className="flex min-h-[44px] shrink-0 items-center"
                       >
-                        <Icon size={14} />
-                        {c.name}
+                        <span
+                          className={`flex items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
+                            active
+                              ? 'bg-brand-tint font-medium text-brand-ink'
+                              : 'bg-fill text-muted'
+                          }`}
+                        >
+                          <Icon size={14} />
+                          {c.name}
+                        </span>
                       </button>
                     )
                   })}
@@ -205,13 +209,17 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                         <button
                           key={w.id}
                           onClick={() => setWalletId(w.id)}
-                          className={`shrink-0 rounded-pill px-[13px] py-[6px] text-[12px] ${
-                            active
-                              ? 'bg-brand-tint font-medium text-brand-ink'
-                              : 'bg-fill text-muted'
-                          }`}
+                          className="flex min-h-[44px] shrink-0 items-center"
                         >
-                          {w.name}
+                          <span
+                            className={`shrink-0 rounded-pill px-[13px] py-[6px] text-[12px] ${
+                              active
+                                ? 'bg-brand-tint font-medium text-brand-ink'
+                                : 'bg-fill text-muted'
+                            }`}
+                          >
+                            {w.name}
+                          </span>
                         </button>
                       )
                     })}
