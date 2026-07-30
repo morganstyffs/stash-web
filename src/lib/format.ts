@@ -39,3 +39,23 @@ export function formatMonthLong(date: Date): string {
 export function formatMonthShort(date: Date): string {
   return new Intl.DateTimeFormat('th-TH', { month: 'short', year: 'numeric' }).format(date)
 }
+
+/**
+ * Build-stamp timestamp, e.g. "30 ก.ค. 2569 18:42" — Buddhist-era date + 24h
+ * Bangkok time, for the Settings version line. `iso` is a full ISO timestamp
+ * (the __BUILD_TIME__ define), so `new Date(iso)` is unambiguous — this is not
+ * the date-only `new Date('YYYY-MM-DD')` pitfall (convention 18); the timezone
+ * is pinned to Bangkok so the stamp reads the same on any device. */
+export function formatBuildStamp(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return new Intl.DateTimeFormat('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Bangkok',
+  }).format(d)
+}

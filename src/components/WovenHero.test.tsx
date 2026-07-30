@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest'
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import {
+  WovenHero,
   budgetMini,
   budgetOverAmount,
   budgetSubline,
@@ -9,6 +13,7 @@ import {
   safeMini,
   safeSubline,
   stockSubline,
+  type WovenHeroProps,
 } from '@/components/WovenHero'
 import { formatBaht } from '@/lib/format'
 import type { SalesSummary } from '@/hooks/useStockSales'
@@ -97,5 +102,91 @@ describe('delta chip', () => {
   it('points up for an improvement and down for a decline', () => {
     expect(deltaChip(12)).toEqual({ up: true, text: '12% ดีกว่าเดือนก่อน' })
     expect(deltaChip(-8)).toEqual({ up: false, text: '8% ต่ำกว่าเดือนก่อน' })
+  })
+})
+
+// ── rendering (jsdom) — the reported bug was "folded labels are blank strips" ─
+// The pure helpers above can't catch that: the component renders EYEBROW[key]
+// for every label unconditionally, so if the titles ever go missing it's a
+// render-time regression, not a text-selection one. These tests assert the real
+// DOM, whichever label is the face. (See STASH_CONTEXT §9 traps: "verification
+// proves it exists, not that it works".)
+
+const STOCK: SalesSummary = {
+  revenue: 5_000,
+  cogs: 3_200,
+  profit: 1_800,
+  sale_count: 3,
+  qty_sold: 4,
+}
+
+function renderHero(over: Partial<WovenHeroProps> = {}) {
+  const props: WovenHeroProps = {
+    safeToSpend: 9_000,
+    daysLeft: 10,
+    dailyAllowance: 900,
+    deltaPct: null,
+    budgetTotal: 10_000,
+    budgetSpending: 4_000,
+    stock: STOCK,
+    hideBalance: false,
+    onToggleHide: () => {},
+    ...over,
+  }
+  return render(
+    <MemoryRouter>
+      <WovenHero {...props} />
+    </MemoryRouter>,
+  )
+}
+
+const EYEBROWS = ['SAFE TO SPEND', 'BUDGET', 'STOCK PROFIT']
+
+afterEach(cleanup)
+
+describe('WovenHero rendering — every label title is always present', () => {
+  it('renders all three eyebrows no matter which label is the face', () => {
+    renderHero()
+    for (const eyebrow of EYEBROWS) expect(screen.getByText(eyebrow)).toBeTruthy()
+
+    // bring BUDGET forward, then STOCK — folded eyebrows must not vanish
+    fireEvent.click(screen.getByLabelText('ป้ายงบประมาณ'))
+    for (const eyebrow of EYEBROWS) expect(screen.getByText(eyebrow)).toBeTruthy()
+
+    fireEvent.click(screen.getByLabelText('ป้ายกำไรสต็อก'))
+    for (const eyebrow of EYEBROWS) expect(screen.getByText(eyebrow)).toBeTruthy()
+  })
+})
+
+describe('WovenHero rendering — folded labels show a compact figure', () => {
+  it('shows the front headline plus both folded labels’ minis', () => {
+    renderHero()
+    // safe is the face → full headline; budget + stock folded → their minis
+    expect(screen.getByText(formatBaht(9_000))).toBeTruthy() // safe headline
+    expect(screen.getByText(formatBaht(10_000))).toBeTruthy() // budget mini (within budget → total)
+    expect(screen.getByText(formatBaht(1_800))).toBeTruthy() // stock mini (profit)
+  })
+
+  it('shows the safe mini once safe is folded behind another label', () => {
+    renderHero()
+    fireEvent.click(screen.getByLabelText('ป้ายงบประมาณ')) // budget → face, safe → folded
+    expect(screen.getAllByText(formatBaht(9_000)).length).toBeGreaterThan(0)
+  })
+})
+
+describe('WovenHero rendering — hideBalance masks the safe figure everywhere', () => {
+  it('masks the safe headline on the face while keeping its title', () => {
+    renderHero({ hideBalance: true })
+    expect(screen.getByText('฿ ••••••')).toBeTruthy() // masked headline
+    expect(screen.queryByText(formatBaht(9_000))).toBeNull() // real figure gone
+    expect(screen.getByText('SAFE TO SPEND')).toBeTruthy() // title stays
+  })
+
+  it('masks the safe mini once safe is folded, keeping the eyebrow', () => {
+    renderHero({ hideBalance: true })
+    fireEvent.click(screen.getByLabelText('ป้ายงบประมาณ')) // safe → folded
+    expect(screen.getByText('••••')).toBeTruthy() // masked mini
+    expect(screen.queryByText(formatBaht(9_000))).toBeNull() // real figure gone
+    expect(screen.getByText('SAFE TO SPEND')).toBeTruthy() // title stays
   })
 })

@@ -1,10 +1,54 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { execSync } from 'node:child_process'
 import path from 'node:path'
+
+// App surface colour, light scheme — mirrors --color-surface (246 243 236) in
+// src/styles/index.css. Used for the installed-PWA manifest theme_color, which
+// (unlike index.html's <meta name="theme-color">) can't switch per scheme, so
+// it takes the light value. This is the app background, NOT the accent — a fixed
+// accent would look wrong in one of the two modes. (Was the old mint #14B8A6.)
+const APP_SURFACE_LIGHT = '#F6F3EC'
+
+/**
+ * Short commit SHA for the version stamp shown in Settings. Cloudflare Workers
+ * Builds (this project's deploy path) exposes WORKERS_CI_COMMIT_SHA; we fall
+ * through a few other CI providers, then a local `git` read, and finally 'dev'
+ * so a build with neither CI env nor a .git checkout still succeeds — this must
+ * never throw or `npm run build` breaks in CI (convention 13).
+ */
+function resolveCommitSha(): string {
+  const fromEnv =
+    process.env.WORKERS_CI_COMMIT_SHA || // Cloudflare Workers Builds
+    process.env.CF_PAGES_COMMIT_SHA || // Cloudflare Pages (if ever used)
+    process.env.GITHUB_SHA || // GitHub Actions (CI build)
+    process.env.VITE_COMMIT_SHA // manual override / escape hatch
+  if (fromEnv) return fromEnv.slice(0, 7)
+  try {
+    return (
+      execSync('git rev-parse --short=7 HEAD', {
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+        .toString()
+        .trim() || 'dev'
+    )
+  } catch {
+    return 'dev'
+  }
+}
+
+const COMMIT_SHA = resolveCommitSha()
+const BUILD_TIME = new Date().toISOString()
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Compile-time constants for the Settings version stamp. Declared for
+  // TypeScript in src/vite-env.d.ts (no `as any` — convention 11).
+  define: {
+    __COMMIT_SHA__: JSON.stringify(COMMIT_SHA),
+    __BUILD_TIME__: JSON.stringify(BUILD_TIME),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -13,7 +57,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt' (not 'autoUpdate'): autoUpdate silently reloads the page the
+      // moment a new SW activates, which can wipe a half-typed entry. Instead
+      // src/components/PwaUpdater.tsx listens via virtual:pwa-register/react and
+      // shows a Toast with a "โหลดใหม่" button so the owner reloads when ready.
+      registerType: 'prompt',
       // Emit as /site.webmanifest and inject its <link> automatically (a single
       // source of truth — no separate static manifest to drift out of sync).
       manifestFilename: 'site.webmanifest',
@@ -33,7 +81,7 @@ export default defineConfig({
         short_name: 'Stash',
         description: 'บันทึกรายรับ-รายจ่ายส่วนตัว + กึ่งระบบสต็อกสินค้า (ขายต่อ)',
         lang: 'th',
-        theme_color: '#14B8A6',
+        theme_color: APP_SURFACE_LIGHT,
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
