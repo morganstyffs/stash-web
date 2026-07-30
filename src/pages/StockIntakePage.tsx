@@ -398,7 +398,7 @@ export function StockIntakePage() {
               className="absolute bottom-2 left-0 top-1 w-[2px]"
               style={{
                 backgroundImage:
-                  'repeating-linear-gradient(180deg, #C8C2B4 0 4px, transparent 4px 8px)',
+                  'repeating-linear-gradient(180deg, rgb(var(--color-chevron)) 0 4px, transparent 4px 8px)',
               }}
             />
             {session.map((s) => (

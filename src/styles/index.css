@@ -5,6 +5,46 @@
 @layer base {
   :root {
     color-scheme: light;
+    --color-brand-deep: 46 60 107;
+    --color-brand-tint: 231 233 244;
+    --color-brand-ink: 42 50 96;
+    --color-income: 26 122 87;
+    --color-income-bg: 228 240 234;
+    --color-expense: 178 58 44;
+    --color-expense-bg: 248 231 228;
+    --color-warn: 143 100 16;
+    --color-warn-bg: 247 238 220;
+    --color-warn-ink: 110 76 12;
+    --color-ink: 27 26 23;
+    --color-muted: 91 88 80;
+    --color-faint: 105 101 88;
+    --color-hairline: 226 222 211;
+    --color-surface: 246 243 236;
+    --color-fill: 237 233 222;
+    --color-chevron: 200 194 180;
+    --shadow-card: 0 3px 14px rgba(20, 30, 28, 0.07);
+  }
+
+  html.dark {
+    color-scheme: dark;
+    --color-brand-deep: 90 104 201;
+    --color-brand-tint: 51 56 102;
+    --color-brand-ink: 205 210 245;
+    --color-income: 143 211 180;
+    --color-income-bg: 22 53 42;
+    --color-expense: 237 160 149;
+    --color-expense-bg: 51 24 21;
+    --color-warn: 224 187 107;
+    --color-warn-bg: 51 42 18;
+    --color-warn-ink: 224 187 107;
+    --color-ink: 242 238 227;
+    --color-muted: 173 166 149;
+    --color-faint: 148 140 116;
+    --color-hairline: 58 54 44;
+    --color-surface: 23 22 15;
+    --color-fill: 35 32 25;
+    --color-chevron: 74 70 56;
+    --shadow-card: 0 3px 14px rgba(0, 0, 0, 0.4);
   }
 
   html,

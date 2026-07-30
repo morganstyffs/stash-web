@@ -202,7 +202,7 @@ export function HomePage() {
                     key={row.key}
                     className="mb-[9px] flex items-center justify-between gap-2 last:mb-0"
                   >
-                    <span className="flex min-w-0 items-center text-[13px]">
+                    <span className="flex min-w-0 items-center text-[12.5px]">
                       <span
                         className={`mr-2 inline-block h-2 w-2 shrink-0 rounded-full${
                           row.color ? '' : ' bg-faint'
@@ -211,9 +211,9 @@ export function HomePage() {
                       />
                       <span className="truncate">{row.name}</span>
                     </span>
-                    <span className="flex shrink-0 items-baseline gap-1.5 text-[13px]">
-                      <span className="font-medium">{formatBaht(row.total)}</span>
-                      <span className="text-faint">{row.pct}%</span>
+                    <span className="flex shrink-0 items-baseline gap-1.5">
+                      <span className="text-[12.5px] font-medium">{formatBaht(row.total)}</span>
+                      <span className="text-[10.5px] text-faint">{row.pct}%</span>
                     </span>
                   </div>
                 ))}
