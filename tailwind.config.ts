@@ -12,10 +12,10 @@ export default {
         // brand — คราม (indigo). fabric*/thread drive WovenHero: do NOT change
         // their values (the woven labels render against them).
         brand: {
-          DEFAULT: '#4A57B5', // accent, graph lines, first category
-          deep: '#2E3C6B', // primary buttons, dark surfaces, active nav (white on this = 10.63:1)
-          tint: '#E7E9F4', // selected chip / soft highlight bg
-          ink: '#2A3260', // text on tint (10.07:1)
+          DEFAULT: '#4A57B5', // accent, graph lines, first category — locked, shared identity with cat.1
+          deep: 'rgb(var(--color-brand-deep) / <alpha-value>)', // primary buttons, dark surfaces, active nav
+          tint: 'rgb(var(--color-brand-tint) / <alpha-value>)', // selected chip / soft highlight bg
+          ink: 'rgb(var(--color-brand-ink) / <alpha-value>)', // text on tint
           fabric: '#1E2547', // safe label fabric — locked
           'fabric-budget': '#4A3A14', // budget label fabric — locked
           'fabric-stock': '#2B2E34', // stock label fabric — locked (expense fast-labels)
@@ -23,23 +23,23 @@ export default {
           thread: '#F3ECDB', // woven thread = text on every label — locked
         },
         // semantic (each with a light surface; -soft pairs read on dark bg)
-        income: '#1A7A57',
-        'income-bg': '#E4F0EA',
-        'income-soft': '#8FD3B4',
-        expense: '#B23A2C',
-        'expense-bg': '#F8E7E4',
-        'expense-soft': '#EDA095',
-        warn: '#8F6410',
-        'warn-bg': '#F7EEDC',
-        'warn-ink': '#6E4C0C',
+        income: 'rgb(var(--color-income) / <alpha-value>)',
+        'income-bg': 'rgb(var(--color-income-bg) / <alpha-value>)',
+        'income-soft': '#8FD3B4', // locked — only ever used on the locked fabric-* hero backgrounds
+        expense: 'rgb(var(--color-expense) / <alpha-value>)',
+        'expense-bg': 'rgb(var(--color-expense-bg) / <alpha-value>)',
+        'expense-soft': '#EDA095', // locked, same reasoning
+        warn: 'rgb(var(--color-warn) / <alpha-value>)',
+        'warn-bg': 'rgb(var(--color-warn-bg) / <alpha-value>)',
+        'warn-ink': 'rgb(var(--color-warn-ink) / <alpha-value>)',
         // neutrals
-        ink: '#1B1A17', // primary text
-        muted: '#5B5850', // secondary text
-        faint: '#696558', // tertiary / placeholder (4.5:1 on fill, surface, white)
-        hairline: '#E2DED3', // 0.5px separators + borders
-        surface: '#F6F3EC', // app background
-        fill: '#EDE9DE', // inset field / neutral chip bg
-        chevron: '#C8C2B4',
+        ink: 'rgb(var(--color-ink) / <alpha-value>)', // primary text
+        muted: 'rgb(var(--color-muted) / <alpha-value>)', // secondary text
+        faint: 'rgb(var(--color-faint) / <alpha-value>)', // tertiary / placeholder
+        hairline: 'rgb(var(--color-hairline) / <alpha-value>)', // 0.5px separators + borders
+        surface: 'rgb(var(--color-surface) / <alpha-value>)', // app background
+        fill: 'rgb(var(--color-fill) / <alpha-value>)', // inset field / neutral chip bg
+        chevron: 'rgb(var(--color-chevron) / <alpha-value>)',
         // category palette — colorblind-checked. Do NOT change values, reorder,
         // or add a 7th. Categories past 6 collapse to cat.other.
         // FALLBACK_SLICE_COLORS in useHome.ts must mirror cat.1–6 in this order.
@@ -68,7 +68,7 @@ export default {
         pill: '20px',
       },
       boxShadow: {
-        card: '0 3px 14px rgba(20,30,28,0.07)',
+        card: 'var(--shadow-card)',
       },
     },
   },

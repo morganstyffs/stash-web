@@ -2,6 +2,17 @@
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('stash.prefs.theme');
+          var mode = stored ? JSON.parse(stored) : 'light';
+          if (mode === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {
+          /* localStorage unavailable (private mode / quota) — default to light */
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
     <!-- Favicons / app icons (files live in /public). The <link rel="manifest">

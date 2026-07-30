@@ -7,6 +7,7 @@ import {
   IconCurrencyBaht,
   IconInfoCircle,
   IconLogout,
+  IconMoon,
   IconReportMoney,
   IconRepeat,
   IconSparkles,
@@ -24,6 +25,7 @@ import { RecurringManager } from '@/components/RecurringManager'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories, useFavorites } from '@/hooks/useLookups'
 import { useRecurringCount, useWallets } from '@/hooks/useSettings'
+import { useTheme } from '@/hooks/useTheme'
 import { loadAiPrefs, saveAiPrefs, type AiPrefs } from '@/lib/prefs'
 
 export function SettingsPage() {
@@ -33,6 +35,7 @@ export function SettingsPage() {
   const { data: wallets } = useWallets()
   const { data: favorites } = useFavorites()
   const { data: recurringCount } = useRecurringCount()
+  const { mode, setMode } = useTheme()
 
   const [manager, setManager] = useState<
     'categories' | 'wallets' | 'favorites' | 'recurring' | null
@@ -81,6 +84,12 @@ export function SettingsPage() {
       </div>
 
       <Group title="ทั่วไป">
+        <ToggleRow
+          icon={IconMoon}
+          label="โหมดมืด"
+          on={mode === 'dark'}
+          onChange={(v) => setMode(v ? 'dark' : 'light')}
+        />
         <Row
           icon={IconCategory}
           label="หมวด"
