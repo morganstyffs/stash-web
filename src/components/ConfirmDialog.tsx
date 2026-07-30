@@ -1,3 +1,5 @@
+import { useDialogA11y } from '@/lib/useDialogA11y'
+
 /**
  * Small confirm bottom-sheet for destructive actions. Sits at z-50 so it stacks
  * above the manager overlays (z-40). Buttons disable while `busy`.
@@ -21,12 +23,17 @@ export function ConfirmDialog({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  const panelRef = useDialogA11y(onCancel, !busy)
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 sm:items-center"
       onClick={busy ? undefined : onCancel}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         className="w-full max-w-md rounded-t-[22px] bg-white p-5 sm:rounded-[22px]"
         onClick={(e) => e.stopPropagation()}
       >

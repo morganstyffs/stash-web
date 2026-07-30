@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { IconArrowBackUp, IconTag, IconTrash, IconX } from '@tabler/icons-react'
+import { useDialogA11y } from '@/lib/useDialogA11y'
 import { useAuth } from '@/hooks/useAuth'
 import { useUpdateStockItem } from '@/hooks/useQueue'
 import { useDeleteStockItem } from '@/hooks/useStock'
@@ -173,19 +174,29 @@ export function StockEditSheet({
 
   const busy = update.isPending || del.isPending
   const sales = salesQ.data ?? []
+  const panelRef = useDialogA11y(onClose)
+  const titleId = useId()
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 sm:items-center"
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/45 sm:items-center"
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="flex max-h-[90vh] w-full max-w-md flex-col rounded-t-[22px] bg-white sm:rounded-[22px]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-[18px] pb-3 pt-4">
-          <p className="text-[16px] font-medium">แก้ไขสินค้า</p>
-          <button aria-label="ปิด" onClick={onClose}>
+          <p id={titleId} className="text-[16px] font-medium">แก้ไขสินค้า</p>
+          <button
+            aria-label="ปิด"
+            onClick={onClose}
+            className="-m-2.5 flex h-11 w-11 items-center justify-center rounded-full"
+          >
             <IconX size={20} className="text-muted" />
           </button>
         </div>
