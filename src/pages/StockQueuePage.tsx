@@ -22,6 +22,7 @@ import {
   type EditablePhoto,
 } from '@/components/StockFields'
 import type { ItemCondition, StockItem } from '@/lib/db'
+import { SkuTag } from '@/pages/StockPage'
 
 export function StockQueuePage() {
   const navigate = useNavigate()
@@ -37,22 +38,38 @@ export function StockQueuePage() {
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col bg-white">
       <div className="flex items-center justify-between px-[18px] pb-3 pt-4">
-        <button aria-label="ย้อนกลับ" onClick={() => navigate('/stock')}>
+        <button
+          aria-label="ย้อนกลับ"
+          onClick={() => navigate('/stock')}
+          className="-m-2.5 flex h-11 w-11 items-center justify-center rounded-full"
+        >
           <IconArrowLeft size={20} className="text-muted" />
         </button>
         <p className="text-[16px] font-medium">รอเติมรายละเอียด</p>
         <span className="w-5" />
       </div>
 
-      <div className="mx-4 mb-3.5 flex items-center gap-3 rounded-[14px] bg-brand-tint px-[15px] py-3">
-        <IconClipboardList size={22} className="text-brand-ink" />
-        <div className="flex-1">
-          <p className="text-[14px] font-medium text-brand-ink">
-            {items.length} ชิ้นรอเติมรายละเอียด
-          </p>
-          <p className="mt-px text-[11px] text-brand-deep">
-            ต้นทุนรวม {formatBaht(totalCost)} · เติมให้ครบเพื่อพร้อมขาย
-          </p>
+      <div className="mx-4 mb-3.5">
+        <div
+          className="woven relative overflow-hidden rounded-card bg-brand-fabric-stock text-brand-thread shadow-card"
+          style={{ height: 100 }}
+        >
+          <span aria-hidden className="selvedge absolute inset-x-0 top-0 h-[6px]" />
+          <span aria-hidden className="selvedge absolute inset-x-0 bottom-0 h-[6px]" />
+          <div className="relative flex h-full items-center justify-between px-[18px]">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.16em] opacity-80">
+                รอเติมข้อมูล
+              </p>
+              <p className="mt-1 text-[28px] font-semibold leading-none tabular-nums">
+                {items.length} ชิ้น
+              </p>
+              <p className="mt-1.5 text-[11px] opacity-80">
+                ต้นทุนรวม {formatBaht(totalCost)} · เติมให้ครบเพื่อพร้อมขาย
+              </p>
+            </div>
+            <IconClipboardList size={26} className="opacity-70" aria-hidden />
+          </div>
         </div>
       </div>
 
@@ -103,7 +120,8 @@ function QueueRow({
           ต้นทุน {formatBaht(item.cost_per_unit)}
           {qtyLabel}
         </p>
-        <div className="flex flex-wrap gap-[5px]">
+        <div className="flex flex-wrap items-center gap-[5px]">
+          {item.sku && <SkuTag sku={item.sku} />}
           {tags.map((t) => (
             <span
               key={t}
