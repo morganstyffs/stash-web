@@ -409,6 +409,19 @@ export function AddPage() {
                 : `บันทึก “${pendingFavName}” เป็นป้ายด่วน`}
           </button>
         </div>
+
+        {favorites.length === 0 && (
+          <div className="mx-4 mb-4 flex items-center gap-3 rounded-[14px] border-[1.5px] border-dashed border-chevron px-3.5 py-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border-[1.5px] border-dashed border-chevron">
+              <IconStar size={15} className="text-faint" />
+            </div>
+            <p className="text-[11.5px] leading-relaxed text-muted">
+              ยังไม่มีป้ายด่วน — กด{' '}
+              <span className="font-medium text-brand-deep">☆ บันทึกเป็นป้ายด่วน</span> ด้านบน
+              หลังกรอกยอด+เลือกหมวด ครั้งหน้าจะแตะครั้งเดียวจบ
+            </p>
+          </div>
+        )}
       </div>
 
       {/* dock — keypad + reason + save. Always pinned to the bottom. */}

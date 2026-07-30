@@ -105,9 +105,11 @@ export function PhotoEditor({
             type="button"
             aria-label="ลบรูป"
             onClick={() => onRemove(p.path)}
-            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white"
+            className="absolute -right-1.5 -top-1.5 -m-1.5 flex h-8 w-8 items-center justify-center"
           >
-            <IconX size={12} />
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white">
+              <IconX size={12} />
+            </span>
           </button>
         </div>
       ))}

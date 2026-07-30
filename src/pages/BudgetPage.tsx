@@ -22,6 +22,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { currentMonthAnchor, daysLeftInMonth } from '@/lib/dates'
 import { formatBaht, formatMonthShort } from '@/lib/format'
 import { translateError } from '@/lib/errors'
+import { useDialogA11y } from '@/lib/useDialogA11y'
 
 const RING_C = 2 * Math.PI * 17 // ≈ 107
 
@@ -338,18 +339,27 @@ function BudgetEditor({
   onDelete?: () => void
   onClose: () => void
 }) {
+  const panelRef = useDialogA11y(onClose)
   return (
     <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 sm:items-center"
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/45 sm:items-center"
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={isEdit ? 'แก้งบหมวด' : 'ตั้งงบหมวด'}
         className="w-full max-w-md rounded-t-[22px] bg-white p-5 sm:rounded-[22px]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
           <p className="text-[15px] font-medium">{isEdit ? 'แก้งบหมวด' : 'ตั้งงบหมวด'}</p>
-          <button aria-label="ปิด" onClick={onClose}>
+          <button
+            aria-label="ปิด"
+            onClick={onClose}
+            className="-m-2.5 flex h-11 w-11 items-center justify-center rounded-full"
+          >
             <IconX size={20} className="text-muted" />
           </button>
         </div>

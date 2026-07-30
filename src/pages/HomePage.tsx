@@ -103,7 +103,14 @@ export function HomePage() {
           <img src="/stash-mark.svg" alt="Stash" className="h-[30px] w-[30px]" />
         </Link>
         <p className="text-[17px] font-medium">ยินดีต้อนรับกลับ</p>
-        <IconBell size={20} className="text-muted" />
+        <button
+          type="button"
+          disabled
+          aria-label="การแจ้งเตือน (ยังไม่เปิดใช้งาน)"
+          className="opacity-40"
+        >
+          <IconBell size={20} className="text-muted" />
+        </button>
       </div>
 
       {/* woven-label hero */}
