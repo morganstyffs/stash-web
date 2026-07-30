@@ -188,7 +188,15 @@ export function WovenHero({
             onClick={() => !isFront && setSelected(key)}
             aria-expanded={isFront}
             aria-label={ARIA[key]}
-            className={`woven ${FABRIC[key]} absolute overflow-hidden text-left text-brand-thread shadow-[0_6px_16px_rgba(0,0,0,0.28)] transition-transform duration-label ease-label motion-reduce:transition-none`}
+            // flex flex-col is load-bearing, not cosmetic: a <button> wraps its
+            // content in an anonymous CENTERED box, so with this fixed-height
+            // label the header strip gets centred ~64px down — below the 48px a
+            // folded label peeks — and the eyebrow/figure vanish behind the label
+            // in front (the production "blank folded strips" bug). flex makes the
+            // button a real flex container so justify-content:flex-start pins the
+            // strip to the top, inside the peek. Do NOT drop it. (jsdom doesn't
+            // model button centring, which is why the DOM test missed this.)
+            className={`woven ${FABRIC[key]} absolute flex flex-col overflow-hidden text-left text-brand-thread shadow-[0_6px_16px_rgba(0,0,0,0.28)] transition-transform duration-label ease-label motion-reduce:transition-none`}
             style={{
               left: 2,
               right: 2,
