@@ -1,8 +1,38 @@
 import type { DonutSlice } from '@/hooks/useHome'
-import { formatBaht } from '@/lib/format'
+import { formatBaht, MASKED_BAHT } from '@/lib/format'
 
-/** Category donut — one arc per slice, sized by share of total expense. */
-export function Donut({ slices }: { slices: DonutSlice[] }) {
+// ── donut centre total: font size by string length ───────────────────────────
+// The total sits inside the ring, so a long value (฿48,052, and worse) overruns
+// the hole. Geometry of the Donut below: R=32, strokeWidth=11 → inner hole
+// radius 26.5 viewBox units; viewBox 80 rendered at 76px → scale 0.95 → ~25.2px
+// inner radius. The total is the top line of a two-line stack (number + "รวม"),
+// so the number's band is ~±12.5px off-centre; the usable chord there is
+// 2·√(25.2² − 12.5²) ≈ 43.8px.
+//
+// "฿48,052" (7 chars) measures ~50px at 13px / Prompt 500 with tabular figures
+// (~7.14px per char at 13px). tnum ⇒ fixed advance ⇒ width scales linearly with
+// char count and size, so the largest size that fits is
+//   13 · 43.8 / (chars · 7.14),  capped at 13, floored at 11.
+// 11px is the readability floor: a value that needs < 11px to fit (≥10 chars,
+// i.e. ≥7 figures) is clamped to 11 and WILL still overflow — that's the signal
+// the number belongs OUTSIDE the ring (owner decision), not shrunk further.
+export const DONUT_CENTER_FONT_MAX = 13
+export const DONUT_CENTER_FONT_MIN = 11
+const DONUT_CENTER_INNER_CHORD = 43.8
+const DONUT_CENTER_CHAR_W_AT_MAX = 50 / 7 // ≈7.14px per char at 13px (฿48,052)
+
+/** Font size (px) for the donut's centre total, chosen from the display string's
+ *  length. Pure + unit-tested (charts.test.ts). See the geometry note above. */
+export function donutCenterFontSize(charCount: number): number {
+  if (charCount <= 0) return DONUT_CENTER_FONT_MAX
+  const widthAtMax = charCount * DONUT_CENTER_CHAR_W_AT_MAX
+  const fit = Math.floor(DONUT_CENTER_FONT_MAX * (DONUT_CENTER_INNER_CHORD / widthAtMax))
+  return Math.max(DONUT_CENTER_FONT_MIN, Math.min(DONUT_CENTER_FONT_MAX, fit))
+}
+
+/** Category donut — one arc per slice, sized by share of total expense. The
+ *  centre total is masked (name/percent stay) when the balance is hidden. */
+export function Donut({ slices, hideBalance = false }: { slices: DonutSlice[]; hideBalance?: boolean }) {
   const R = 32
   const C = 2 * Math.PI * R // ≈ 201
   const total = slices.reduce((s, x) => s + x.total, 0) || 1
@@ -34,9 +64,19 @@ export function Donut({ slices }: { slices: DonutSlice[] }) {
       </svg>
       {/* total spend in the middle of the ring */}
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[13px] font-medium leading-none tracking-[-0.3px]">
-          {formatBaht(slices.reduce((s, x) => s + x.total, 0))}
-        </span>
+        {(() => {
+          const label = hideBalance
+            ? MASKED_BAHT
+            : formatBaht(slices.reduce((s, x) => s + x.total, 0))
+          return (
+            <span
+              className="font-medium leading-none tracking-[-0.3px] tabular-nums"
+              style={{ fontSize: donutCenterFontSize(label.length) }}
+            >
+              {label}
+            </span>
+          )
+        })()}
         <span className="mt-0.5 text-[9px] leading-none text-faint">รวม</span>
       </div>
     </div>

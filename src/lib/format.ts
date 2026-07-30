@@ -9,6 +9,11 @@ const baht2 = new Intl.NumberFormat('th-TH', {
   maximumFractionDigits: 2,
 })
 
+/** Placeholder shown in place of a baht figure while "ซ่อนยอดเงิน" is on.
+ *  One source of truth so every hide-balance surface masks the same way
+ *  (WovenHero keeps its own wider big/mini masks for the hero headline). */
+export const MASKED_BAHT = '฿ ••••'
+
 /** ฿1,234 — no decimals (used in most ledger rows/heroes). */
 export function formatBaht(value: number): string {
   return `฿${baht.format(value)}`

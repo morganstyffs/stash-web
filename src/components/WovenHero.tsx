@@ -4,6 +4,7 @@ import {
   IconAlertTriangle,
   IconEye,
   IconEyeOff,
+  IconPlus,
   IconTrendingDown,
   IconTrendingUp,
 } from '@tabler/icons-react'
@@ -34,6 +35,12 @@ export interface WovenHeroProps {
   stock: SalesSummary
   hideBalance: boolean
   onToggleHide: () => void
+  /** brand-new user with no data yet → show the empty invitation label instead */
+  empty?: boolean
+  /** play the new-month rollover animation once (see useHomeMoments) */
+  newMonth?: boolean
+  /** play the first-sale-of-month beat on STOCK PROFIT once */
+  firstSale?: boolean
 }
 
 // ── pure text selection (exported for tests) ─────────────────────────────────
@@ -153,16 +160,24 @@ export function WovenHero({
   stock,
   hideBalance,
   onToggleHide,
+  empty = false,
+  newMonth = false,
+  firstSale = false,
 }: WovenHeroProps) {
   const navigate = useNavigate()
   const [selected, setSelected] = useState<HeroKey>('safe')
+
+  if (empty) return <WovenHeroEmpty onStart={() => navigate('/add')} />
 
   // front label first, the rest keep their canonical order behind it → each key
   // maps to position 0/1/2 deterministically.
   const order: HeroKey[] = [selected, ...CANON.filter((k) => k !== selected)]
 
   return (
-    <div className="relative" style={{ height: CONTAINER_H }}>
+    <div
+      className={`relative${newMonth ? ' animate-weave-in motion-reduce:animate-none' : ''}`}
+      style={{ height: CONTAINER_H }}
+    >
       {order.map((key, pos) => {
         const isFront = pos === 0
         const { transform, z } = POSITIONS[pos]
@@ -173,7 +188,7 @@ export function WovenHero({
             onClick={() => !isFront && setSelected(key)}
             aria-expanded={isFront}
             aria-label={ARIA[key]}
-            className={`woven ${FABRIC[key]} absolute overflow-hidden text-left text-brand-thread shadow-[0_6px_16px_rgba(0,0,0,0.28)] transition-transform duration-[420ms] ease-[cubic-bezier(.22,1,.36,1)] motion-reduce:transition-none`}
+            className={`woven ${FABRIC[key]} absolute overflow-hidden text-left text-brand-thread shadow-[0_6px_16px_rgba(0,0,0,0.28)] transition-transform duration-label ease-label motion-reduce:transition-none`}
             style={{
               left: 2,
               right: 2,
@@ -219,7 +234,13 @@ export function WovenHero({
                   </button>
                 )
               ) : (
-                <span className="text-[13px] font-medium tabular-nums opacity-[.92]">
+                <span
+                  className={`text-[13px] font-medium tabular-nums opacity-[.92]${
+                    key === 'stock' && firstSale
+                      ? ' inline-block animate-moment-pop motion-reduce:animate-none'
+                      : ''
+                  }`}
+                >
                   {key === 'safe'
                     ? safeMini(safeToSpend, hideBalance)
                     : key === 'budget'
@@ -248,7 +269,7 @@ export function WovenHero({
                     onSetBudget={() => navigate('/budget')}
                   />
                 )}
-                {key === 'stock' && <StockBody stock={stock} />}
+                {key === 'stock' && <StockBody stock={stock} pop={firstSale} />}
               </div>
             )}
           </button>
@@ -350,11 +371,47 @@ function BudgetBody({
   )
 }
 
-function StockBody({ stock }: { stock: SalesSummary }) {
+function StockBody({ stock, pop = false }: { stock: SalesSummary; pop?: boolean }) {
   return (
     <>
-      <BigNumber>{formatBaht(stock.profit)}</BigNumber>
+      <div className={pop ? 'inline-block animate-moment-pop motion-reduce:animate-none' : undefined}>
+        <BigNumber>{formatBaht(stock.profit)}</BigNumber>
+      </div>
       <SubLine>{stockSubline(stock)}</SubLine>
     </>
+  )
+}
+
+/**
+ * Empty state — the hero as a woven label that hasn't been woven yet: one faint
+ * fabric label with a single invitation and one button to log the first entry
+ * (no ฿0, no apology). Still the hero, still the only textured element on the
+ * page (design-spec §2 "one per page"). */
+function WovenHeroEmpty({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="relative animate-weave-in motion-reduce:animate-none" style={{ height: CONTAINER_H }}>
+      <div
+        className="woven bg-brand-fabric absolute inset-x-0.5 top-0 flex flex-col justify-center overflow-hidden text-brand-thread opacity-90 shadow-[0_6px_16px_rgba(0,0,0,0.28)]"
+        style={{ height: LABEL_H, borderRadius: 3 }}
+      >
+        <span aria-hidden className="selvedge absolute inset-x-0 top-0 h-[7px]" />
+        <span aria-hidden className="selvedge absolute inset-x-0 bottom-0 h-[7px]" />
+        <div className="px-[18px]">
+          <p className="text-[10px] font-medium uppercase opacity-70" style={{ letterSpacing: '0.17em' }}>
+            STASH
+          </p>
+          <p className="mt-1.5 text-[19px] font-medium leading-snug">เริ่มบันทึกรายการแรกของคุณ</p>
+          <p className="mt-1 text-[12.5px] opacity-80">ป้ายทอใบนี้จะค่อย ๆ เต็มไปด้วยตัวเลขของคุณเอง</p>
+          <button
+            type="button"
+            onClick={onStart}
+            className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-btn bg-brand-thread px-4 py-2 text-[13px] font-medium text-brand-fabric"
+          >
+            <IconPlus size={16} />
+            เพิ่มรายการแรก
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
