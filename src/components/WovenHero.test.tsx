@@ -11,7 +11,6 @@ import {
   overBudgetChip,
   safeBig,
   safeMini,
-  safeSubline,
   stockSubline,
   type WovenHeroProps,
 } from '@/components/WovenHero'
@@ -31,20 +30,10 @@ const sales = (over: Partial<SalesSummary> = {}): SalesSummary => ({
 })
 
 describe('safe label', () => {
-  it('keeps the daily-average clause on a normal day', () => {
-    expect(safeSubline(9_000, 10, 900)).toBe(
-      `เหลืออีก 10 วัน · เฉลี่ยวันละ ${formatBaht(900)}`,
-    )
-  })
-
-  it('drops the daily-average clause when safeToSpend is negative (never clamped)', () => {
-    // over-spent: show the figure as-is and only "N days left", no average
-    expect(safeSubline(-1_500, 10, 0)).toBe('เหลืออีก 10 วัน')
+  // The sub-line's money decision is tested in lib/spendable.test.ts; here we only
+  // check the headline helpers. Negative safe-to-spend shows as-is, never clamped.
+  it('shows a negative safe-to-spend headline as-is (never clamped)', () => {
     expect(safeBig(-1_500, false)).toBe(formatBaht(-1_500))
-  })
-
-  it('drops the daily-average clause once the month is over', () => {
-    expect(safeSubline(5_000, 0, 0)).toBe('เหลืออีก 0 วัน')
   })
 
   it('masks both the headline and the folded figure while hidden', () => {
@@ -124,7 +113,6 @@ function renderHero(over: Partial<WovenHeroProps> = {}) {
   const props: WovenHeroProps = {
     safeToSpend: 9_000,
     daysLeft: 10,
-    dailyAllowance: 900,
     deltaPct: null,
     budgetTotal: 10_000,
     budgetSpending: 4_000,
@@ -188,5 +176,34 @@ describe('WovenHero rendering — hideBalance masks the safe figure everywhere',
     expect(screen.getByText('••••')).toBeTruthy() // masked mini
     expect(screen.queryByText(formatBaht(9_000))).toBeNull() // real figure gone
     expect(screen.getByText('SAFE TO SPEND')).toBeTruthy() // title stays
+  })
+})
+
+describe('WovenHero rendering — SAFE sub-line reflects upcoming bills', () => {
+  it('deducts the bills and shows the after-bills daily rate', () => {
+    renderHero({ safeToSpend: 26_948, upcomingBills: 19_000, daysLeft: 2 })
+    // 26,948 − 19,000 = 7,948 over 2 days = 3,974/day
+    expect(
+      screen.getByText(
+        `เหลืออีก 2 วัน · หักบิลที่จะมาถึง ${formatBaht(19_000)} · ใช้ได้วันละ ${formatBaht(3_974)}`,
+      ),
+    ).toBeTruthy()
+  })
+
+  it('warns when bills exceed the balance — no negative daily rate', () => {
+    renderHero({ safeToSpend: 10_000, upcomingBills: 15_000, daysLeft: 10 })
+    expect(screen.getByText(/เกินยอดที่ใช้ได้/)).toBeTruthy()
+    expect(screen.queryByText(/ใช้ได้วันละ/)).toBeNull()
+  })
+
+  it('keeps the plain average line when there are no bills', () => {
+    renderHero({ safeToSpend: 9_000, daysLeft: 10 })
+    expect(screen.getByText(`เหลืออีก 10 วัน · เฉลี่ยวันละ ${formatBaht(900)}`)).toBeTruthy()
+  })
+
+  it('masks the bill figures on the sub-line while the balance is hidden', () => {
+    renderHero({ safeToSpend: 26_948, upcomingBills: 19_000, daysLeft: 2, hideBalance: true })
+    expect(screen.getByText(/หักบิลที่จะมาถึง ฿ ••••/)).toBeTruthy() // masked figure
+    expect(screen.queryByText(/฿19,000/)).toBeNull() // real figure gone
   })
 })

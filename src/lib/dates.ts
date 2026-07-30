@@ -129,6 +129,24 @@ export function formatRecentDayLabel(iso: string, now: Date = new Date()): strin
 }
 
 /**
+ * Label for a FUTURE occurrence date (the "รอจ่าย" tab): "วันนี้" / "พรุ่งนี้" for
+ * the next two days, otherwise the bare "5 ส.ค." — with the Buddhist-era year
+ * appended only when the date falls in a different year than today. Mirror of
+ * formatRecentDayLabel but forward-looking (พรุ่งนี้, not เมื่อวาน). Reckoned on
+ * Asia/Bangkok YYYY-MM-DD strings throughout, never new Date('YYYY-MM-DD'), so it
+ * can't drift a day in a negative-offset timezone (rule 18 / F-25).
+ */
+export function formatUpcomingDayLabel(iso: string, now: Date = new Date()): string {
+  const today = todayISO(now)
+  const tomorrow = addDaysISO(today, 1)
+  const sameYear = iso.slice(0, 4) === today.slice(0, 4)
+  const label = (sameYear ? thaiDayShort : thaiDayShortYear).format(localDateFromISO(iso))
+  if (iso === today) return `วันนี้ · ${label}`
+  if (iso === tomorrow) return `พรุ่งนี้ · ${label}`
+  return label
+}
+
+/**
  * Days remaining in this month, **including today** (Asia/Bangkok calendar).
  * Today counts because you can still spend today, so the daily-allowance figure
  * (safeToSpend / daysLeft) doesn't jump the moment the clock ticks past midnight.
