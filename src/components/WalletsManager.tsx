@@ -119,11 +119,17 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
           </div>
           <button
             aria-label="แก้ไข"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-fill"
             onClick={() => setForm({ id: w.id, name: w.name, type: w.type })}
           >
             <IconPencil size={16} className="text-faint" />
           </button>
-          <button aria-label="ลบ" disabled={del.isPending} onClick={() => setConfirming(w)}>
+          <button
+            aria-label="ลบ"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-expense-bg disabled:opacity-50"
+            disabled={del.isPending}
+            onClick={() => setConfirming(w)}
+          >
             <IconTrash size={16} className="text-faint" />
           </button>
         </div>

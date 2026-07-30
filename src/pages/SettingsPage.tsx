@@ -12,6 +12,7 @@ import {
   IconSparkles,
   IconStar,
   IconTag,
+  IconUserCircle,
   IconWallet,
   IconWand,
 } from '@tabler/icons-react'
@@ -27,7 +28,7 @@ import { loadAiPrefs, saveAiPrefs, type AiPrefs } from '@/lib/prefs'
 
 export function SettingsPage() {
   const navigate = useNavigate()
-  const { signOut } = useAuth()
+  const { user, signOut } = useAuth()
   const { data: categories } = useCategories()
   const { data: wallets } = useWallets()
   const { data: favorites } = useFavorites()
@@ -57,6 +58,26 @@ export function SettingsPage() {
     <div className="flex min-h-full flex-col">
       <div className="px-[18px] pb-3.5 pt-[18px]">
         <p className="text-[17px] font-medium">ตั้งค่า</p>
+      </div>
+
+      <div className="mx-4 mb-3.5">
+        <div
+          className="woven relative overflow-hidden rounded-card bg-brand-fabric text-brand-thread shadow-card"
+          style={{ height: 84 }}
+        >
+          <span aria-hidden className="selvedge absolute inset-x-0 top-0 h-[6px]" />
+          <span aria-hidden className="selvedge absolute inset-x-0 bottom-0 h-[6px]" />
+          <div className="relative flex h-full items-center justify-between px-[18px]">
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium uppercase tracking-[0.16em] opacity-80">
+                STASH
+              </p>
+              <p className="mt-1 truncate text-[14px] font-medium">{user?.email ?? '—'}</p>
+              <p className="mt-1 text-[11px] opacity-80">ลงชื่อเข้าใช้อยู่</p>
+            </div>
+            <IconUserCircle size={26} className="shrink-0 opacity-70" aria-hidden />
+          </div>
+        </div>
       </div>
 
       <Group title="ทั่วไป">
