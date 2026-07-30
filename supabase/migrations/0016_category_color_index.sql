@@ -26,6 +26,20 @@
 -- statement is idempotent (if-[not-]exists / null-guarded), so the whole file is
 -- safe to re-run after a partial failure.
 --
+-- ── PRE-FLIGHT (run BEFORE the migration — dropping a column can't be undone) ─
+-- plpgsql does NOT check a function body when you drop a column it references —
+-- it breaks the next time that function is CALLED, not when the migration runs.
+-- So before dropping categories.color, prove nothing else depends on it:
+--   select p.proname
+--   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--   where n.nspname = 'public' and p.prosrc ilike '%color%';
+--   -- expect: ONLY seed_defaults_internal (which SECTION 7 rewrites here).
+--   -- anything else in the list → STOP and tell the owner before running this.
+--
+--   select indexname from pg_indexes where tablename = 'categories';
+--   select viewname  from pg_views  where schemaname = 'public';
+--   -- expect: nothing that references the color column.
+--
 -- ── SMOKE TEST (run AFTER commit; must prove it WORKS, not just exists) ──────
 --   -- 1. every row has a colour slot 1–6, none null:
 --   select count(*)                                            as rows,
@@ -50,6 +64,15 @@
 --              (select user_id from public.categories limit 1)
 --            ) between 1 and 6 as picker_ok;      -- expect true
 --   rollback;
+--
+--   -- 6. the REAL create path end to end (omit color_index ⇒ sentinel default 0
+--   --    ⇒ BEFORE INSERT trigger ⇒ CHECK 1–6). Proving the picker alone (5) isn't
+--   --    enough — this is the path every new category takes. Rolled back, no data:
+--   begin;
+--     insert into public.categories (user_id, name, kind)
+--     values ((select user_id from public.categories limit 1), 'ทดสอบสี', 'expense')
+--     returning color_index;                       -- expect 1–6, never 0
+--   rollback;
 -- ============================================================================
 
 
@@ -60,15 +83,18 @@ alter table public.categories add column if not exists color_index smallint;
 
 
 -- ===========================================================================
--- SECTION 2 — backfill color_index. Cycle 1→6 by sort_order WITHIN each user,
--- so neighbouring categories never share a slot. sort_order is not unique per
--- user (income/expense reuse 10/20/30…), so row_number tie-breaks on created_at
--- to stay deterministic. Only fills rows still null → idempotent on re-run.
+-- SECTION 2 — backfill color_index, cycling 1→6 WITHIN each user so neighbours
+-- never share a slot. Order by KIND first: income restarts sort_order at 10, so
+-- ordering by sort_order alone interleaves income and expense and makes the
+-- expense colours skip slots. The donut shows only expense, so grouping by kind
+-- lets the expense set run 1→6 continuously before repeating — a better spread.
+-- sort_order isn't unique per (user, kind) either, so created_at tie-breaks to
+-- stay deterministic. Only fills rows still null → idempotent on re-run.
 -- ===========================================================================
 with ranked as (
   select
     id,
-    (((row_number() over (partition by user_id order by sort_order, created_at)) - 1) % 6 + 1)::smallint
+    (((row_number() over (partition by user_id order by kind, sort_order, created_at)) - 1) % 6 + 1)::smallint
       as ci
   from public.categories
 )
