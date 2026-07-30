@@ -191,14 +191,16 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 7. สีเขียวทำทุกหน้าที่ → แก้ด้วยการ**ย้ายสีแบรนด์ออกจากสีเขียว** (ดู §11.3)
 8. รายการล่าสุด: ชื่อซ้ำกับหมวด · ไม่มีเส้นแบ่งวัน — เป็นบั๊ก **B4** ข้างล่าง
 
-### 11.1 บั๊กจริงในโค้ด (ยืนยันจาก repo @ `c721c2b`)
+### 11.1 บั๊กจริงในโค้ด (ยืนยันจาก repo @ `c721c2b`) — แก้ครบแล้ว
 
-| # | ที่ | อาการ |
-|---|---|---|
-| **B1** | `WalletHero.tsx:123,147` | คิด `ใช้ไปแล้ว`/`%` จาก `summary.expense` ซึ่ง**รวม COGS** — ขัดกฎเงินข้อ 4 · ฐานที่ถูกคือ `isBudgetSpendingRow` (มีใน `ledger.ts` แล้ว) |
-| **B2** | `WalletHero.tsx:149` | `Math.max(0, budgetTotal - expense)` clamp ที่ 0 → เกินงบเท่าไหร่ก็เงียบ · `computePace()` ที่คืน `เกินงบ X ฿` มีอยู่แล้วแต่หน้าแรกไม่เคยเรียก |
-| **B3** | `HomePage.tsx:128` | `summary.donut.slice(0, 3)` — วงแหวนวาดครบทุก slice อยู่แล้ว **ผิดที่ legend อย่างเดียว** |
-| **B4** | `HomePage.tsx:223-225` | หัวแถว `note \|\| category.name` + บรรทัดรอง `category.name · time` → ซ้ำกันเมื่อ note ว่าง · ไม่มีเส้นแบ่งวัน |
+| # | ที่ | อาการ | สถานะ |
+|---|---|---|---|
+| **B1** | `WalletHero.tsx:123,147` | คิด `ใช้ไปแล้ว`/`%` จาก `summary.expense` ซึ่ง**รวม COGS** — ขัดกฎเงินข้อ 4 · ฐานที่ถูกคือ `isBudgetSpendingRow` (มีใน `ledger.ts` แล้ว) | ✅ แก้แล้ว — PR #44 |
+| **B2** | `WalletHero.tsx:149` | `Math.max(0, budgetTotal - expense)` clamp ที่ 0 → เกินงบเท่าไหร่ก็เงียบ · `computePace()` ที่คืน `เกินงบ X ฿` มีอยู่แล้วแต่หน้าแรกไม่เคยเรียก | ✅ แก้แล้ว — PR #44 |
+| **B3** | `HomePage.tsx:128` | `summary.donut.slice(0, 3)` — วงแหวนวาดครบทุก slice อยู่แล้ว **ผิดที่ legend อย่างเดียว** | ✅ แก้แล้ว — PR #45 |
+| **B4** | `HomePage.tsx:223-225` | หัวแถว `note \|\| category.name` + บรรทัดรอง `category.name · time` → ซ้ำกันเมื่อ note ว่าง · ไม่มีเส้นแบ่งวัน | ✅ แก้แล้ว — PR #45 |
+
+> หมายเหตุ: `WalletHero.tsx` (B1/B2) ถูกแทนด้วย `WovenHero` ใน PR #46 แล้ว — ตำแหน่งไฟล์ข้างบนเก็บไว้เป็นบันทึกจุดที่บั๊กเคยอยู่
 
 ### 11.2 คอนเซปต์ฮีโร่ — ป้ายทอคอเสื้อ (woven label)
 
@@ -229,10 +231,10 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 
 ### 11.4 ลำดับงาน
 
-1. **PR-A ชั้นตรรกะ** — เพิ่ม `budgetSpending` (ฐาน `isBudgetSpendingRow`) · `daysLeft` · `dailyAllowance` เข้า `computeHomeSummary` + เทสต์ · แก้ B1/B2 ให้ hero อ่านค่าที่ถูก (ยังไม่แตะหน้าตา)
-2. **PR-B** — B3 legend "อื่นๆ" + B4 เส้นแบ่งวัน/ตัดชื่อซ้ำ (แตะ `HomePage.tsx` อย่างเดียว)
-3. **PR-C token** — สลับ `tailwind.config.ts` เป็นชุดใหม่ทั้งแอป
-4. **PR-D** — `WovenHero` แทน `WalletHero`
-5. **PR-E เอกสาร** — แก้ design-spec §2 เรื่องกฎ flat
+1. **PR-A ชั้นตรรกะ** — เพิ่ม `budgetSpending` (ฐาน `isBudgetSpendingRow`) · `daysLeft` · `dailyAllowance` เข้า `computeHomeSummary` + เทสต์ · แก้ B1/B2 ให้ hero อ่านค่าที่ถูก (ยังไม่แตะหน้าตา) — ✅ merged (PR #44)
+2. **PR-B** — B3 legend "อื่นๆ" + B4 เส้นแบ่งวัน/ตัดชื่อซ้ำ (แตะ `HomePage.tsx` อย่างเดียว) — ✅ merged (PR #45)
+3. **PR-C token** — สลับ `tailwind.config.ts` เป็นชุดใหม่ทั้งแอป — ✅ merged (PR #49)
+4. **PR-D** — `WovenHero` แทน `WalletHero` — ✅ merged (PR #46)
+5. **PR-E เอกสาร** — แก้ design-spec §2 เรื่องกฎ flat + สีชุดคราม — 🔄 PR นี้ (branch `docs/design-spec-material`)
 
 PR-A และ PR-B ไม่ขึ้นกับดีไซน์เลย ทำก่อนได้ทันที และเป็นฐานที่ฮีโร่ใหม่จะอ่านค่าไปใช้
