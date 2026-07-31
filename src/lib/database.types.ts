@@ -822,6 +822,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      debt_share_private: {
+        Args: { p_debt_id: string }
+        Returns: {
+          amount: number
+          cancelled_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          created_by: string
+          creditor_id: string
+          debtor_id: string
+          due_date: string | null
+          id: string
+          reason: string | null
+          rejected_at: string | null
+          rejected_reason: string | null
+          settled_at: string | null
+          settled_by: string | null
+          settlement_transaction_id: string | null
+          status: Database["public"]["Enums"]["debt_status"]
+          updated_at: string
+          visibility: Database["public"]["Enums"]["debt_visibility"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "debts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       friend_debts_summary: {
         Args: never
         Returns: {
