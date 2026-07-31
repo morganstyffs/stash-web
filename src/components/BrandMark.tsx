@@ -39,7 +39,7 @@ export function BrandMark({
   variant = 'full',
   size = 32,
   className,
-  faceClassName = 'text-brand',
+  faceClassName = 'text-dial',
   inkClassName = 'text-white',
   title,
 }: BrandMarkProps) {

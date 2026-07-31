@@ -38,6 +38,10 @@ export default {
         // #5CBFA3). Do NOT "fix" this back out — see design-spec §11.4-1.
         // Re-added 2026-07-31. Value mirrors --color-mint in src/styles/index.css.
         mint: 'rgb(var(--color-mint) / <alpha-value>)',
+        // dial — indigo face of the brand mark (BrandMark faceClassName default).
+        // #4A57B5 on light (same as brand.DEFAULT), lifted on dark so the face
+        // clears 3:1 — mirrors cat.1. Value in src/styles/index.css.
+        dial: 'rgb(var(--color-dial) / <alpha-value>)',
         // semantic (each with a light surface; -soft pairs read on dark bg)
         income: 'rgb(var(--color-income) / <alpha-value>)',
         'income-bg': 'rgb(var(--color-income-bg) / <alpha-value>)',

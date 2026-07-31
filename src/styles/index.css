@@ -29,6 +29,11 @@
        Re-added 2026-07-31 (mint-soft #5CBFA3 = 92 191 163). A brand-constant, so
        it lives in :root only and dark inherits it (like the cat-2..6 slots). */
     --color-mint: 92 191 163;
+    /* dial — the indigo face of the brand mark (BrandMark.tsx via `text-dial`).
+       Same indigo as brand.DEFAULT / cat.1 (#4A57B5) on the light surface, where
+       it clears 3:1 easily. Theme-aware ONLY so it can lift on the dark surface
+       (see html.dark below); mint, the shell, stays constant. */
+    --color-dial: 74 87 181;
     /* category palette (colorblind-checked). One source of truth for the donut
        + category icons; the DB stores a slot 1–6 (categories.color_index), the
        client maps it to these. All ≥3:1 on the light surface. cat.1 shares the
@@ -66,6 +71,10 @@
        a graphical object — so lighten it here (tracks brand-deep dark). cat.2–6
        and cat.other already clear 3:1 on dark, so they inherit the :root values. */
     --color-cat-1: 90 104 201;
+    /* dial: same reason as cat.1 above — #4A57B5 is 2.87:1 on the dark surface, so
+       lift the brand-mark face to 90 104 201 (≥3:1) here. Keeps the mark's centre
+       legible in dark mode; the light value is unchanged. */
+    --color-dial: 90 104 201;
     --shadow-card: 0 3px 14px rgba(0, 0, 0, 0.4);
   }
 
