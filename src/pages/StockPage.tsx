@@ -16,6 +16,7 @@ import { computeStockHero, useStockItems } from '@/hooks/useStock'
 import { useStockSalesSummary } from '@/hooks/useStockSales'
 import { StockEditSheet } from '@/components/StockEditSheet'
 import { formatBaht } from '@/lib/format'
+import { loadStockView, saveStockView, type StockView } from '@/lib/prefs'
 import { daysSince } from '@/lib/dates'
 import type { StockItem } from '@/lib/db'
 
@@ -151,19 +152,6 @@ export function emptyMessage(opts: {
   }
 }
 
-// ── view preference (localStorage, mirrors stash.hideBalance) ─────────────────
-
-type StockView = 'rack' | 'list'
-const VIEW_KEY = 'stash.stockView'
-
-function loadStockView(): StockView {
-  try {
-    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'rack'
-  } catch {
-    return 'rack'
-  }
-}
-
 // ── silhouettes ──────────────────────────────────────────────────────────────
 
 /** Category-guessed clothing silhouette for items with no photo (decoration). */
@@ -257,11 +245,7 @@ export function StockPage() {
 
   function chooseView(next: StockView) {
     setView(next)
-    try {
-      localStorage.setItem(VIEW_KEY, next)
-    } catch {
-      /* ignore quota / privacy-mode errors */
-    }
+    saveStockView(next)
   }
 
   const thumbFor = (it: StockItem) => data?.thumbs[it.photos?.[0] ?? '']

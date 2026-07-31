@@ -50,6 +50,32 @@ export function saveHideBalance(hidden: boolean): void {
   }
 }
 
+// ── stock page view (rack / list) ────────────────────────────────────────────
+// Which layout the คลังสินค้า page last used. Kept here — not inline in
+// StockPage — so every 'stash.*' key lives in one file (same reason as the eye
+// toggle above). Stored as the raw 'rack'/'list' word, unchanged wire format so
+// there's no migration from the previous inline StockPage code.
+export type StockView = 'rack' | 'list'
+
+const STOCK_VIEW_KEY = 'stash.stockView'
+const STOCK_VIEW_DEFAULT: StockView = 'rack'
+
+export function loadStockView(): StockView {
+  try {
+    return localStorage.getItem(STOCK_VIEW_KEY) === 'list' ? 'list' : 'rack'
+  } catch {
+    return STOCK_VIEW_DEFAULT
+  }
+}
+
+export function saveStockView(view: StockView): void {
+  try {
+    localStorage.setItem(STOCK_VIEW_KEY, view)
+  } catch {
+    /* ignore quota / privacy-mode errors */
+  }
+}
+
 // ── home "moments" (new month / first sale) ──────────────────────────────────
 // The last home state we recorded, so we can play a one-off animation when it
 // changes (see useHomeMoments). Device-local by design — see STASH_CONTEXT §
