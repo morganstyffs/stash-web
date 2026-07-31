@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { IconBell, IconChevronLeft, IconChevronRight, IconClock } from '@tabler/icons-react'
+import { IconBell, IconClock } from '@tabler/icons-react'
 import { useCategories } from '@/hooks/useLookups'
 import { useAttentionSignals } from '@/hooks/useAttention'
 import { useDialogA11y } from '@/lib/useDialogA11y'
@@ -15,6 +15,7 @@ import {
 import { useUpcomingBills, type PendingItem } from '@/hooks/useUpcomingBills'
 import { Donut } from '@/components/charts'
 import { WovenHero } from '@/components/WovenHero'
+import { MonthSwitcher } from '@/components/MonthSwitcher'
 import { useMonthBudgetTotal } from '@/hooks/useBudgets'
 import { useStockSalesSummary } from '@/hooks/useStockSales'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
@@ -29,14 +30,13 @@ import {
   addMonthsToKey,
   formatRecentDayLabel,
   formatUpcomingDayLabel,
-  monthAnchorFromKey,
   monthKey,
   parseMonthParam,
 } from '@/lib/dates'
 import { largestRemainderPercents } from '@/lib/percent'
 import { translateError } from '@/lib/errors'
 import { useHideBalance } from '@/hooks/useHideBalance'
-import { formatBaht, formatMonthShort, formatSigned, MASKED_BAHT } from '@/lib/format'
+import { formatBaht, formatSigned, MASKED_BAHT } from '@/lib/format'
 
 interface LegendRow {
   key: string
@@ -301,53 +301,6 @@ export function HomePage() {
       {editingId && (
         <TransactionEditSheet id={editingId} onClose={() => setEditingId(null)} />
       )}
-    </div>
-  )
-}
-
-/**
- * Month stepper that replaces the static "ยินดีต้อนรับกลับ" header text: ‹ ก.ค. 2569 ›.
- * The next arrow is DISABLED (not hidden) on the current month so the ‹ arrow and
- * the label don't shift when you reach today, and so a future month can't be
- * reached. Each arrow is a ≥44px touch target (matched to the bottom nav), pulled
- * back with a negative margin so the 44px hit area doesn't grow the header row.
- */
-function MonthSwitcher({
-  month,
-  isCurrent,
-  onPrev,
-  onNext,
-}: {
-  month: string
-  isCurrent: boolean
-  onPrev: () => void
-  onNext: () => void
-}) {
-  return (
-    <div className="flex items-center gap-0.5">
-      <button
-        type="button"
-        onClick={onPrev}
-        aria-label="ดูเดือนก่อนหน้า"
-        className="-my-[7px] flex h-11 w-11 items-center justify-center text-muted active:text-ink"
-      >
-        <IconChevronLeft size={20} />
-      </button>
-      <span
-        aria-live="polite"
-        className="min-w-[84px] text-center text-[15px] font-medium tabular-nums"
-      >
-        {formatMonthShort(monthAnchorFromKey(month))}
-      </span>
-      <button
-        type="button"
-        onClick={onNext}
-        disabled={isCurrent}
-        aria-label="ดูเดือนถัดไป"
-        className="-my-[7px] flex h-11 w-11 items-center justify-center text-muted active:text-ink disabled:opacity-30"
-      >
-        <IconChevronRight size={20} />
-      </button>
     </div>
   )
 }
