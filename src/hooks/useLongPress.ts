@@ -82,6 +82,12 @@ export function useLongPress(opts: {
   // suppressClick, or a long-press's own pointerUp would re-enable the tap.
   function endPress() {
     clearTimer()
+    // Forget the start point too: without this a pointermove that arrives AFTER
+    // the finger lifts measures from the old coords, trips the tolerance, and
+    // leaves suppressClick set → the NEXT click is swallowed. For keyboard users
+    // (Enter has no pointerdown to reset the flag) that means the press does
+    // nothing once, with nothing to explain it.
+    start.current = null
   }
 
   function onClick() {

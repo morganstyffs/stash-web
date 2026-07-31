@@ -79,4 +79,18 @@ describe('useLongPress', () => {
     vi.advanceTimersByTime(500)
     expect(onLongPress).not.toHaveBeenCalled()
   })
+
+  it('8) a move AFTER the finger lifts does not suppress the next tap', () => {
+    // Desktop: tap a chip with the mouse, then the cursor drifts across it (a
+    // pointermove with no button down). endPress() must forget the start point,
+    // or that stray move measures from the old coords, trips the tolerance, and
+    // swallows the following click — which for keyboard users (Tab back, Enter,
+    // no pointerdown to reset the flag) means the press does nothing once.
+    const { onTap, h } = setup()
+    h().onPointerDown(at(0))
+    h().onPointerUp()
+    h().onPointerMove(at(40))
+    h().onClick()
+    expect(onTap).toHaveBeenCalledTimes(1)
+  })
 })
