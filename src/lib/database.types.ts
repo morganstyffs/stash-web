@@ -288,6 +288,7 @@ export type Database = {
           friend_code: string
           updated_at: string
           user_id: string
+          username: string | null
         }
         Insert: {
           created_at?: string
@@ -295,6 +296,7 @@ export type Database = {
           friend_code: string
           updated_at?: string
           user_id: string
+          username?: string | null
         }
         Update: {
           created_at?: string
@@ -302,6 +304,7 @@ export type Database = {
           friend_code?: string
           updated_at?: string
           user_id?: string
+          username?: string | null
         }
         Relationships: []
       }
@@ -882,7 +885,7 @@ export type Database = {
         }
       }
       friend_request_send: {
-        Args: { p_code: string }
+        Args: { p_username: string }
         Returns: {
           addressee_id: string
           created_at: string
