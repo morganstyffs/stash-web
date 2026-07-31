@@ -57,10 +57,13 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // 'prompt' (not 'autoUpdate'): autoUpdate silently reloads the page the
-      // moment a new SW activates, which can wipe a half-typed entry. Instead
-      // src/components/PwaUpdater.tsx listens via virtual:pwa-register/react and
-      // shows a Toast with a "โหลดใหม่" button so the owner reloads when ready.
+      // 'prompt' (not 'autoUpdate') only so vite-plugin-pwa never injects an
+      // automatic page reload — that could wipe a half-typed entry. Freshness does
+      // NOT depend on a prompt anymore (the old "โหลดใหม่" toast never fired for the
+      // owner across 4 merges): the workbox config below self-activates each new SW
+      // and serves the app shell network-first, so the new version arrives on the
+      // next app open with no tap and no mid-session reload. PwaUpdater now only
+      // registers the SW and surfaces registration errors.
       registerType: 'prompt',
       // Emit as /site.webmanifest and inject its <link> automatically (a single
       // source of truth — no separate static manifest to drift out of sync).
@@ -96,8 +99,43 @@ export default defineConfig({
         // App shell precache. Supabase data is handled by the app-level offline
         // queue (IndexedDB) rather than blanket runtime caching, so writes stay
         // correct offline and sync on reconnect.
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        navigateFallbackDenylist: [/^\/api\//],
+        // ── Root fix for the frozen-version bug ──────────────────────────────
+        // index.html is the ONE file that says which JS bundle to load. Two things
+        // pinned it: it was PRECACHED (so precacheAndRoute served it cache-first for
+        // "/"), and navigateFallback bound navigations to that precache handler. So
+        // once a service worker installed, the whole app was frozen to that build no
+        // matter how fresh the server was — production sat on #66 for 4 merges.
+        //   • Drop html from globPatterns → index.html is no longer precached, so
+        //     precacheAndRoute stops intercepting navigations. (JS/CSS keep their
+        //     content hashes and stay precached — immutable, safe to cache forever.)
+        //   • navigateFallback: undefined → removes the cache-first navigation route.
+        // Navigations then fall through to the NetworkFirst rule below.
+        globPatterns: ['**/*.{js,css,svg,png,woff2}'],
+        navigateFallback: undefined,
+        // Serve the navigation (index.html) NETWORK-FIRST: a returning online client
+        // always gets the newest shell → newest bundle. NetworkFirst falls back to
+        // this cache when the network fails, so the app still opens offline once it
+        // has been loaded online at least once; networkTimeoutSeconds bounds the
+        // wait on a flaky connection. (API/data calls aren't navigations, so this
+        // rule never touches them — they go straight to the network as before.)
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-shell',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 1 },
+            },
+          },
+        ],
+        // Take a new SW live immediately and let it control already-open pages,
+        // instead of parking it in "waiting" behind a prompt the owner never saw.
+        // This does NOT reload the page — combined with network-first above, the
+        // fresh shell lands on the next app open, never over a half-typed entry.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
       },
       devOptions: {
         enabled: false,
