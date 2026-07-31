@@ -441,9 +441,15 @@ export function AddPage() {
       // duplicate — a structural guard, not a timing one. Do NOT touch savedFavSig:
       // the amount change moves the signature, so favSaved falls back to false on
       // its own (PR-28). The user leaves via the back arrow, top-left.
+      // Build the message BEFORE clearing the form, so a later reorder can't
+      // turn it into "บันทึก ฿0 แล้ว". Since save() can only fire once per row
+      // and toasts show one at a time (a new save dismisses the last), the amount
+      // is the one thing that tells a rapid batch of receipts apart — the tap
+      // path (:418) already names its label, so the manual path should too.
+      const savedMessage = `บันทึก ${formatBaht(amount)} แล้ว`
       setAmountStr('')
       setNote('')
-      showSavedToast('บันทึกรายการแล้ว', row.id)
+      showSavedToast(savedMessage, row.id)
     } catch (e) {
       toast.error(translateError(e))
     }
@@ -589,19 +595,25 @@ export function AddPage() {
 
         {/* amount + 000 / ล้าง (stacked to the right, number stays centred) */}
         <div className="relative px-4 pb-2.5 pt-0.5 text-center">
-          {/* aria-live so a keyboard-driven amount is announced even though nothing
-              is focused; aria-label gives a clean money reading ("1,234.00 บาท")
-              instead of the char-split ฿ / int / dec spans below it. */}
+          {/* Amount for the EYE — hidden from AT entirely, because it's split
+              into ฿ / integer / decimal spans that read aloud as gibberish. An
+              aria-label here would be ignored: ARIA prohibits name-from-author on
+              a <p>'s implicit "paragraph" role, so screen readers spoke the raw
+              spans anyway — the very thing this was meant to avoid. */}
           <p
-            aria-live="polite"
-            aria-atomic="true"
-            aria-label={`${ariaAmountFmt.format(amount)} บาท`}
+            aria-hidden="true"
             className="text-[40px] font-medium tracking-[-1px]"
           >
             <span className="text-[26px] text-muted">฿</span>
             {intDisplay}
             <span className="text-muted">{decSuffix}</span>
           </p>
+          {/* Amount for the EAR — a real live region that reads as one money
+              value. Needed because typing from the keyboard (PR-29) focuses
+              nothing, so the screen reader stays silent without this. */}
+          <span className="sr-only" aria-live="polite" aria-atomic="true">
+            {`${ariaAmountFmt.format(amount)} บาท`}
+          </span>
           <div className="absolute right-4 top-1/2 flex -translate-y-1/2 flex-col gap-1.5">
             <button
               type="button"
