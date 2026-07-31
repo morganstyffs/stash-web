@@ -5,17 +5,19 @@ import { monthBounds } from '@/lib/dates'
 import type { TransactionType } from '@/lib/db'
 
 /**
- * The four columns the entry hints are computed from — a deliberately tiny
- * payload, kept separate from `useMonthTransactions`/`MonthRow` so adding a
- * column here can never widen that query or ripple into `computeHomeSummary`'s
- * tests. The guessing lives entirely in `lib/entryHints.ts`; this hook only
- * fetches (§3: DB → lib → hooks → UI).
+ * The columns the entry hints are computed from — a deliberately tiny payload,
+ * kept separate from `useMonthTransactions`/`MonthRow` so adding a column here
+ * can never widen that query or ripple into `computeHomeSummary`'s tests. The
+ * guessing lives entirely in `lib/entryHints.ts`; this hook only fetches
+ * (§3: DB → lib → hooks → UI). `amount` feeds the "unusually high amount" hint
+ * (PR-35) — the wallet/category guesses ignore it.
  */
 export interface HintRow {
   type: TransactionType
   category_id: string | null
   wallet_id: string | null
   date: string
+  amount: number
 }
 
 /**
@@ -38,7 +40,7 @@ export function useEntryHints() {
     queryFn: async (): Promise<HintRow[]> => {
       const { data, error } = await supabase
         .from('transactions')
-        .select('type, category_id, wallet_id, date')
+        .select('type, category_id, wallet_id, date, amount')
         .gte('date', monthBounds().prevStart)
       if (error) throw error
       return data ?? []

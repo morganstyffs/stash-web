@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   IconAlertCircle,
+  IconAlertTriangle,
   IconArrowLeft,
   IconBackspace,
   IconCalendar,
@@ -20,7 +21,7 @@ import { CategoriesManager } from '@/components/CategoriesManager'
 import { FavoritesManager } from '@/components/FavoritesManager'
 import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
-import { preferredWalletFor, topCategories } from '@/lib/entryHints'
+import { preferredWalletFor, topCategories, unusualAmountBaseline } from '@/lib/entryHints'
 import { formatBaht, formatDayShort } from '@/lib/format'
 import { todayISO } from '@/lib/dates'
 import { translateError } from '@/lib/errors'
@@ -308,6 +309,12 @@ export function AddPage() {
   const amount = Number(amountStr || '0')
   const reason = saveBlockedReason(amount, categoryId)
   const canSave = reason == null && !add.isPending
+
+  // A gentle "did you add a zero?" nudge — the typical (median) amount for this
+  // category when the entry is ≥10× it, else null. Derived from the same `hints`
+  // already loaded for the wallet/category guesses; it only WARNS, never gates
+  // canSave/save (§2 of PR-35). Recomputes as the keypad drives `amount`.
+  const unusualBaseline = unusualAmountBaseline(hints, categoryId, type, amount)
 
   const selectedCat = categories.find((c) => c.id === categoryId)
   const pendingFavName = favoriteLabel(selectedCat?.name, amount > 0 ? amount : null)
@@ -635,6 +642,26 @@ export function AddPage() {
             </button>
           </div>
         </div>
+
+        {/* unusually-high-amount nudge — sits right under the amount, where the
+            eye already is when a stray zero gets keyed, and above the category
+            row. Icon + text (never colour alone, B14), same warn tone as the
+            can't-save reason bar, and role="status" so a screen reader announces
+            it. It only warns: the save button stays fully enabled (§2 of PR-35).
+            Lives in the scrolling zone, so it never pushes the pinned keypad. */}
+        {unusualBaseline != null && (
+          <div className="px-4 pb-2.5">
+            <div
+              role="status"
+              className="flex items-center gap-1.5 rounded-input bg-warn-bg px-3 py-2 text-[12px] font-medium text-warn-ink"
+            >
+              <IconAlertTriangle size={15} className="shrink-0" />
+              <span>
+                หมวดนี้ปกติราว {formatBaht(unusualBaseline)} — ยอดนี้สูงกว่ามาก ตรวจสอบอีกครั้ง
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* ใช้บ่อย — a shortcut row of the most-used categories, ABOVE the full
             list. It never reorders the list below; a tap here runs the same
