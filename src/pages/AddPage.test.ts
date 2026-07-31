@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   favoriteLabel,
   favoriteSignature,
+  isEntrySelectableCategory,
   saveBlockedReason,
   pressKey,
   keypadActionFromKey,
@@ -15,6 +16,47 @@ const keyEvent = (over: Partial<Parameters<typeof keypadActionFromKey>[0]>) => (
   metaKey: false,
   altKey: false,
   ...over,
+})
+
+describe('isEntrySelectableCategory — which categories a manual entry may pick', () => {
+  const cat = (over: Partial<Parameters<typeof isEntrySelectableCategory>[0]>) => ({
+    kind: 'expense' as const,
+    is_stock_category: false,
+    system_key: null,
+    ...over,
+  })
+
+  it('keeps a plain category of the matching kind', () => {
+    expect(isEntrySelectableCategory(cat({ kind: 'expense' }), 'expense')).toBe(true)
+    expect(isEntrySelectableCategory(cat({ kind: 'income' }), 'income')).toBe(true)
+    // shop categories are ordinary user categories (is_shop_category isn't a
+    // reason to hide them — you log ค่าส่ง by hand): they stay selectable
+    expect(isEntrySelectableCategory(cat({ kind: 'expense' }), 'expense')).toBe(true)
+  })
+
+  it('drops categories of the other kind', () => {
+    expect(isEntrySelectableCategory(cat({ kind: 'income' }), 'expense')).toBe(false)
+  })
+
+  it('drops stock-intake categories', () => {
+    expect(isEntrySelectableCategory(cat({ is_stock_category: true }), 'expense')).toBe(false)
+  })
+
+  it('drops the four system categories that only come from their own flows', () => {
+    expect(isEntrySelectableCategory(cat({ system_key: 'stock_cogs' }), 'expense')).toBe(false)
+    expect(
+      isEntrySelectableCategory(cat({ kind: 'expense', system_key: 'debt_repayment_expense' }), 'expense'),
+    ).toBe(false)
+    expect(
+      isEntrySelectableCategory(cat({ kind: 'income', system_key: 'debt_repayment_income' }), 'income'),
+    ).toBe(false)
+  })
+
+  it('drops stock_sale_income — a resale must be sold on the stock screen, not booked by hand', () => {
+    expect(
+      isEntrySelectableCategory(cat({ kind: 'income', system_key: 'stock_sale_income' }), 'income'),
+    ).toBe(false)
+  })
 })
 
 describe('favoriteLabel (B11 — distinguishable default names)', () => {

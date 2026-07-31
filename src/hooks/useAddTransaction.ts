@@ -34,6 +34,7 @@ interface InsertedRow {
   is_stock_purchase: boolean
   is_stock_cogs: boolean
   is_debt_settlement: boolean
+  is_shop_operating: boolean
   category: { name: string; icon: string; color_index: number } | null
 }
 
@@ -58,6 +59,7 @@ function toMonthRow(row: InsertedRow): MonthRow {
     is_stock_purchase: row.is_stock_purchase,
     is_stock_cogs: row.is_stock_cogs,
     is_debt_settlement: row.is_debt_settlement,
+    is_shop_operating: row.is_shop_operating,
   }
 }
 
@@ -93,7 +95,7 @@ export function useAddTransaction() {
           date: input.date ?? todayISO(),
         })
         .select(
-          'id, type, amount, date, note, created_at, category_id, is_stock_purchase, is_stock_cogs, is_debt_settlement, category:categories(name, icon, color_index)',
+          'id, type, amount, date, note, created_at, category_id, is_stock_purchase, is_stock_cogs, is_debt_settlement, is_shop_operating, category:categories(name, icon, color_index)',
         )
         .single()
       if (error) throw error

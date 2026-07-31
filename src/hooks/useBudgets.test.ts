@@ -89,25 +89,27 @@ describe('computeBudgetSummary — remaining compares like with like (B5)', () =
   })
 })
 
-describe('budget spending excludes COGS + debt settlements (isBudgetSpendingRow)', () => {
-  // Mirrors useMonthSpending: budget spend = expense, not a stock purchase,
-  // NOT recognised COGS, and NOT a debt settlement. A resale's cost of goods and
-  // a debt repayment must never eat the budget.
+describe('budget spending excludes COGS + debt settlements + shop costs (isBudgetSpendingRow)', () => {
+  // Mirrors useMonthSpending's SQL: budget spend = expense, not a stock purchase,
+  // NOT recognised COGS, NOT a debt settlement, and NOT a shop operating cost. A
+  // resale's cost of goods, a debt repayment, and running the shop must never eat
+  // the personal budget.
   type BudgetRow = LedgerRow & { amount: number }
   const rows: BudgetRow[] = [
     { type: 'expense', amount: 500 }, // normal spend → counts
     { type: 'expense', is_stock_cogs: true, stock_item_id: 'x', amount: 700 }, // COGS → excluded
     { type: 'expense', is_debt_settlement: true, amount: 400 }, // debt repayment → excluded
+    { type: 'expense', is_shop_operating: true, amount: 250 }, // ค่าส่ง (ถังที่ 2) → excluded
     { type: 'expense', is_stock_purchase: true, amount: 3_000 }, // intake → excluded
     { type: 'income', amount: 9_000 }, // income → excluded
   ]
 
   it('only the plain expense is counted', () => {
-    expect(rows.map(isBudgetSpendingRow)).toEqual([true, false, false, false, false])
+    expect(rows.map(isBudgetSpendingRow)).toEqual([true, false, false, false, false, false])
   })
 
-  it('summing budget spend ignores the COGS + debt-settlement baht entirely', () => {
+  it('summing budget spend ignores COGS + debt + shop baht entirely', () => {
     const total = rows.filter(isBudgetSpendingRow).reduce((sum, r) => sum + r.amount, 0)
-    expect(total).toBe(500) // NOT + 700 (COGS), + 400 (debt), or + 3000 (intake)
+    expect(total).toBe(500) // NOT + 700 (COGS), + 400 (debt), + 250 (shop), or + 3000 (intake)
   })
 })

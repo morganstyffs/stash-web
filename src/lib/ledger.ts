@@ -9,6 +9,12 @@ export interface LedgerRow {
   is_stock_purchase?: boolean
   is_stock_cogs?: boolean
   is_debt_settlement?: boolean
+  /** shop operating cost/income (ถังที่ 2). Copied onto the row by a DB trigger
+   *  from the category's is_shop_category flag (0026); never written by the
+   *  client. Optional here so display-only row shapes that don't select it
+   *  (history/edit sheet, used only for lock indicators) still satisfy LedgerRow.
+   */
+  is_shop_operating?: boolean
   stock_item_id?: string | null
 }
 
@@ -30,12 +36,16 @@ export function isSpendingRow(r: LedgerRow): boolean {
 }
 
 /**
- * Spending that counts against category budgets — like isSpendingRow but COGS
- * and debt settlements are excluded (a resale's cost, and paying back a debt
- * you already owed, are not discretionary budgeted spending this month).
+ * Spending that counts against category budgets — like isSpendingRow but COGS,
+ * debt settlements, AND shop operating costs are excluded. A resale's cost,
+ * paying back a debt you already owed, and running the shop (ถังที่ 2 — ค่าส่ง /
+ * บรรจุภัณฑ์ / ค่าธรรมเนียม / การตลาด) are all real money out (still in
+ * isSpendingRow → the home headline) but none is discretionary personal budgeted
+ * spending. is_shop_operating is a DB-derived flag (0026); the same rule is
+ * mirrored server-side in useMonthSpending's query.
  */
 export function isBudgetSpendingRow(r: LedgerRow): boolean {
-  return isSpendingRow(r) && !r.is_stock_cogs && !r.is_debt_settlement
+  return isSpendingRow(r) && !r.is_stock_cogs && !r.is_debt_settlement && !r.is_shop_operating
 }
 
 /** Transaction created by an intake PURCHASE (managed on the stock screen). */

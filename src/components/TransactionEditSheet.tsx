@@ -64,8 +64,12 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
     // ผูกกับ id ไม่ใช่ object: refetch-on-focus จะรัน effect ซ้ำแล้วทับสิ่งที่ผู้ใช้พิมพ์ค้างไว้
   }, [tx?.id])
 
+  // Exclude stock-intake categories and 'ขายสต็อก' (stock_sale_income): a plain
+  // row must not be re-categorised into a resale income that has no paired COGS
+  // and never reaches stock_sales (see AddPage). Sale-linked rows are locked
+  // anyway; this closes the same hole for editing an ordinary row.
   const categories = (catsQ.data ?? []).filter(
-    (c) => tx && c.kind === tx.type && !c.is_stock_category,
+    (c) => tx && c.kind === tx.type && !c.is_stock_category && c.system_key !== 'stock_sale_income',
   )
   const wallets = walletsQ.data ?? []
 

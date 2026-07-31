@@ -44,11 +44,15 @@ export function FavoritesManager({ onClose }: { onClose: () => void }) {
   const [confirming, setConfirming] = useState<Favorite | null>(null)
 
   // categories selectable for the chosen kind (stock categories excluded — they
-  // have their own intake flow, not a quick-add favorite).
+  // have their own intake flow, not a quick-add favorite). 'ขายสต็อก'
+  // (stock_sale_income) is excluded too: a fast-label into it would let a resale
+  // be booked without a paired COGS and outside stock_sales (see AddPage).
   const options = useMemo(
     () =>
       form
-        ? (categories ?? []).filter((c) => c.kind === form.type && !c.is_stock_category)
+        ? (categories ?? []).filter(
+            (c) => c.kind === form.type && !c.is_stock_category && c.system_key !== 'stock_sale_income',
+          )
         : [],
     [categories, form],
   )

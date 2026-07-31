@@ -57,7 +57,7 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 |---|---|
 | `src/lib/database.types.ts` | **generated — ห้ามแก้มือ** (มาจาก workflow `types-drift`) |
 | `src/lib/db.ts` | type alias ระดับแอป (derive จาก generated) รวม `Profile`/`FriendConnection`/`Debt`/`DebtEvent`/`FriendDebtsSummary` |
-| `src/lib/ledger.ts` | predicate กลาง: `isSpendingRow`/`isBudgetSpendingRow` (`is_debt_settlement`) + **`lockedRowInfo()`** แนวคิด "แถวล็อก" ที่เดียว (§5, §11.4-13) |
+| `src/lib/ledger.ts` | predicate กลาง: `isSpendingRow`/`isBudgetSpendingRow` (ตัด `is_stock_cogs`/`is_debt_settlement`/`is_shop_operating`) + **`lockedRowInfo()`** แนวคิด "แถวล็อก" ที่เดียว (§5, §11.4-13/25) |
 | `src/lib/txCache.ts` | **ใหม่** — `insertRecent()`/`insertMonth()` เติมแถวที่เพิ่ง insert ลง cache หน้าแรก (pure, structural) · **ไม่ใช่ optimistic update** (§11.4-16) |
 | `src/lib/txRestore.ts` | **ใหม่** — `buildRestoreInsert()` สร้าง payload คืนแถวที่เพิ่งลบ (undo) ด้วย `id`+`created_at` เดิม · โยน error ถ้าเป็นแถวล็อกผ่าน `lockedRowInfo()` (§11.4-18) |
 | `src/lib/debtsSummary.ts` | pure function สรุปยอดค้าง: `computeDebtsHeadline` (หน้ารวม) + `computeFriendLedger` (รายคน) — จัดกลุ่มยอด ห้ามรวมข้ามกลุ่ม (§11.6) |
@@ -92,6 +92,7 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 3. `safeToSpend = income − expense` — ไม่ต้องมี accumulator แยกสำหรับ COGS
 4. **COGS นับใน headline เงินออก + donut ตามปกติ แต่ตัดออกจาก budget** (budget คุมค่าใช้จ่ายส่วนตัว ไม่ใช่ต้นทุนสินค้า)
 5. **การเคลียร์ยอดค้าง (`is_debt_settlement=true`) เหมือน COGS:** นับใน headline (`isSpendingRow`/income) แต่ตัดออกจาก budget (`isBudgetSpendingRow` — `src/lib/ledger.ts`)
+5b. **ค่าดำเนินร้าน (`is_shop_operating=true`) เหมือน COGS/เคลียร์ยอดค้าง:** นับใน headline แต่ตัดออกจาก budget (ถังที่ 2 ของบัญชีร้าน — ค่าส่ง/บรรจุภัณฑ์/ค่าธรรมเนียม/การตลาด + ค่าส่งที่เก็บจากลูกค้าฝั่งรายรับ · 0026) · **`is_shop_operating` เป็น derived column บน `transactions` เขียนโดย trigger เท่านั้น** — คัดลอกจากป้าย `categories.is_shop_category` ที่ผู้ใช้ติด (client ห้ามส่งค่า) · กติกา budget mirror สองที่: `isBudgetSpendingRow` (client) + `.eq('is_shop_operating', false)` ใน `useMonthSpending` (SQL)
 6. เงินทุกตัว**คำนวณใน SQL เป็น numeric** ห้ามคำนวณใน JS แล้วส่งเข้ามา (แต่ **รวมยอดเพื่อแสดงผล** ใน pure function ของ `lib/` ได้ เช่น `computeHomeSummary`/`computeFriendLedger` — ห้ามเขียนกลับ DB)
 7. **ขายขาดทุนได้** — สองแถว ledger ยังเป็นบวก มีแค่ `stock_sales.profit` ที่ติดลบ
 8. `cost_at_sale` snapshot ต้นทุน/ชิ้น ณ วันขาย → แก้ `cost_per_unit` ทีหลังไม่กระทบกำไรที่รับรู้ไปแล้ว
@@ -148,24 +149,25 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 
 `seed_defaults_internal(uid)` สร้างค่าเริ่มต้น · **3 wallets** (ไม่มีคอลัมน์ `balance`) · **1 แถว `stock_sku_config`** · **1 แถว `profiles`** (`display_name` จากชื่อก่อน `@` ของอีเมล · `friend_code` สุ่มผ่าน `generate_friend_code()` · **`username` = null** ตั้งเองทีหลัง)
 
-**หมวดหมู่ (categories): 13 หมวด** — reproduce ล่าสุดใน **`0017_debts_summary_visibility.sql` SECTION 2** (0015→0016→0017 เขียนทับต่อกัน) → **ตัวถัดไปต้อง reproduce จาก `0017` ไม่ใช่ 0016** คอลัมน์ที่ seed: `user_id, name, kind, is_stock_category, is_system, system_key, icon, color_index, sort_order`
-- expense 9: อาหาร · เดินทาง · ช้อปปิ้ง · บิล/ค่าบ้าน · บันเทิง · เสื้อเข้าร้าน (stock) · รองเท้าเข้าร้าน (stock) · ต้นทุนขายสต็อก (`stock_cogs`) · **จ่ายคืนเพื่อน (`debt_repayment_expense`)**
-- income 4: เงินเดือน · ฟรีแลนซ์ · ขายสต็อก (`stock_sale_income`) · **ได้รับคืนจากเพื่อน (`debt_repayment_income`)**
+**หมวดหมู่ (categories): 18 หมวด** — reproduce ล่าสุดใน **`0026_shop_categories.sql` SECTION 6** (0015→0016→0017→0026 เขียนทับต่อกัน) → **ตัวถัดไปต้อง reproduce จาก `0026` ไม่ใช่ 0017** คอลัมน์ที่ seed: `user_id, name, kind, is_stock_category, is_shop_category, is_system, system_key, icon, color_index, sort_order`
+- expense 13: อาหาร · เดินทาง · ช้อปปิ้ง · บิล/ค่าบ้าน · บันเทิง · เสื้อเข้าร้าน (stock) · รองเท้าเข้าร้าน (stock) · ต้นทุนขายสต็อก (`stock_cogs`) · จ่ายคืนเพื่อน (`debt_repayment_expense`) · **ค่าส่ง · บรรจุภัณฑ์ · ค่าธรรมเนียมขาย · การตลาด (ทั้ง 4 = `is_shop_category`)**
+- income 5: เงินเดือน · ฟรีแลนซ์ · ขายสต็อก (`stock_sale_income`) · ได้รับคืนจากเพื่อน (`debt_repayment_income`) · **ค่าส่งที่เก็บจากลูกค้า (`is_shop_category`)**
 
 > **ชื่อหมวดยอดค้างถูกเปลี่ยนใน 0017 ให้เลี่ยงคำว่า "หนี้"** — เดิม 0015/0016 คือ "จ่ายชำระหนี้"/"ได้รับชำระหนี้" ตอนนี้เป็น "จ่ายคืนเพื่อน"/"ได้รับคืนจากเพื่อน" (§11.4-14) · **แต่ข้อความ error ในตัว RPC 0015 ยังใช้คำว่า "หนี้/เจ้าหนี้/ลูกหนี้" อยู่** = หนี้ที่รู้ตัว (§10)
 
 **`categories` (หลัง 0016, ยืนยันจาก `database.types.ts`):**
 - `color_index smallint 1–6 NOT NULL` (DB เลือก slot ว่างก่อนผ่าน trigger — §6) · **`categories.color` ถูก DROP แล้ว** (DB เก็บ "ความหมาย" client เก็บ "หน้าตา" — §11.4-3)
 - `icon text NOT NULL default 'tag'` · **ไม่มี check constraint ชื่อไอคอน** (`lib/icons.tsx` fallback เป็นไอคอนป้าย — §11.4-4)
+- `is_shop_category boolean NOT NULL default false` (0026) — ป้ายร้าน (ถังที่ 2) · **CHECK `not (is_shop_category and (is_system or is_stock_category))`** — หมวดระบบ/ซื้อเข้าสต็อกติดป้ายร้านไม่ได้ · ติด/ถอดที่ `CategoriesManager` (toggle "ร้าน" ทั้ง income+expense) → trigger คัดลอกลง `transactions.is_shop_operating`
 
 | system_key | หมวด | ลบได้ | เห็นในหน้ากรอกมือ |
 |---|---|---|---|
-| `stock_sale_income` | ขายสต็อก (income) | ไม่ได้ | **เห็น** (เผื่อขายนอกระบบสต็อก) |
+| `stock_sale_income` | ขายสต็อก (income) | ไม่ได้ | **ซ่อน** (0026 — กลับคำ: เดิมเห็น · ขายมือไม่มี COGS คู่ + ไม่เข้า stock_sales → กำไรร้านเพี้ยน) |
 | `stock_cogs` | ต้นทุนขายสต็อก (expense) | ไม่ได้ | ซ่อน |
 | `debt_repayment_income` | ได้รับคืนจากเพื่อน (income) | ไม่ได้ | ซ่อน (มาจาก `debt_settle`) |
 | `debt_repayment_expense` | จ่ายคืนเพื่อน (expense) | ไม่ได้ | ซ่อน (มาจาก `debt_settle`) |
 
-**resolve หมวด system ด้วย `system_key` เท่านั้น ห้าม match ด้วยชื่อไทย** — ผู้ใช้เปลี่ยนชื่อหมวดได้ · ยกเว้น backfill ครั้งเดียวใน migration ใช้ชื่อได้ · การกรองหมวดยอดค้างออกจากหน้ากรอกมืออยู่ที่ `AddPage.tsx` (กรอง `stock_cogs`/`debt_repayment_income`/`debt_repayment_expense`)
+**resolve หมวด system ด้วย `system_key` เท่านั้น ห้าม match ด้วยชื่อไทย** — ผู้ใช้เปลี่ยนชื่อหมวดได้ · ยกเว้น backfill ครั้งเดียวใน migration ใช้ชื่อได้ · การกรองหมวด system ออกจากหน้ากรอกมือ: `AddPage` ใช้ `isEntrySelectableCategory` (กรอง `stock_cogs`/`stock_sale_income`/`debt_repayment_income`/`debt_repayment_expense` + `is_stock_category`) · `Favorites`/`Recurring`/`TransactionEditSheet` เดิมกรองแค่ `is_stock_category` — 0026 เพิ่มเฉพาะ `stock_sale_income` (ไม่แตะ scope เดิมของสามไฟล์นั้น)
 
 ---
 
@@ -196,6 +198,7 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 18. 1 PR = 1 เรื่อง แตกจาก main ล่าสุด ไม่ stack · เช็คก่อน push ว่า PR ยังเปิดอยู่ · PR ที่ merge แล้ว = เริ่ม branch ใหม่จาก main
 19. **สีต้องมาจาก token** ห้ามใส่ hex ดิบใหม่ใน `src/` · ค่าสีจริงเป็นแหล่งความจริงที่ `tailwind.config.ts` + `src/styles/index.css` เท่านั้น **ห้ามคัดลอกเลข hex มาไว้ที่อื่น (รวมถึงเอกสารนี้)** · `theme-color`/`manifest.theme_color` ต้อง mirror ค่าจากพาเลตต์พร้อมคอมเมนต์
 20. **คำที่ห้ามบนหน้าจอ** (§11.4-14): หนี้ · เจ้าหนี้ · ลูกหนี้ · เรียกเก็บ · ทวง — ชื่อในฐานข้อมูล/โค้ดยังเป็น `debt*` ตั้งใจ
+21. **`transactions.is_shop_operating` เป็น derived column เขียนโดย trigger เท่านั้น** (0026) — client ห้ามส่งค่านี้ใน insert/update · แหล่งความจริงคือป้าย `categories.is_shop_category` · แก้ป้ายแล้ว trigger ไล่อัปเดตแถวเก่า → **ตัวเลขเดือนก่อนขยับได้ ตั้งใจ** (§11.4-25)
 
 ---
 
@@ -223,7 +226,8 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 
 ## 10. สถานะปัจจุบัน
 
-**ไฟล์ migration ในสาขานี้: `0001`–`0025`** (ล่าสุด `0025_sku_prefix_only.sql`) — ทุกฟังก์ชัน/ตารางใน `database.types.ts` มีไฟล์ migration รองรับครบ (ตรวจ cross-check แล้ว ไม่มี "อยู่ใน types แต่ไม่มีไฟล์")
+**ไฟล์ migration ในสาขานี้: `0001`–`0026`** (ล่าสุด `0026_shop_categories.sql`) — ทุกฟังก์ชัน/ตารางใน `database.types.ts` มีไฟล์ migration รองรับครบ (ตรวจ cross-check แล้ว ไม่มี "อยู่ใน types แต่ไม่มีไฟล์")
+`0026` = **หมวดร้าน (ถังที่ 2 บัญชีร้าน)** — `categories.is_shop_category` (ป้ายผู้ใช้ + CHECK กันติดบนหมวดระบบ/สต็อก) · `transactions.is_shop_operating` (derived เขียนโดย trigger) · trigger 1 คัดลอกป้ายลงตัวรายการ (BEFORE INSERT/UPDATE) · trigger 2 ไล่อัปเดตแถวเก่าเมื่อป้ายเปลี่ยน (AFTER UPDATE OF บน categories) · seed 18 หมวด (+ค่าส่ง/บรรจุภัณฑ์/ค่าธรรมเนียมขาย/การตลาด/ค่าส่งที่เก็บจากลูกค้า) · ปิดการกรอก `stock_sale_income` ด้วยมือ (§11.4-25/26)
 `0015` = ยอดค้าง (tables+RPC+`is_debt_settlement`) · `0016` = `color_index` 1–6 + DROP `categories.color` · `0017` = `friend_debts_summary` แยก private/shared + rename หมวดยอดค้าง + seed 13 หมวด · `0018` = `debt_share_private` + reproduce `debt_cancel` · `0019` = fix cast enum ใน `debt_create` · `0020` = `username` (+ trigger set-once) · `0021` = `debt_settle_many` · `0022` = `transactions_search` (RPC ค้นหา note+หมวด+ยอด + window-aggregate totals) + index `transactions_user_page_idx` · `0023` = เพิ่มตัวกรองเดือนให้ `transactions_search` (PR-36) · `0024` = เพิ่มตัวกรอง `category_id` ให้ `transactions_search` (PR-37) · **`0025` = SKU แบบ prefix-only `{PREFIX}-{SEQ}` — DROP คอลัมน์แบรนด์ (`use_brand_code`/`brand_len`/`seq_digits`/`separator`) · `stock_sku_build(prefix,seq)` · `stock_sku_preview()` ไม่มีอาร์กิวเมนต์ · `stock_intake_create` เลิกรับ `p_brand_code` · CHECK prefix `^[A-Z0-9]{3}$` · ตัวนับเริ่ม 0**
 
 > **หมายเหตุ:** ก่อน `0025` เอกสารนี้ค้างอยู่ที่ `0022` — `0023`/`0024` (PR-36/PR-37) เข้ามาระหว่างนั้นโดยไม่ได้อัปเดตหัวข้อนี้ · §12 (main sha, จำนวน RPC/เทสต์) ยังอิงสแนปช็อตเก่า `eba4891` ยังไม่ประกอบใหม่ทั้งฉบับ
@@ -232,7 +236,7 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 Home `/` · History `/history` · **Debts `/debts`** · **FriendHistory `/debts/friend/:friendId`** · Stock `/stock` · StockIntake `/stock/intake` · StockQueue `/stock/queue` · Budget `/budget` · Settings `/settings` · Login `/login` · ForgotPassword `/forgot-password` · ResetPassword `/reset-password` · Add `/add`
 (`/add`, `/stock/intake`, `/stock/queue` อยู่ใต้ `RequireAuth` แต่นอก `AppLayout` = เต็มจอ ไม่มี bottom nav · bottom nav มี 6 ช่อง)
 
-**เทสต์ (จากการรัน `npm test` จริง): 254 เคส / 28 ไฟล์ — ผ่าน 249 · skip 5**
+**เทสต์ (จากการรัน `npm test` จริง หลัง 0026): 325 เคส / 36 ไฟล์ — ผ่าน 320 · skip 5** (5 ที่ skip = visual guard นอก CI ตามปกติ · §9)
 - **5 ที่ skip คือ guard เบราว์เซอร์จริงทั้งหมด** (ดูด้านล่าง) — `ctx.skip()` นอก CI เพราะ Chromium/CSS ไม่พร้อม (§9) · **ในเครื่องจึงพิสูจน์ guard พวกนี้ไม่ได้ ต้องรอ CI**
 
 **Guard เบราว์เซอร์จริง (Playwright + Chromium, 5 ไฟล์ `*.visual.test.*`):** ทุกตัวใช้ `visual-harness.ts` launch Chromium (`executablePath = CHROMIUM_EXECUTABLE`) แล้วเรนเดอร์ด้วย CSS จริงจาก `dist/` · **กติกา:** ถ้า Chromium/CSS ไม่พร้อม — **ใน CI (`process.env.CI`) → throw (fail) · นอก CI → `ctx.skip()`** (ไม่ให้ dev เผลอเข้าใจว่าเขียวทั้งที่ไม่ได้รัน)
@@ -329,6 +333,12 @@ Home `/` · History `/history` · **Debts `/debts`** · **FriendHistory `/debts/
 
 23. **ตัดท่อนแบรนด์ออกจาก SKU** (เดิม `STZ-GEN-0002` → เหลือ `STZ-0002`) — แบรนด์ไทยแปลงเป็น code ละตินไม่ได้ ของส่วนใหญ่เลยกองรวมกันที่ท่อน `GEN` ซึ่งไม่ได้ให้ข้อมูลอะไร · SKU ทำหน้าที่แค่เป็นเลขอ้างอิงที่ไม่ซ้ำ ไม่ต้องอ่านออกความหมาย (ป้ายติดอยู่กับตัวของอยู่แล้ว แบรนด์อยู่ในฟิลด์ `brand` ของสินค้า ไม่หาย) · คอลัมน์ format ที่ไม่มีใครใช้ (`use_brand_code`/`brand_len`/`seq_digits`/`separator`) **drop ทิ้ง ไม่ปล่อยเป็นคอลัมน์ตาย** เพราะยังไม่มีข้อมูลจริงในระบบ
 24. **ตัวนับ SKU ผูกกับ user ไม่ผูกกับ prefix** — ถ้าผูกกับ prefix การเปลี่ยน `STZ`→`ABC`→`STZ` จะทำให้เลขนับกลับมาชนของเดิม (`STZ-0000` ซ้ำ) · ผูกกับ user แล้วตัวนับเดินหน้าอย่างเดียวไม่ว่า prefix เปลี่ยนกี่รอบ (`STZ-0042` → `ABC-0043`) · เพราะงั้นการแก้ prefix จึงปลอดภัยและให้แก้ได้ตลอด (มีผลกับของใหม่เท่านั้น) · preview (`stock_sku_preview` = STABLE) **ไม่จองเลข** เลขจริงออกตอนกดบันทึกในทรานแซกชันที่ row-lock config → ถ้อยคำบนหน้ารับเข้าต้องเป็น "โดยประมาณ" ไม่ใช่ "จะได้ป้ายนี้"
+
+**— ตัดสินใจรอบหมวดร้าน (0026 · ถังที่ 2) —**
+
+25. **ป้ายอยู่ที่หมวด แต่ธงคัดลอกลงตัวรายการ** (`is_shop_category` → trigger → `is_shop_operating`) — ผู้ใช้ตั้งครั้งเดียวที่หมวด แต่ predicate ทุกตัว (`isBudgetSpendingRow` + `.eq()` ใน SQL) ยังอ่านจากตัวรายการเหมือนธงอื่นทุกตัว (`is_stock_cogs`/`is_debt_settlement`) ไม่ต้อง join หมวด · ถ้าปล่อยให้อยู่บนหมวดอย่างเดียว ทุกจุดที่คิดเงินต้อง resolve หมวดเองทุกครั้ง จุดไหนลืม = ตัวเลขผิดเงียบ ๆ (รูปแบบบั๊กที่โปรเจกต์เจอซ้ำ) · **แลกกับ: เปลี่ยนป้ายแล้วตัวเลขเดือนเก่าขยับ** (trigger 2 ไล่อัปเดตแถวเก่า) — ยอมรับโดยตั้งใจ ตัวเลขทุกเดือนคิดด้วยกฎปัจจุบันเดียวกัน ไม่ snapshot ต่อแถวเหมือน `cost_at_sale` · หน้า `CategoriesManager` เตือนผู้ใช้เรื่องนี้ + แนะนำให้สร้างหมวดใหม่แทนการติดป้ายให้หมวดที่ปนเรื่องส่วนตัว
+26. **ปิดการกรอก `stock_sale_income` ด้วยมือ — กลับคำจาก §7 เดิม** (เดิมเปิดไว้ให้ขายนอกระบบ) เพราะรายรับก้อนนั้นไม่มี COGS คู่และไม่เข้า `stock_sales` → พองยอดรายรับขณะที่ `STOCK PROFIT` (จาก `stock_sales_summary`) นิ่ง = "ขายได้แล้วทำไมกำไรร้านไม่ขึ้น" โดยไม่มีอะไรอธิบาย · ของที่จะขายต้องรับเข้าคลังก่อนแล้วขายที่หน้าคลัง · **ไม่ลบหมวดจาก DB** (`stock_sale_create` ยังใช้) แค่ซ่อนจากตัวเลือก · `AddPage` ใช้ `isEntrySelectableCategory` (pure, เทสต์ได้) · สามไฟล์ที่เหลือ (`Favorites`/`Recurring`/`TransactionEditSheet`) เดิมกรองแค่ `is_stock_category` → เพิ่มเฉพาะ `stock_sale_income` ไม่ขยาย scope เป็น full system-filter (ของจริงต่างจากสเปกที่เดาว่าทั้งสามกรอง `stock_cogs` อยู่แล้ว)
+27. **ค่าดำเนินร้านห้ามเกลี่ยลงรายชิ้น** — ไม่มีคำตอบที่ถูกว่าค่าโฆษณา/ค่าส่งควรตกกับสินค้าชิ้นไหน ถ้าฝืนเกลี่ย กำไรรายชิ้นจะกลายเป็นตัวเลขที่แต่งขึ้น → **กำไรขั้นต้นดูรายชิ้น (ถังที่ 1) · กำไรสุทธิดูรายร้านรายเดือน (ถังที่ 2 — หน้าสรุปอยู่ PR-T2)**
 
 ### 11.5 บั๊กจริงในโค้ด — B1–B14 แก้แล้วทั้งหมด (รอบ redesign)
 B1/B2 (hero base = `isBudgetSpendingRow`, ไม่ clamp) · B3 legend ตัด slice · B4 หัวแถวซ้ำ/เส้นแบ่งวัน · B5 `totalUsed` · B6 `daysLeft` นับวันนี้ · B7 แถบสองท่อน · B8–B10 หน้าคลัง · B11 `favoriteLabel()` · B12 favorites `wallet_id`+`note` (0014) · B13 ล้างยอดเดิม · B14 contrast ไอคอน error · `WalletHero` → `WovenHero`

@@ -85,10 +85,15 @@ export function RecurringManager({ onClose }: { onClose: () => void }) {
 
   // categories selectable for the chosen kind (stock categories have their own
   // intake flow, so they're excluded — mirrors the favorites/budget pickers).
+  // 'ขายสต็อก' (stock_sale_income) is excluded too: a recurring rule into it
+  // would auto-book resale income with no paired COGS and outside stock_sales
+  // (see AddPage) — a resale must be intake'd then sold on the stock screen.
   const options = useMemo(
     () =>
       form
-        ? (categories ?? []).filter((c) => c.kind === form.type && !c.is_stock_category)
+        ? (categories ?? []).filter(
+            (c) => c.kind === form.type && !c.is_stock_category && c.system_key !== 'stock_sale_income',
+          )
         : [],
     [categories, form],
   )

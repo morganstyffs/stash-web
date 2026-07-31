@@ -25,7 +25,7 @@ import { preferredWalletFor, topCategories, unusualAmountBaseline } from '@/lib/
 import { formatBaht, formatDayShort } from '@/lib/format'
 import { todayISO } from '@/lib/dates'
 import { translateError } from '@/lib/errors'
-import type { Category, Favorite, TransactionType } from '@/lib/db'
+import type { Category, CategoryKind, Favorite, TransactionType } from '@/lib/db'
 
 const intFmt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 })
 /** Amount as it appears inside a fast-label's default name — grouped, up to 2dp, no ฿. */
@@ -40,6 +40,34 @@ const ariaAmountFmt = new Intl.NumberFormat('th-TH', {
 const MAX_DIGITS = 9
 
 // ── Pure logic (exported for tests) ─────────────────────────────────────────
+
+/**
+ * Categories a user may pick for a brand-new manual entry of `type`: the chosen
+ * kind, no stock-intake categories, and none of the system categories that only
+ * ever arrive from their own flows — 'stock_cogs' (a sale's COGS leg), both
+ * debt-repayment categories, and 'stock_sale_income' ('ขายสต็อก').
+ *
+ * stock_sale_income used to stay selectable so an off-book resale could be logged
+ * by hand — reversed here: that income has no paired COGS and never lands in
+ * stock_sales, so it inflates income while the STOCK PROFIT figure stays flat
+ * ("ขายได้แล้วทำไมกำไรร้านไม่ขึ้น" with nothing to explain it). A resale must be
+ * intake'd first, then sold on the stock screen. The category is NOT deleted —
+ * stock_sale_create still needs it; it is only hidden from manual pickers. Minimal
+ * structural param so tests pass a plain object (convention 11).
+ */
+export function isEntrySelectableCategory(
+  c: { kind: CategoryKind; is_stock_category: boolean; system_key: string | null },
+  type: TransactionType,
+): boolean {
+  return (
+    c.kind === type &&
+    !c.is_stock_category &&
+    c.system_key !== 'stock_cogs' &&
+    c.system_key !== 'stock_sale_income' &&
+    c.system_key !== 'debt_repayment_income' &&
+    c.system_key !== 'debt_repayment_expense'
+  )
+}
 
 /**
  * Default name for a fast-label (favorite). B11: the old code used the bare
@@ -261,23 +289,10 @@ export function AddPage() {
     if (walletId == null && defaultWalletId != null) setWalletId(defaultWalletId)
   }, [defaultWalletId, walletId])
 
-  // Category chips: categories of the chosen kind, excluding stock-intake
-  // categories and three system categories that only ever come from their own
-  // flows — 'stock_cogs' (a sale's cost leg) and both debt-repayment categories
-  // ('debt_repayment_income' / 'debt_repayment_expense', only ever from
-  // debt_settle). 'ขายสต็อก' income (system_key stock_sale_income) stays
-  // selectable so off-book resale income can be logged by hand; there is no
-  // equivalent off-book case for a debt settlement.
+  // Category chips: categories selectable for a brand-new manual entry of the
+  // chosen kind (isEntrySelectableCategory — pure, unit-tested).
   const categories = useMemo(
-    () =>
-      (catsQ.data ?? []).filter(
-        (c) =>
-          c.kind === type &&
-          !c.is_stock_category &&
-          c.system_key !== 'stock_cogs' &&
-          c.system_key !== 'debt_repayment_income' &&
-          c.system_key !== 'debt_repayment_expense',
-      ),
+    () => (catsQ.data ?? []).filter((c) => isEntrySelectableCategory(c, type)),
     [catsQ.data, type],
   )
 
