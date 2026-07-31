@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { dayOfMonthISO, daysLeftInMonthKey, monthBoundsFromKey, monthKey } from '@/lib/dates'
+import { daysLeftInMonthKey, monthBoundsFromKey, monthKey } from '@/lib/dates'
 import { isBudgetSpendingRow, isIncomeRow, isSpendingRow } from '@/lib/ledger'
 import type { Category, TransactionType } from '@/lib/db'
 
@@ -105,10 +105,6 @@ export interface HomeSummary {
   incomeCount: number
   /** number of (non-stock) expense transactions this month */
   expenseCount: number
-  /** cumulative income per day of the month (index 0 = day 1) for the trend line */
-  dailyCumIncome: number[]
-  /** cumulative expense per day of the month (index 0 = day 1) for the trend line */
-  dailyCumExpense: number[]
   /** expense grouped by category, largest first */
   donut: DonutSlice[]
 }
@@ -139,8 +135,6 @@ export function computeHomeSummary(
   let prevSafe = 0
   let prevIncome = 0
   let prevExpense = 0
-  const dailyCumInc = new Array<number>(b.days).fill(0)
-  const dailyCum = new Array<number>(b.days).fill(0)
   const byCat = new Map<string, number>()
 
   for (const r of rows) {
@@ -150,13 +144,9 @@ export function computeHomeSummary(
       if (isIncomeRow(r)) {
         income += amount
         incomeCount += 1
-        const dayIdx = dayOfMonthISO(r.date) - 1
-        if (dayIdx >= 0 && dayIdx < dailyCumInc.length) dailyCumInc[dayIdx] += amount
       } else if (isSpendingRow(r)) {
         expense += amount
         expenseCount += 1
-        const dayIdx = dayOfMonthISO(r.date) - 1
-        if (dayIdx >= 0 && dayIdx < dailyCum.length) dailyCum[dayIdx] += amount
         const key = r.category_id ?? 'none'
         byCat.set(key, (byCat.get(key) ?? 0) + amount)
       }
@@ -168,10 +158,6 @@ export function computeHomeSummary(
     }
   }
   prevSafe = prevIncome - prevExpense
-
-  // running cumulative for the trend lines
-  for (let i = 1; i < dailyCum.length; i++) dailyCum[i] += dailyCum[i - 1]
-  for (let i = 1; i < dailyCumInc.length; i++) dailyCumInc[i] += dailyCumInc[i - 1]
 
   const safeToSpend = income - expense
   const deltaPct =
@@ -205,8 +191,6 @@ export function computeHomeSummary(
     deltaPct,
     incomeCount,
     expenseCount,
-    dailyCumIncome: dailyCumInc,
-    dailyCumExpense: dailyCum,
     donut,
   }
 }
