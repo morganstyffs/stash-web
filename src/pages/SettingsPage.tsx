@@ -26,6 +26,7 @@ import { FavoritesManager } from '@/components/FavoritesManager'
 import { RecurringManager } from '@/components/RecurringManager'
 import { ProfileManager } from '@/components/ProfileManager'
 import { SkuManager } from '@/components/SkuManager'
+import { BrandMark } from '@/components/BrandMark'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories, useFavorites } from '@/hooks/useLookups'
 import { useSkuConfig } from '@/hooks/useSkuConfig'
@@ -206,7 +207,11 @@ export function SettingsPage() {
         </button>
       </div>
 
-      <div className="px-4 pb-8 text-center">
+      {/* App-identity footer: the mark does the natural "this is Stash, this
+          version" job next to the build stamp. Decorative (the version text
+          carries the meaning); shell = text-mint (PR-A token), no hex. */}
+      <div className="flex flex-col items-center gap-1.5 px-4 pb-8 pt-2">
+        <BrandMark variant="compact" size={22} className="text-mint" />
         <button
           type="button"
           onClick={copyVersion}

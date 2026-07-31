@@ -50,9 +50,52 @@
     />
 
     <title>Stash</title>
+
+    <!-- Boot splash shown in the blank gap before React mounts (matters most for
+         a PWA opened from the home screen). Pure HTML/CSS — no JS, no app bundle
+         needed — and it clears itself: createRoot().render() in src/main.tsx
+         replaces #root's children on first paint. Colours are inlined because the
+         app CSS may not have loaded yet; they mirror src tokens — page bg =
+         --color-surface (index.css: light 246 243 236 / dark 23 22 15, keyed off
+         the same html.dark the inline theme script above sets), and the mark is
+         the BrandMark full geometry in mint #5CBFA3 / brand #4A57B5 / white. -->
+    <style>
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f6f3ec; /* mirrors --color-surface (light) */
+      }
+      html.dark #boot-splash {
+        background: #17160f; /* mirrors --color-surface (dark) */
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="boot-splash" aria-hidden="true">
+        <!-- BrandMark variant="full" (see src/components/BrandMark.tsx) inlined
+             as static SVG. Kept in sync by hand — it is the only no-JS copy. -->
+        <svg width="72" height="72" viewBox="0 0 64 64" fill="none">
+          <circle cx="27.9" cy="32" r="23" stroke="#5CBFA3" stroke-width="4" />
+          <g stroke="#5CBFA3" stroke-width="3.3" stroke-linecap="round">
+            <line x1="36.74" y1="23.16" x2="40.27" y2="19.63" />
+            <line x1="19.06" y1="23.16" x2="15.53" y2="19.63" />
+            <line x1="36.74" y1="40.84" x2="40.27" y2="44.37" />
+            <line x1="19.06" y1="40.84" x2="15.53" y2="44.37" />
+          </g>
+          <line x1="59.1" y1="26" x2="59.1" y2="38" stroke="#5CBFA3" stroke-width="3.85" stroke-linecap="round" />
+          <circle cx="27.9" cy="32" r="9.1" fill="#4A57B5" />
+          <g fill="none" stroke="#FFFFFF" stroke-width="2.05" stroke-linecap="round">
+            <line x1="24.65" y1="28.6" x2="24.65" y2="30.5" />
+            <line x1="31.15" y1="28.6" x2="31.15" y2="30.5" />
+            <path d="M24.1 33.9 Q27.9 37.6 31.7 33.9" />
+          </g>
+        </svg>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

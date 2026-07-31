@@ -16,6 +16,7 @@ import { useUpcomingBills, type PendingItem } from '@/hooks/useUpcomingBills'
 import { Donut } from '@/components/charts'
 import { WovenHero } from '@/components/WovenHero'
 import { MonthSwitcher } from '@/components/MonthSwitcher'
+import { BrandMark } from '@/components/BrandMark'
 import { useMonthBudgetTotal } from '@/hooks/useBudgets'
 import { useStockSalesSummary } from '@/hooks/useStockSales'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
@@ -228,7 +229,11 @@ export function HomePage() {
       {/* header */}
       <div className="flex items-center justify-between px-[18px] pb-2.5 pt-[18px]">
         <Link to="/" aria-label="Stash">
-          <img src="/stash-mark.svg" alt="Stash" className="h-[30px] w-[30px]" />
+          {/* หน้าปัดตู้เซฟ mark. Decorative — the Link already carries the "Stash"
+              accessible name, so a second one here would double-announce. compact
+              (no rays): 30px is below the 32px full/compact breakpoint. Shell =
+              text-mint (PR-A token); dial/ink use the component defaults. */}
+          <BrandMark variant="compact" size={30} className="text-mint" />
         </Link>
         <MonthSwitcher
           month={month}

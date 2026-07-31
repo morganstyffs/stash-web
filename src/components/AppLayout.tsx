@@ -12,6 +12,7 @@ import {
 import type { Icon } from '@tabler/icons-react'
 import { useRunRecurringOnLoad } from '@/hooks/useRecurring'
 import { useDebtsBadgeCount } from '@/hooks/useFriends'
+import { BrandMark } from '@/components/BrandMark'
 
 interface Tab {
   to: string
@@ -127,7 +128,10 @@ export function AppLayout() {
       {/* Nav rail — tablet/desktop only */}
       <nav className="hidden w-[66px] shrink-0 flex-col items-center border-r border-hairline py-4 sm:flex">
         <Link to="/" aria-label="Stash" className="mb-6">
-          <img src="/stash-mark.svg" alt="Stash" className="h-8 w-8" />
+          {/* หน้าปัดตู้เซฟ mark. Decorative — the Link already carries the "Stash"
+              accessible name. full (with rays): 32px meets the ≥32px breakpoint.
+              Shell = text-mint (PR-A token); dial/ink use the component defaults. */}
+          <BrandMark variant="full" size={32} className="text-mint" />
         </Link>
         <div className="flex flex-1 flex-col items-center gap-4">
           {RAIL.map((t) => (
