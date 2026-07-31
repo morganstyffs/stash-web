@@ -123,7 +123,7 @@ export function AppLayout() {
   const hasBadge = (useDebtsBadgeCount().data ?? 0) > 0
 
   return (
-    <div className="mx-auto flex min-h-full max-w-3xl bg-white sm:my-4 sm:min-h-0 sm:rounded-[22px] sm:border-[0.5px] sm:border-hairline sm:shadow-card">
+    <div className="mx-auto flex min-h-full max-w-3xl bg-surface sm:my-4 sm:min-h-0 sm:rounded-[22px] sm:border-[0.5px] sm:border-hairline sm:shadow-card">
       {/* Nav rail — tablet/desktop only */}
       <nav className="hidden w-[66px] shrink-0 flex-col items-center border-r border-hairline py-4 sm:flex">
         <Link to="/" aria-label="Stash" className="mb-6">
