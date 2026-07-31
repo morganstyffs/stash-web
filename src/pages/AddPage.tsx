@@ -13,16 +13,18 @@ import {
 import { useCategories, useFavorites, useUpsertFavorite } from '@/hooks/useLookups'
 import { useAddTransaction } from '@/hooks/useAddTransaction'
 import { useDeleteTransaction } from '@/hooks/useTransactions'
+import { useEntryHints } from '@/hooks/useEntryHints'
 import { useLongPress } from '@/hooks/useLongPress'
 import { useWallets } from '@/hooks/useSettings'
 import { CategoriesManager } from '@/components/CategoriesManager'
 import { FavoritesManager } from '@/components/FavoritesManager'
 import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
+import { preferredWalletFor, topCategories } from '@/lib/entryHints'
 import { formatBaht, formatDayShort } from '@/lib/format'
 import { todayISO } from '@/lib/dates'
 import { translateError } from '@/lib/errors'
-import type { Favorite, TransactionType } from '@/lib/db'
+import type { Category, Favorite, TransactionType } from '@/lib/db'
 
 const intFmt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 })
 /** Amount as it appears inside a fast-label's default name — grouped, up to 2dp, no ฿. */
@@ -195,6 +197,7 @@ export function AddPage() {
   const catsQ = useCategories()
   const favQ = useFavorites()
   const walletsQ = useWallets()
+  const hintsQ = useEntryHints()
   const add = useAddTransaction()
   const del = useDeleteTransaction()
   const saveFav = useUpsertFavorite()
@@ -213,6 +216,10 @@ export function AddPage() {
   )
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [walletId, setWalletId] = useState<string | null>(null)
+  // Once the user picks a wallet by hand, stop guessing for the rest of this
+  // page — re-guessing over a deliberate choice is the most irritating outcome
+  // (rule 2). Reset only by leaving the page (a fresh mount).
+  const [walletTouched, setWalletTouched] = useState(false)
   const [dateStr, setDateStr] = useState(today)
   const [note, setNote] = useState(prefill?.note ?? '')
   // Signature of the fields that made up the last successfully-saved fast-label
@@ -273,6 +280,29 @@ export function AddPage() {
     [catsQ.data, type],
   )
 
+  const hints = hintsQ.data ?? []
+
+  // The "ใช้บ่อย" shortcut row: the most-used categories of this type, ranked by
+  // history and intersected with the visible chips above — a system category
+  // (stock_cogs / debt_repayment_*) that shows up in history must never surface
+  // here since it isn't pickable. topCategories ranks across the full history
+  // (limit = every category) so a filtered-out system category can't steal a
+  // slot from a real one ranked just below it; the visible ones are then capped
+  // at 4. This is a shortcut on top, NOT a reordering — the list below keeps its
+  // sort_order untouched so a category never moves out from under the eye (§11.4-2).
+  const frequentCategories = useMemo(() => {
+    const visible = new Map(categories.map((c) => [c.id, c]))
+    return topCategories(hints, type, catsQ.data?.length ?? 0)
+      .map((id) => visible.get(id))
+      .filter((c): c is Category => c != null)
+      .slice(0, 4)
+  }, [hints, type, categories, catsQ.data])
+
+  // Hide the whole row unless it earns its space: at least 2 shortcuts, and only
+  // when the full list is long enough to be worth scanning past (> 4). A short
+  // list makes the shortcut just a duplicate that costs a row.
+  const showFrequentRow = frequentCategories.length >= 2 && categories.length > 4
+
   const favorites = favQ.data ?? []
 
   const amount = Number(amountStr || '0')
@@ -296,8 +326,20 @@ export function AddPage() {
     setCategoryId(null)
   }
 
+  // Guess the wallet from history whenever the user picks a category — but ONLY
+  // here, never in an effect that watches categoryId: applyFavorite() also sets
+  // categoryId, and a guessing effect would clobber the wallet a fast-label
+  // explicitly named (rule 1). If the user already picked a wallet by hand, or
+  // there is no history, or the guessed wallet has since been deleted, fall back
+  // to the default wallet — never null (rule 3).
   function pickCategory(id: string) {
     setCategoryId(id)
+    if (!walletTouched) {
+      const guess = preferredWalletFor(hints, id)
+      const valid =
+        guess && walletsQ.data?.some((w) => w.id === guess) ? guess : defaultWalletId
+      setWalletId(valid)
+    }
   }
 
   // Apply a fast-label — the full template of ONE entry. B13, extended to every
@@ -582,33 +624,39 @@ export function AddPage() {
           </div>
         </div>
 
+        {/* ใช้บ่อย — a shortcut row of the most-used categories, ABOVE the full
+            list. It never reorders the list below; a tap here runs the same
+            pickCategory() as a tap below, so the wallet guess comes for free. */}
+        {showFrequentRow && (
+          <div className="px-4 pb-2.5">
+            <p className="mb-[7px] text-[11px] text-muted">ใช้บ่อย</p>
+            <div className="flex flex-wrap gap-[7px]">
+              {frequentCategories.map((c) => (
+                <CategoryChip
+                  key={c.id}
+                  cat={c}
+                  active={c.id === categoryId}
+                  onClick={() => pickCategory(c.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* category — wraps so every category is visible at once (no hidden overflow) */}
         <div className="px-4 pb-2.5">
           <p className="mb-[7px] text-[11px] text-muted">
             {type === 'expense' ? 'หมวดรายจ่าย' : 'หมวดรายรับ'}
           </p>
           <div className="flex flex-wrap gap-[7px]">
-            {categories.map((c) => {
-              const Icon = categoryIcon(c.icon)
-              const active = c.id === categoryId
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => pickCategory(c.id)}
-                  aria-pressed={active}
-                  className="flex min-h-[44px] items-center"
-                >
-                  <span
-                    className={`flex items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
-                      active ? 'bg-brand-tint font-medium text-brand-ink' : 'bg-fill text-muted'
-                    }`}
-                  >
-                    <Icon size={14} />
-                    {c.name}
-                  </span>
-                </button>
-              )
-            })}
+            {categories.map((c) => (
+              <CategoryChip
+                key={c.id}
+                cat={c}
+                active={c.id === categoryId}
+                onClick={() => pickCategory(c.id)}
+              />
+            ))}
             <button
               type="button"
               onClick={() => setManagingCats(true)}
@@ -634,7 +682,10 @@ export function AddPage() {
               return (
                 <button
                   key={w.id}
-                  onClick={() => setWalletId(w.id)}
+                  onClick={() => {
+                    setWalletId(w.id)
+                    setWalletTouched(true)
+                  }}
                   aria-pressed={active}
                   className="flex min-h-[44px] shrink-0 items-center"
                 >
@@ -795,6 +846,36 @@ function FastLabel({
           <IconCheck size={22} />
         </span>
       )}
+    </button>
+  )
+}
+
+/**
+ * One selectable category chip. Shared by both the "ใช้บ่อย" shortcut row and the
+ * full list so the two can never disagree about the active style or aria-pressed
+ * for the same category (convention 10) — a category selected from one row shows
+ * selected in the other.
+ */
+function CategoryChip({
+  cat,
+  active,
+  onClick,
+}: {
+  cat: Category
+  active: boolean
+  onClick: () => void
+}) {
+  const Icon = categoryIcon(cat.icon)
+  return (
+    <button onClick={onClick} aria-pressed={active} className="flex min-h-[44px] items-center">
+      <span
+        className={`flex items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
+          active ? 'bg-brand-tint font-medium text-brand-ink' : 'bg-fill text-muted'
+        }`}
+      >
+        <Icon size={14} />
+        {cat.name}
+      </span>
     </button>
   )
 }
