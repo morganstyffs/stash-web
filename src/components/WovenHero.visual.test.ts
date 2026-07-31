@@ -42,6 +42,8 @@ describe('WovenHero folded labels are actually visible (real browser)', () => {
             stock: { revenue: 5_000, cogs: 3_200, profit: 1_800, sale_count: 3, qty_sold: 4 },
             hideBalance: false,
             onToggleHide: () => {},
+            income: 0,
+            expense: 0,
           }),
         ),
       )

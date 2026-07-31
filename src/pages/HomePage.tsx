@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { IconBell, IconClock } from '@tabler/icons-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { IconBell, IconChevronLeft, IconChevronRight, IconClock } from '@tabler/icons-react'
 import { useCategories } from '@/hooks/useLookups'
 import { useAttentionSignals } from '@/hooks/useAttention'
 import { useDialogA11y } from '@/lib/useDialogA11y'
@@ -25,11 +25,18 @@ import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
 import { catColorVar } from '@/lib/catColor'
 import { lockedRowInfo } from '@/lib/ledger'
-import { formatRecentDayLabel, formatUpcomingDayLabel, monthKey } from '@/lib/dates'
+import {
+  addMonthsToKey,
+  formatRecentDayLabel,
+  formatUpcomingDayLabel,
+  monthAnchorFromKey,
+  monthKey,
+  parseMonthParam,
+} from '@/lib/dates'
 import { largestRemainderPercents } from '@/lib/percent'
 import { translateError } from '@/lib/errors'
 import { useHideBalance } from '@/hooks/useHideBalance'
-import { formatBaht, formatSigned, MASKED_BAHT } from '@/lib/format'
+import { formatBaht, formatMonthShort, formatSigned, MASKED_BAHT } from '@/lib/format'
 
 interface LegendRow {
   key: string
@@ -72,12 +79,28 @@ function buildDonutLegend(slices: DonutSlice[]): LegendRow[] {
 }
 
 export function HomePage() {
-  const monthQ = useMonthTransactions()
+  // Which month the home screen is showing, from ?m=YYYY-MM (untrusted URL input,
+  // validated in parseMonthParam: bad/future → current month). Kept in the URL so a
+  // refresh or SW update stays on the same month, and so tapping "หน้าหลัก" / the
+  // logo (which navigate to a bare "/") lands back on the current month by itself.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const month = parseMonthParam(searchParams.get('m'))
+  const isCurrent = month === monthKey()
+  const goToMonth = (target: string) => {
+    const next = new URLSearchParams(searchParams)
+    // Drop the param entirely for the current month so it collapses back to "/".
+    if (target === monthKey()) next.delete('m')
+    else next.set('m', target)
+    // replace, not push: browsing six months back is one history entry, not six.
+    setSearchParams(next, { replace: true })
+  }
+
+  const monthQ = useMonthTransactions(month)
   const catsQ = useCategories()
   const recentQ = useRecentTransactions()
   const upcomingQ = useUpcomingBills()
-  const budgetTotalQ = useMonthBudgetTotal()
-  const stockQ = useStockSalesSummary()
+  const budgetTotalQ = useMonthBudgetTotal(month)
+  const stockQ = useStockSalesSummary(month)
   const navigate = useNavigate()
   const attention = useAttentionSignals()
   const toast = useToast()
@@ -96,8 +119,8 @@ export function HomePage() {
   }, [upcomingQ.error, toast])
 
   const summary = useMemo(
-    () => computeHomeSummary(monthQ.data ?? [], catsQ.data ?? []),
-    [monthQ.data, catsQ.data],
+    () => computeHomeSummary(monthQ.data ?? [], catsQ.data ?? [], month),
+    [monthQ.data, catsQ.data, month],
   )
 
   const loading = monthQ.isLoading || catsQ.isLoading
@@ -105,18 +128,30 @@ export function HomePage() {
   const showSkeleton = useDelayedFlag(loading, 200)
 
   // One-off "moment" animations, decided once everything the hero reads is in.
+  // ALWAYS keyed on the real current month (monthKey()), never the viewed month —
+  // AND only allowed to decide/save while actually on the current month: stockActive
+  // here is the VIEWED month's, so letting the hook run on a past month would write
+  // that month's stock flag onto the current month's saved state and swallow the
+  // genuine new-month / first-sale animation (the §4.4 trap). The hero also gates
+  // the play on isCurrent, but that alone wouldn't stop the hook's save.
   const ready =
     !monthQ.isLoading && !catsQ.isLoading && !stockQ.isLoading && !recentQ.isLoading
   const stockActive = (stockQ.data?.qty_sold ?? 0) > 0
-  const { newMonth, firstSale } = useHomeMoments(ready, monthKey(), stockActive)
+  const { newMonth, firstSale } = useHomeMoments(ready && isCurrent, monthKey(), stockActive)
 
   // Brand-new user: no transactions logged anywhere, no sales → invite, don't
-  // show ฿0 and empty lists.
+  // show ฿0 and empty lists. Only on the current month — an empty PAST month is
+  // not a new user (§4.5); it gets a plain "ไม่มีรายการในเดือนนี้" instead.
   const isNewUser =
+    isCurrent &&
     ready &&
     (recentQ.data?.length ?? 0) === 0 &&
     (monthQ.data?.length ?? 0) === 0 &&
     !stockActive
+
+  // A past month with no transactions at all → show one quiet empty line in place
+  // of the donut + ledger, rather than an empty donut and a hidden ledger.
+  const monthEmpty = !isCurrent && (monthQ.data?.length ?? 0) === 0
 
   if (loading) return showSkeleton ? <HomeSkeleton /> : null
 
@@ -127,7 +162,12 @@ export function HomePage() {
         <Link to="/" aria-label="Stash">
           <img src="/stash-mark.svg" alt="Stash" className="h-[30px] w-[30px]" />
         </Link>
-        <p className="text-[17px] font-medium">ยินดีต้อนรับกลับ</p>
+        <MonthSwitcher
+          month={month}
+          isCurrent={isCurrent}
+          onPrev={() => goToMonth(addMonthsToKey(month, -1))}
+          onNext={() => goToMonth(addMonthsToKey(month, 1))}
+        />
         <div className="relative">
           <button
             type="button"
@@ -166,7 +206,9 @@ export function HomePage() {
         <WovenHero
           safeToSpend={summary.safeToSpend}
           daysLeft={summary.daysLeft}
-          upcomingBills={upcomingQ.data?.total ?? 0}
+          // Upcoming bills belong to "now", not to a past month — pass 0 when
+          // viewing a closed month so the SAFE line never deducts phantom bills.
+          upcomingBills={isCurrent ? (upcomingQ.data?.total ?? 0) : 0}
           deltaPct={summary.deltaPct}
           budgetTotal={budgetTotalQ.data ?? 0}
           budgetSpending={summary.budgetSpending}
@@ -174,13 +216,17 @@ export function HomePage() {
           hideBalance={hideBalance}
           onToggleHide={toggleHideBalance}
           empty={isNewUser}
-          newMonth={newMonth}
-          firstSale={firstSale}
+          monthEnded={!isCurrent}
+          income={summary.income}
+          expense={summary.expense}
+          // Moments only ever fire on the current month.
+          newMonth={isCurrent && newMonth}
+          firstSale={isCurrent && firstSale}
         />
       </div>
 
       {/* category donut */}
-      {!isNewUser && (
+      {!isNewUser && !monthEmpty && (
       <div className="mx-4 mt-3.5 border-t-[0.5px] border-hairline pt-3.5">
         <p className="mb-3 text-[15px] font-medium">หมวดใช้จ่าย</p>
         {summary.donut.length > 0 ? (
@@ -217,10 +263,12 @@ export function HomePage() {
       </div>
       )}
 
-      {/* ledger — recent transactions and upcoming bills as two tabs. The "รอจ่าย"
-          tab exists only when there are active recurring expense rules; with none,
-          this is just the plain recent list (no lone empty tab). */}
-      {!isNewUser && (
+      {/* ledger — recent transactions and upcoming bills as two tabs. Current month
+          only: the recent list is "latest 8 overall", not month-scoped, so under a
+          past-month heading it would show today's rows and read as a lie (§4.3).
+          The "รอจ่าย" tab exists only when there are active recurring expense rules;
+          with none, this is just the plain recent list (no lone empty tab). */}
+      {!isNewUser && isCurrent && (
         <div className="mx-4 mb-4 mt-3.5 border-t-[0.5px] border-hairline pt-3.5">
           {upcomingQ.data?.hasRules ? (
             <div role="tablist" aria-label="รายการ" className="mb-1.5 flex gap-4">
@@ -243,9 +291,63 @@ export function HomePage() {
         </div>
       )}
 
+      {/* A past month with no data at all: one quiet line, not a new-user invite. */}
+      {monthEmpty && (
+        <div className="mx-4 mb-4 mt-3.5 border-t-[0.5px] border-hairline pt-6 text-center">
+          <p className="text-[13px] text-faint">ไม่มีรายการในเดือนนี้</p>
+        </div>
+      )}
+
       {editingId && (
         <TransactionEditSheet id={editingId} onClose={() => setEditingId(null)} />
       )}
+    </div>
+  )
+}
+
+/**
+ * Month stepper that replaces the static "ยินดีต้อนรับกลับ" header text: ‹ ก.ค. 2569 ›.
+ * The next arrow is DISABLED (not hidden) on the current month so the ‹ arrow and
+ * the label don't shift when you reach today, and so a future month can't be
+ * reached. Each arrow is a ≥44px touch target (matched to the bottom nav), pulled
+ * back with a negative margin so the 44px hit area doesn't grow the header row.
+ */
+function MonthSwitcher({
+  month,
+  isCurrent,
+  onPrev,
+  onNext,
+}: {
+  month: string
+  isCurrent: boolean
+  onPrev: () => void
+  onNext: () => void
+}) {
+  return (
+    <div className="flex items-center gap-0.5">
+      <button
+        type="button"
+        onClick={onPrev}
+        aria-label="ดูเดือนก่อนหน้า"
+        className="-my-[7px] flex h-11 w-11 items-center justify-center text-muted active:text-ink"
+      >
+        <IconChevronLeft size={20} />
+      </button>
+      <span
+        aria-live="polite"
+        className="min-w-[84px] text-center text-[15px] font-medium tabular-nums"
+      >
+        {formatMonthShort(monthAnchorFromKey(month))}
+      </span>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={isCurrent}
+        aria-label="ดูเดือนถัดไป"
+        className="-my-[7px] flex h-11 w-11 items-center justify-center text-muted active:text-ink disabled:opacity-30"
+      >
+        <IconChevronRight size={20} />
+      </button>
     </div>
   )
 }

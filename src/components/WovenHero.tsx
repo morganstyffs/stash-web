@@ -40,6 +40,17 @@ export interface WovenHeroProps {
   onToggleHide: () => void
   /** brand-new user with no data yet → show the empty invitation label instead */
   empty?: boolean
+  /**
+   * The month being viewed has already ended (a past month picked on the home
+   * screen). The SAFE figure is still the real left-over, but "SAFE TO SPEND" /
+   * "ใช้ได้วันละ · เหลืออีก N วัน" would be a lie for a closed month, so the label
+   * switches to LEFT OVER + a รับ/จ่าย recap instead. Default false (current month).
+   */
+  monthEnded?: boolean
+  /** this month's income — only shown on the ended-month SAFE recap line */
+  income: number
+  /** this month's expense — only shown on the ended-month SAFE recap line */
+  expense: number
   /** play the new-month rollover animation once (see useHomeMoments) */
   newMonth?: boolean
   /** play the first-sale-of-month beat on STOCK PROFIT once */
@@ -90,6 +101,17 @@ export function budgetMini(budgetTotal: number, budgetSpending: number): string 
 export function overBudgetChip(budgetTotal: number, budgetSpending: number): string | null {
   const over = budgetOverAmount(budgetTotal, budgetSpending)
   return over != null ? `เกินงบ ${formatBaht(over)}` : null
+}
+
+/**
+ * SAFE sub-line for a month that has already ended — a plain รับ/จ่าย recap in
+ * place of the live "ใช้ได้วันละ · เหลืออีก N วัน" line, which is meaningless once
+ * the month is over. Both figures are masked together when the balance is hidden
+ * (never one showing while the other hides), same rule as the live sub-line.
+ */
+export function endedSubline(income: number, expense: number, hideBalance: boolean): string {
+  const money = (v: number) => (hideBalance ? MASKED_BAHT : formatBaht(v))
+  return `รับ ${money(income)} · จ่าย ${money(expense)}`
 }
 
 /** STOCK sub-line. Falls back to an empty-state when nothing sold this month. */
@@ -151,6 +173,9 @@ export function WovenHero({
   hideBalance,
   onToggleHide,
   empty = false,
+  monthEnded = false,
+  income,
+  expense,
   newMonth = false,
   firstSale = false,
 }: WovenHeroProps) {
@@ -218,7 +243,9 @@ export function WovenHero({
                 }`}
                 style={{ letterSpacing: '0.17em' }}
               >
-                {EYEBROW[key]}
+                {/* SAFE reads LEFT OVER for a closed month — the figure is still
+                    real, but it's no longer "safe to spend" of a live month. */}
+                {key === 'safe' && monthEnded ? 'LEFT OVER' : EYEBROW[key]}
               </span>
               {/* The front label carries no right-side content: its eye toggle
                   lives OUTSIDE the label button (rendered after this map) so we
@@ -251,6 +278,9 @@ export function WovenHero({
                     upcomingBills={upcomingBills}
                     deltaPct={deltaPct}
                     hideBalance={hideBalance}
+                    monthEnded={monthEnded}
+                    income={income}
+                    expense={expense}
                   />
                 )}
                 {key === 'budget' && (
@@ -326,13 +356,34 @@ function SafeBody({
   upcomingBills,
   deltaPct,
   hideBalance,
+  monthEnded,
+  income,
+  expense,
 }: {
   safeToSpend: number
   daysLeft: number
   upcomingBills: number
   deltaPct: number | null
   hideBalance: boolean
+  monthEnded: boolean
+  income: number
+  expense: number
 }) {
+  // A closed month: the big number is the real left-over, but the live per-day /
+  // days-left / bills sub-line is meaningless, so recap รับ/จ่าย instead. There
+  // are no bills to crowd the label, so the month-over-month chip always fits.
+  if (monthEnded) {
+    const delta = deltaChip(deltaPct)
+    return (
+      <>
+        <BigNumber>{safeBig(safeToSpend, hideBalance)}</BigNumber>
+        <SubLine>{endedSubline(income, expense, hideBalance)}</SubLine>
+        {delta && (
+          <Chip icon={delta.up ? IconTrendingUp : IconTrendingDown}>{delta.text}</Chip>
+        )}
+      </>
+    )
+  }
   const view = computeSpendable(safeToSpend, upcomingBills, daysLeft)
   // With bills the sub-line runs to two lines; the fixed 158px label then has no
   // room left for the delta chip (measured: it lands flush on the bottom edge at
