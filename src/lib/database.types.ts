@@ -526,36 +526,24 @@ export type Database = {
       }
       stock_sku_config: {
         Row: {
-          brand_len: number
           created_at: string
           next_seq: number
           prefix: string
-          separator: string
-          seq_digits: number
           updated_at: string
-          use_brand_code: boolean
           user_id: string
         }
         Insert: {
-          brand_len?: number
           created_at?: string
           next_seq?: number
           prefix?: string
-          separator?: string
-          seq_digits?: number
           updated_at?: string
-          use_brand_code?: boolean
           user_id?: string
         }
         Update: {
-          brand_len?: number
           created_at?: string
           next_seq?: number
           prefix?: string
-          separator?: string
-          seq_digits?: number
           updated_at?: string
-          use_brand_code?: boolean
           user_id?: string
         }
         Relationships: []
@@ -923,7 +911,6 @@ export type Database = {
       stock_intake_create: {
         Args: {
           p_brand?: string
-          p_brand_code?: string
           p_category?: string
           p_category_id?: string
           p_color?: string
@@ -984,22 +971,10 @@ export type Database = {
         }[]
       }
       stock_sku_build: {
-        Args: {
-          p_brand: string
-          p_brand_code: string
-          p_brand_len: number
-          p_digits: number
-          p_prefix: string
-          p_sep: string
-          p_seq: number
-          p_use_brand: boolean
-        }
+        Args: { p_prefix: string; p_seq: number }
         Returns: string
       }
-      stock_sku_preview: {
-        Args: { p_brand?: string; p_brand_code?: string }
-        Returns: string
-      }
+      stock_sku_preview: { Args: never; Returns: string }
       transactions_search: {
         Args: {
           p_category_id: string
