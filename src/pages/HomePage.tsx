@@ -26,17 +26,19 @@ import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
 import { catColorVar } from '@/lib/catColor'
 import { lockedRowInfo } from '@/lib/ledger'
+import { categoryHistoryPath, isCategoryId } from '@/lib/categoryFilter'
 import {
   addMonthsToKey,
   formatRecentDayLabel,
   formatUpcomingDayLabel,
+  monthAnchorFromKey,
   monthKey,
   parseMonthParam,
 } from '@/lib/dates'
 import { largestRemainderPercents } from '@/lib/percent'
 import { translateError } from '@/lib/errors'
 import { useHideBalance } from '@/hooks/useHideBalance'
-import { formatBaht, formatSigned, MASKED_BAHT } from '@/lib/format'
+import { formatBaht, formatMonthShort, formatSigned, MASKED_BAHT } from '@/lib/format'
 
 interface LegendRow {
   key: string
@@ -78,6 +80,69 @@ function buildDonutLegend(slices: DonutSlice[]): LegendRow[] {
   return base.map((r, i) => ({ ...r, pct: pcts[i] }))
 }
 
+/**
+ * One legend row. A row with a real category id becomes a link into the history
+ * page, scoped to that category AND the month currently on screen (the "answer
+ * the number" tap the home screen never had). The "อื่นๆ" roll-up and the
+ * uncategorised bucket carry no single id — filtering by them would land on a
+ * total that doesn't match the ring — so they stay plain, non-tappable text
+ * (isCategoryId gates it); making them merely LOOK tappable would be worse (§4).
+ *
+ * The visual box is identical whether tappable or not (density unchanged — the
+ * brief forbids restyling the legend beyond making it clickable): the tap target
+ * is a transparent overlay that extends the hit area to 44px, the same minimum
+ * the bottom nav holds, without growing the dense row.
+ */
+function DonutLegendRow({
+  row,
+  month,
+  monthLabel,
+  hideBalance,
+}: {
+  row: LegendRow
+  month: string
+  monthLabel: string
+  hideBalance: boolean
+}) {
+  const inner = (
+    <>
+      <span className="flex min-w-0 items-center text-[12.5px]">
+        <span
+          className="mr-2 inline-block h-2 w-2 shrink-0 rounded-full"
+          style={{ background: catColorVar(row.colorIndex) }}
+        />
+        <span className="truncate">{row.name}</span>
+      </span>
+      <span className="flex shrink-0 items-baseline gap-1.5">
+        {/* mask the baht with the hero's hide-balance toggle so the amounts don't
+            leak here; name + % stay (% isn't a figure) */}
+        <span className="text-[12.5px] font-medium">
+          {hideBalance ? MASKED_BAHT : formatBaht(row.total)}
+        </span>
+        <span className="text-[10.5px] text-faint">{row.pct}%</span>
+      </span>
+    </>
+  )
+
+  if (!isCategoryId(row.key)) {
+    return (
+      <div className="mb-[9px] flex items-center justify-between gap-2 last:mb-0">{inner}</div>
+    )
+  }
+
+  return (
+    <Link
+      to={categoryHistoryPath(month, row.key)}
+      aria-label={`ดูรายการ ${row.name} ใน ${monthLabel}`}
+      className="relative mb-[9px] flex items-center justify-between gap-2 last:mb-0"
+    >
+      {inner}
+      {/* transparent 44px touch target, centred on the dense row (hit-slop) */}
+      <span aria-hidden className="absolute inset-x-0 top-1/2 h-11 -translate-y-1/2" />
+    </Link>
+  )
+}
+
 export function HomePage() {
   // Which month the home screen is showing, from ?m=YYYY-MM (untrusted URL input,
   // validated in parseMonthParam: bad/future → current month). Kept in the URL so a
@@ -86,6 +151,9 @@ export function HomePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const month = parseMonthParam(searchParams.get('m'))
   const isCurrent = month === monthKey()
+  // The month the screen is showing, for the donut legend's deep-link labels — a
+  // tapped category lands on THIS month's history, not today's (mid-month "ก.ค. 2569").
+  const monthLabel = formatMonthShort(monthAnchorFromKey(month))
   const goToMonth = (target: string) => {
     const next = new URLSearchParams(searchParams)
     // Drop the param entirely for the current month so it collapses back to "/".
@@ -234,26 +302,13 @@ export function HomePage() {
             <Donut slices={summary.donut} hideBalance={hideBalance} />
             <div className="min-w-0 flex-1">
               {buildDonutLegend(summary.donut).map((row) => (
-                <div
+                <DonutLegendRow
                   key={row.key}
-                  className="mb-[9px] flex items-center justify-between gap-2 last:mb-0"
-                >
-                  <span className="flex min-w-0 items-center text-[12.5px]">
-                    <span
-                      className="mr-2 inline-block h-2 w-2 shrink-0 rounded-full"
-                      style={{ background: catColorVar(row.colorIndex) }}
-                    />
-                    <span className="truncate">{row.name}</span>
-                  </span>
-                  <span className="flex shrink-0 items-baseline gap-1.5">
-                    {/* mask the baht with the hero's hide-balance toggle so the
-                        amounts don't leak here; name + % stay (% isn't a figure) */}
-                    <span className="text-[12.5px] font-medium">
-                      {hideBalance ? MASKED_BAHT : formatBaht(row.total)}
-                    </span>
-                    <span className="text-[10.5px] text-faint">{row.pct}%</span>
-                  </span>
-                </div>
+                  row={row}
+                  month={month}
+                  monthLabel={monthLabel}
+                  hideBalance={hideBalance}
+                />
               ))}
             </div>
           </div>

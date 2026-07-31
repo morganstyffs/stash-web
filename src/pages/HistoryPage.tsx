@@ -18,10 +18,12 @@ import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 import { MonthFilterSheet } from '@/components/MonthFilterSheet'
 import { LedgerIcon } from '@/components/LedgerIcon'
 import { useToast } from '@/components/Toast'
+import { useCategories } from '@/hooks/useLookups'
 import { lockedRowInfo } from '@/lib/ledger'
 import { translateError } from '@/lib/errors'
 import { categoryIcon } from '@/lib/icons'
 import { catColorVar } from '@/lib/catColor'
+import { isCategoryId } from '@/lib/categoryFilter'
 import { monthAnchorFromKey, parseOptionalMonthParam } from '@/lib/dates'
 import { formatBaht, formatMonthShort, formatSigned } from '@/lib/format'
 
@@ -65,6 +67,39 @@ export function HistoryPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const toast = useToast()
 
+  // The category filter also lives in the URL (?cat=<uuid>) so a refresh / SW
+  // update / deep link from the home donut survives. Untrusted input: only a
+  // well-formed uuid counts as a filter, everything else is "no filter" — the RPC
+  // would raise on a malformed id, so we gate here rather than let the error bubble
+  // (convention 14). The category NAME is resolved from the cached categories by
+  // id, never read from the URL (a rename would strand a stale label).
+  const catId = isCategoryId(searchParams.get('cat')) ? searchParams.get('cat')! : ''
+  const catsQ = useCategories()
+  const activeCategory = catId ? catsQ.data?.find((c) => c.id === catId) ?? null : null
+  // The filtered category was deleted (id valid, but gone from the list). Don't
+  // strand the user on a silent empty page: fall back to every category now, and
+  // an effect drops ?cat= from the URL + says so once.
+  const categoryMissing = !!catId && catsQ.isSuccess && !activeCategory
+  const categoryFilter = categoryMissing ? '' : catId
+
+  const clearCategory = () => {
+    const next = new URLSearchParams(searchParams)
+    // Drop only the category — keep the month: someone arriving from the donut
+    // usually wants to keep browsing the same month, just across all categories.
+    next.delete('cat')
+    setSearchParams(next, { replace: true })
+  }
+
+  useEffect(() => {
+    if (categoryMissing) {
+      clearCategory()
+      toast.show({ kind: 'info', message: 'หมวดที่กรองถูกลบแล้ว — แสดงทุกหมวด' })
+    }
+    // clearCategory/searchParams are stable enough for this one-shot cleanup; the
+    // guard (categoryMissing) flips to false as soon as the URL loses ?cat=.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryMissing])
+
   // debounce search → one query per pause, not per keystroke
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 300)
@@ -75,12 +110,23 @@ export function HistoryPage() {
     filter,
     search,
     month,
+    categoryFilter,
   )
   const rows = useMemo(() => data?.pages.flatMap((p) => p.rows) ?? [], [data])
   const groups = useMemo(() => groupByDay(rows), [rows])
   // Every page carries the same whole-match-set totals; the first page is enough.
   const totals = data?.pages[0]?.totals
   const filterLabel = FILTERS.find((f) => f.key === filter)?.label
+
+  // Empty-state copy that names whichever filters are active (month, category, or
+  // both), so an empty result never looks like lost data.
+  const emptyLabel = (() => {
+    const cat = activeCategory ? `หมวด${activeCategory.name}` : ''
+    if (cat && month) return `ไม่มีรายการ${cat} ใน ${monthLabel}`
+    if (month) return `ไม่มีรายการใน ${monthLabel}`
+    if (cat) return `ไม่มีรายการ${cat}`
+    return 'ไม่พบรายการ'
+  })()
 
   // The list + its totals now ride one RPC; if it fails, the screen would just go
   // empty and silent, which is worse than the old two-query path. Surface it.
@@ -160,6 +206,24 @@ export function HistoryPage() {
             <IconChevronDown size={13} aria-hidden />
           </span>
         </button>
+
+        {/* Category chip — shown only when filtering a category (from the home
+            donut). Same row as the month pill. Tapping the × drops the category
+            filter but keeps the month. The name comes from the cached categories,
+            never the URL, so a rename can't leave a stale label here. */}
+        {activeCategory && (
+          <button
+            type="button"
+            onClick={clearCategory}
+            aria-label={`เลิกกรองหมวด ${activeCategory.name}`}
+            className="flex min-h-[44px] shrink-0 items-center"
+          >
+            <span className="flex items-center gap-1 rounded-pill bg-brand-tint px-[14px] py-1.5 text-[12px] font-medium text-brand-ink">
+              {activeCategory.name}
+              <IconX size={13} aria-hidden />
+            </span>
+          </button>
+        )}
       </div>
 
       {totals && totals.count > 0 && (
@@ -214,11 +278,10 @@ export function HistoryPage() {
             )}
           </>
         ) : (
-          // Name the month when one is filtered, so an empty month reads as "nothing
-          // logged in ก.ค. 2569" rather than a bare "ไม่พบรายการ" that looks like lost data.
-          <p className="py-10 text-center text-[13px] text-faint">
-            {month ? `ไม่มีรายการใน ${monthLabel}` : 'ไม่พบรายการ'}
-          </p>
+          // Name whatever is actually being filtered — month and/or category — so an
+          // empty result reads as "nothing in ก.ค. 2569 · อาหาร" rather than a bare
+          // "ไม่พบรายการ" that looks like lost data.
+          <p className="py-10 text-center text-[13px] text-faint">{emptyLabel}</p>
         )}
       </div>
 
