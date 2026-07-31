@@ -73,6 +73,61 @@ describe('WovenHero folded labels are actually visible (real browser)', () => {
         expect(await ownerAt('STOCK PROFIT')).toBe('SELF')
         expect(await ownerAt('฿10,000')).toBe('SELF') // budget folded figure
         expect(await ownerAt('฿1,800')).toBe('SELF') // stock folded figure
+
+        // ── face (front) label — reachable only once the eye toggle is a sibling
+        // of the label, not a <button> nested inside it. While it was nested, the
+        // HTML parser closed the outer label <button> at the inner one during
+        // page.setContent(), ejecting the SAFE headline OUT of the card in the
+        // harness. That was written off twice as "a harness artifact" (#69, #72) —
+        // it was the nesting. With the eye un-nested the face label serialises
+        // correctly, so these become real guards. ────────────────────────────────
+
+        // the big SAFE headline is the element actually painted at its own centre
+        expect(await ownerAt('฿9,000')).toBe('SELF')
+
+        // headline + sub-line stay INSIDE the face card, not spilled outside it.
+        const withinCard = (needle: string, exact = true) =>
+          page.evaluate(
+            ({ needle, exact }) => {
+              const card = document.querySelector('button[aria-label="ป้ายยอดใช้ได้"]')
+              if (!card) return 'NO-CARD'
+              const el = [...document.querySelectorAll('span,p')].find((s) => {
+                const t = (s.textContent || '').trim()
+                return exact ? t === needle : t.includes(needle)
+              })
+              if (!el) return 'NOT-IN-DOM'
+              const c = card.getBoundingClientRect()
+              const b = el.getBoundingClientRect()
+              const inside =
+                b.left >= c.left - 0.5 &&
+                b.right <= c.right + 0.5 &&
+                b.top >= c.top - 0.5 &&
+                b.bottom <= c.bottom + 0.5
+              return inside ? 'INSIDE' : 'OUTSIDE'
+            },
+            { needle, exact },
+          )
+
+        expect(await withinCard('฿9,000')).toBe('INSIDE') // headline
+        expect(await withinCard('ใช้ได้วันละ', false)).toBe('INSIDE') // sub-line
+
+        // the eye toggle is a ≥44px touch target AND the topmost element at its own
+        // centre — i.e. a tap lands on the eye, not the label underneath it.
+        const eyeHit = await page.evaluate(() => {
+          const eye =
+            document.querySelector('button[aria-label="ซ่อนยอดเงิน"]') ||
+            document.querySelector('button[aria-label="แสดงยอดเงิน"]')
+          if (!eye) return 'NO-EYE'
+          const b = eye.getBoundingClientRect()
+          if (b.width < 44 || b.height < 44) return `SMALL:${Math.round(b.width)}x${Math.round(b.height)}`
+          const top = document.elementFromPoint(
+            Math.round(b.left + b.width / 2),
+            Math.round(b.top + b.height / 2),
+          )
+          if (!top) return 'NONE'
+          return top === eye || eye.contains(top) ? 'SELF' : `COVERED:${top.tagName}`
+        })
+        expect(eyeHit).toBe('SELF')
       })
     },
     60_000,
