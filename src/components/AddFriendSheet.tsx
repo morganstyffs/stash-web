@@ -1,21 +1,24 @@
 import { useState } from 'react'
-import { IconCheck, IconCopy, IconUserPlus, IconX } from '@tabler/icons-react'
+import { useNavigate } from 'react-router-dom'
+import { IconCheck, IconUserPlus, IconX } from '@tabler/icons-react'
 import { Overlay } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import { translateError } from '@/lib/errors'
+import { normalizeUsername } from '@/lib/username'
 import {
   useFriendRequests,
   useOwnProfile,
   useRespondFriendRequest,
   useSendFriendRequest,
+  type PendingRequest,
 } from '@/hooks/useFriends'
 
 /**
- * เพิ่มเพื่อน — share your own friend code, send a request by someone else's, and
- * answer pending requests. Friends are found by an unguessable 8-char code, never
- * by email (convention 16). A pending request shows NO name on either side: until
- * it's accepted, profiles RLS won't reveal the other person's identity (0015 §3),
- * which is also the "don't reveal the code owner before they accept" rule.
+ * เพิ่มเพื่อน — add by username (found by a name the owner chose, never by email;
+ * convention 16). A pending request now shows the other person's display name +
+ * @username on both sides, because 0020 widened the profiles policy to reveal a
+ * counterpart on any connection row. If you haven't set your own username, a
+ * friend can't find you — that's called out here with a shortcut to set it.
  */
 export function AddFriendSheet({ onClose }: { onClose: () => void }) {
   const { data: profile } = useOwnProfile()
@@ -23,26 +26,17 @@ export function AddFriendSheet({ onClose }: { onClose: () => void }) {
   const send = useSendFriendRequest()
   const respond = useRespondFriendRequest()
   const toast = useToast()
-  const [code, setCode] = useState('')
-
-  async function copyCode() {
-    if (!profile?.friend_code) return
-    try {
-      await navigator.clipboard.writeText(profile.friend_code)
-      toast.success('คัดลอกรหัสแล้ว')
-    } catch {
-      toast.error('คัดลอกไม่สำเร็จ')
-    }
-  }
+  const navigate = useNavigate()
+  const [uname, setUname] = useState('')
 
   async function sendRequest() {
     try {
-      await send.mutateAsync(code.trim().toUpperCase())
+      await send.mutateAsync(uname)
       toast.success('ส่งคำขอแล้ว')
-      setCode('')
+      setUname('')
     } catch (e) {
-      // friend_request_send returns ready-to-read Thai (ไม่พบรหัสเพื่อนนี้, …);
-      // translateError passes it through — no substring matching here (rule 14).
+      // friend_request_send returns ready-to-read Thai (ไม่พบผู้ใช้นี้, …);
+      // translateError passes it through — no substring matching (rule 14).
       toast.error(translateError(e))
     }
   }
@@ -56,45 +50,58 @@ export function AddFriendSheet({ onClose }: { onClose: () => void }) {
     }
   }
 
+  function goSetUsername() {
+    onClose()
+    navigate('/settings', { state: { openManager: 'profile' } })
+  }
+
   const incoming = requests?.incoming ?? []
   const outgoing = requests?.outgoing ?? []
 
   return (
     <Overlay title="เพิ่มเพื่อน" onClose={onClose}>
-      {/* my code */}
-      <p className="mb-1.5 text-[11px] uppercase tracking-[0.5px] text-faint">รหัสเพื่อนของคุณ</p>
-      <button
-        type="button"
-        onClick={copyCode}
-        aria-label="คัดลอกรหัสเพื่อน"
-        className="mb-1.5 flex w-full items-center justify-between gap-3 rounded-card border-[0.5px] border-hairline bg-fill px-4 py-3 text-left"
-      >
-        <span className="font-mono text-[22px] font-medium tracking-[0.18em]">
-          {profile?.friend_code ?? '••••••••'}
-        </span>
-        <IconCopy size={18} className="shrink-0 text-brand-deep" />
-      </button>
-      <p className="mb-5 text-[11px] leading-relaxed text-faint">
-        ส่งรหัสนี้ให้เพื่อนที่มีบัญชี Stash เพื่อให้เขาเพิ่มคุณ
-      </p>
-
-      {/* send a request */}
-      <p className="mb-1.5 text-[11px] uppercase tracking-[0.5px] text-faint">กรอกรหัสเพื่อน</p>
-      <div className="mb-6 flex gap-2">
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && code.trim() && !send.isPending) sendRequest()
-          }}
-          placeholder="เช่น K7P2M9QX"
-          autoCapitalize="characters"
-          autoComplete="off"
-          maxLength={8}
-          className="min-w-0 flex-1 rounded-input border-[0.5px] border-hairline bg-fill px-3 py-2.5 font-mono text-[15px] tracking-[0.12em] outline-none focus:border-brand"
-        />
+      {/* your username (or a nudge to set one) */}
+      <p className="mb-1.5 text-[11px] uppercase tracking-[0.5px] text-faint">ชื่อผู้ใช้ของคุณ</p>
+      {profile?.username ? (
+        <>
+          <div className="mb-1.5 rounded-card border-[0.5px] border-hairline bg-fill px-4 py-3">
+            <span className="font-mono text-[18px] font-medium">@{profile.username}</span>
+          </div>
+          <p className="mb-5 text-[11px] leading-relaxed text-faint">บอกชื่อนี้ให้เพื่อนเพื่อให้เขาเพิ่มคุณ</p>
+        </>
+      ) : (
         <button
-          disabled={!code.trim() || send.isPending}
+          type="button"
+          onClick={goSetUsername}
+          className="mb-5 w-full rounded-card border-[0.5px] border-warn bg-warn-bg px-4 py-3 text-left"
+        >
+          <p className="text-[13px] font-medium text-warn-ink">คุณยังไม่ได้ตั้งชื่อผู้ใช้</p>
+          <p className="mt-0.5 text-[11.5px] leading-relaxed text-warn-ink">
+            เพื่อนจะค้นหาและเพิ่มคุณไม่ได้จนกว่าจะตั้ง — แตะเพื่อตั้งเลย
+          </p>
+        </button>
+      )}
+
+      {/* send a request by username */}
+      <p className="mb-1.5 text-[11px] uppercase tracking-[0.5px] text-faint">เพิ่มด้วยชื่อผู้ใช้</p>
+      <div className="mb-6 flex gap-2">
+        <div className="flex min-w-0 flex-1 items-center rounded-input border-[0.5px] border-hairline bg-fill pl-3 focus-within:border-brand">
+          <span className="text-[15px] text-faint">@</span>
+          <input
+            value={uname}
+            onChange={(e) => setUname(normalizeUsername(e.target.value))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && uname && !send.isPending) sendRequest()
+            }}
+            placeholder="ชื่อผู้ใช้เพื่อน"
+            autoCapitalize="none"
+            autoComplete="off"
+            maxLength={20}
+            className="min-w-0 flex-1 bg-transparent px-1 py-2.5 font-mono text-[15px] outline-none"
+          />
+        </div>
+        <button
+          disabled={!uname || send.isPending}
           onClick={sendRequest}
           className="flex shrink-0 items-center gap-1.5 rounded-btn bg-brand-deep px-4 py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
         >
@@ -103,7 +110,7 @@ export function AddFriendSheet({ onClose }: { onClose: () => void }) {
         </button>
       </div>
 
-      {/* incoming — accept / decline */}
+      {/* incoming — now with identity, so you can decide */}
       {incoming.length > 0 && (
         <>
           <p className="mb-1.5 text-[11px] uppercase tracking-[0.5px] text-faint">
@@ -115,10 +122,7 @@ export function AddFriendSheet({ onClose }: { onClose: () => void }) {
                 key={r.id}
                 className="flex items-center gap-3 border-b-[0.5px] border-hairline py-2.5 last:border-b-0"
               >
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13.5px]">มีคนขอเพิ่มคุณเป็นเพื่อน</p>
-                  <p className="text-[11px] text-faint">ชื่อจะแสดงเมื่อคุณกดรับ</p>
-                </div>
+                <RequesterIdentity req={r} className="min-w-0 flex-1" />
                 <button
                   aria-label="รับคำขอ"
                   disabled={respond.isPending}
@@ -142,7 +146,7 @@ export function AddFriendSheet({ onClose }: { onClose: () => void }) {
         </>
       )}
 
-      {/* outgoing — awaiting their answer */}
+      {/* outgoing — awaiting their answer, also named */}
       {outgoing.length > 0 && (
         <>
           <p className="mb-1.5 text-[11px] uppercase tracking-[0.5px] text-faint">
@@ -154,15 +158,24 @@ export function AddFriendSheet({ onClose }: { onClose: () => void }) {
                 key={r.id}
                 className="flex items-center gap-3 border-b-[0.5px] border-hairline py-2.5 last:border-b-0"
               >
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13.5px] text-muted">ส่งคำขอแล้ว</p>
-                  <p className="text-[11px] text-faint">รอเพื่อนกดรับ</p>
-                </div>
+                <RequesterIdentity req={r} className="min-w-0 flex-1" />
+                <span className="shrink-0 text-[11px] text-faint">รอตอบรับ</span>
               </div>
             ))}
           </div>
         </>
       )}
     </Overlay>
+  )
+}
+
+/** Display name + @username of the other party; falls back gracefully if the
+ *  profile couldn't be read. */
+function RequesterIdentity({ req, className }: { req: PendingRequest; className?: string }) {
+  return (
+    <div className={className}>
+      <p className="truncate text-[13.5px]">{req.displayName ?? 'เพื่อน'}</p>
+      {req.username && <p className="truncate font-mono text-[11px] text-faint">@{req.username}</p>}
+    </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   IconBox,
   IconCategory,
@@ -40,10 +40,16 @@ export function SettingsPage() {
   const { data: favorites } = useFavorites()
   const { data: recurringCount } = useRecurringCount()
   const { mode, setMode } = useTheme()
+  const location = useLocation()
 
+  // Deep-link: navigating here with `state.openManager` (e.g. the "ตั้งชื่อผู้ใช้"
+  // shortcut from ยอดค้าง) opens that manager straight away. Read once on mount.
   const [manager, setManager] = useState<
     'profile' | 'categories' | 'wallets' | 'favorites' | 'recurring' | null
-  >(null)
+  >(() => {
+    const s = location.state as { openManager?: 'profile' } | null
+    return s?.openManager ?? null
+  })
   const [ai, setAi] = useState<AiPrefs>(() => loadAiPrefs())
 
   function setAiPref(patch: Partial<AiPrefs>) {
@@ -105,7 +111,7 @@ export function SettingsPage() {
         <Row
           icon={IconUserCircle}
           label="โปรไฟล์"
-          sub="ชื่อที่เพื่อนเห็น · รหัสเพื่อน"
+          sub="ชื่อที่เพื่อนเห็น · ชื่อผู้ใช้"
           onClick={() => setManager('profile')}
         />
         <ToggleRow

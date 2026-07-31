@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconChevronRight, IconEye, IconEyeOff, IconUserPlus } from '@tabler/icons-react'
+import { IconChevronRight, IconEye, IconEyeOff, IconUserPlus, IconX } from '@tabler/icons-react'
 import { WovenHeroEmpty } from '@/components/WovenHero'
 import { AddFriendSheet } from '@/components/AddFriendSheet'
 import { ConfirmDebtSheet } from '@/components/ConfirmDebtSheet'
 import { useToast } from '@/components/Toast'
 import { useAuth } from '@/hooks/useAuth'
 import { useHideBalance } from '@/hooks/useHideBalance'
-import { useDebtsSummary, useFriendRequests, usePendingDebts } from '@/hooks/useFriends'
+import { useDebtsSummary, useFriendRequests, useOwnProfile, usePendingDebts } from '@/hooks/useFriends'
 import { computeDebtsHeadline, friendDirection } from '@/lib/debtsSummary'
 import { formatBaht, MASKED_BAHT } from '@/lib/format'
 import { translateError } from '@/lib/errors'
@@ -27,10 +27,14 @@ export function DebtsPage() {
   const summaryQ = useDebtsSummary()
   const pendingQ = usePendingDebts()
   const requestsQ = useFriendRequests()
+  const profileQ = useOwnProfile()
   const { hideBalance, toggleHideBalance } = useHideBalance()
   const toast = useToast()
   const [addOpen, setAddOpen] = useState(false)
   const [confirming, setConfirming] = useState<Debt | null>(null)
+  // Dismiss is local state only — it hides the banner for this visit but returns
+  // next time (no localStorage), so "no username" is never forgotten permanently.
+  const [bannerDismissed, setBannerDismissed] = useState(false)
 
   // Surface query failures — never swallow (convention 17). The pending block is
   // the only channel for a confirmation (no push), so its failure must be loud.
@@ -53,6 +57,8 @@ export function DebtsPage() {
   )
   const pending = pendingQ.data ?? []
   const hasIncoming = (requestsQ.data?.incoming.length ?? 0) > 0
+  // Show once the profile has loaded and there is genuinely no username.
+  const showUsernameBanner = !!profileQ.data && !profileQ.data.username && !bannerDismissed
 
   const money = (v: number) => (hideBalance ? MASKED_BAHT : formatBaht(v))
 
@@ -75,6 +81,30 @@ export function DebtsPage() {
           )}
         </button>
       </div>
+
+      {showUsernameBanner && (
+        <div className="mx-4 mb-3 flex items-start gap-3 rounded-card border-[0.5px] border-warn bg-warn-bg px-3.5 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[12.5px] font-medium text-warn-ink">เพื่อนยังหาคุณไม่เจอ</p>
+            <p className="mt-0.5 text-[11.5px] leading-relaxed text-warn-ink">
+              ตั้งชื่อผู้ใช้ก่อน เพื่อนถึงจะค้นหาและเพิ่มคุณเป็นเพื่อนได้
+            </p>
+            <button
+              onClick={() => navigate('/settings', { state: { openManager: 'profile' } })}
+              className="mt-2 rounded-btn bg-brand-deep px-3.5 py-1.5 text-[12px] font-medium text-white"
+            >
+              ตั้งชื่อผู้ใช้
+            </button>
+          </div>
+          <button
+            aria-label="ปิด"
+            onClick={() => setBannerDismissed(true)}
+            className="-m-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+          >
+            <IconX size={16} className="text-warn-ink" />
+          </button>
+        </div>
+      )}
 
       {summaryQ.isLoading ? (
         <div className="mx-4 h-[112px] animate-pulse rounded-card bg-fill motion-reduce:animate-none" />
