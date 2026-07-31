@@ -140,7 +140,7 @@ export function useSendFriendRequest() {
     mutationFn: async (code: string) => {
       // friend_request_send raises ready-to-show Thai errors (ไม่พบรหัสเพื่อนนี้,
       // เพิ่มตัวเองเป็นเพื่อนไม่ได้, …) — translateError passes those through.
-      const { error } = await supabase.rpc('friend_request_send', { p_code: code })
+      const { error } = await supabase.rpc('friend_request_send', { p_username: code })
       if (error) throw error
     },
     onSuccess: () => {
