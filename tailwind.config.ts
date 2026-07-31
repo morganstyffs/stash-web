@@ -31,6 +31,13 @@ export default {
           'fabric-income': '#1E3A2C', // income fast-label fabric — tells รับ apart from จ่าย
           thread: '#F3ECDB', // woven thread = text on every label — locked
         },
+        // mint — logo shell (เปลือกตู้: ring + rays + safe-door) of the หน้าปัดตู้เซฟ
+        // brand mark (BrandMark.tsx, used via `text-mint`). INTENTIONAL REVERSAL of
+        // PR-C, which dropped mint in favour of indigo: logo v2 puts a mint shell
+        // around the indigo dial, so the token is deliberately back (mint-soft
+        // #5CBFA3). Do NOT "fix" this back out — see design-spec §11.4-1.
+        // Re-added 2026-07-31. Value mirrors --color-mint in src/styles/index.css.
+        mint: 'rgb(var(--color-mint) / <alpha-value>)',
         // semantic (each with a light surface; -soft pairs read on dark bg)
         income: 'rgb(var(--color-income) / <alpha-value>)',
         'income-bg': 'rgb(var(--color-income-bg) / <alpha-value>)',
