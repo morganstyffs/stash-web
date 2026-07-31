@@ -11,6 +11,7 @@ import { StockPage } from './pages/StockPage'
 import { StockIntakePage } from './pages/StockIntakePage'
 import { StockQueuePage } from './pages/StockQueuePage'
 import { BudgetPage } from './pages/BudgetPage'
+import { DebtsPage } from './pages/DebtsPage'
 import { SettingsPage } from './pages/SettingsPage'
 
 /**
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/', element: <HomePage /> },
           { path: '/history', element: <HistoryPage /> },
+          { path: '/debts', element: <DebtsPage /> },
           { path: '/stock', element: <StockPage /> },
           { path: '/budget', element: <BudgetPage /> },
           { path: '/settings', element: <SettingsPage /> },

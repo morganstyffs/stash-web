@@ -157,7 +157,15 @@ export function WovenHero({
   const navigate = useNavigate()
   const [selected, setSelected] = useState<HeroKey>('safe')
 
-  if (empty) return <WovenHeroEmpty onStart={() => navigate('/add')} />
+  if (empty)
+    return (
+      <WovenHeroEmpty
+        title="เริ่มบันทึกรายการแรกของคุณ"
+        description="ป้ายทอใบนี้จะค่อย ๆ เต็มไปด้วยตัวเลขของคุณเอง"
+        actionLabel="เพิ่มรายการแรก"
+        onAction={() => navigate('/add')}
+      />
+    )
 
   // front label first, the rest keep their canonical order behind it → each key
   // maps to position 0/1/2 deterministically.
@@ -426,12 +434,22 @@ function StockBody({ stock, pop = false }: { stock: SalesSummary; pop?: boolean 
   )
 }
 
+export interface WovenHeroEmptyProps {
+  title: string
+  description: ReactNode
+  actionLabel: string
+  onAction: () => void
+  /** the uppercase strip above the title; defaults to the brand mark. */
+  eyebrow?: string
+}
+
 /**
  * Empty state — the hero as a woven label that hasn't been woven yet: one faint
- * fabric label with a single invitation and one button to log the first entry
- * (no ฿0, no apology). Still the hero, still the only textured element on the
- * page (design-spec §2 "one per page"). */
-function WovenHeroEmpty({ onStart }: { onStart: () => void }) {
+ * fabric label with a single invitation and one button (no ฿0, no apology).
+ * Still the hero, still the only textured element on the page (design-spec §2
+ * "one per page"). Reused as-is by any first-run screen (home, ยอดค้าง) — the
+ * copy + action come in as props so no screen redraws its own empty card. */
+export function WovenHeroEmpty({ title, description, actionLabel, onAction, eyebrow = 'STASH' }: WovenHeroEmptyProps) {
   return (
     <div className="relative animate-weave-in motion-reduce:animate-none" style={{ height: CONTAINER_H }}>
       <div
@@ -442,17 +460,17 @@ function WovenHeroEmpty({ onStart }: { onStart: () => void }) {
         <span aria-hidden className="selvedge absolute inset-x-0 bottom-0 h-[7px]" />
         <div className="px-[18px]">
           <p className="text-[10px] font-medium uppercase opacity-70" style={{ letterSpacing: '0.17em' }}>
-            STASH
+            {eyebrow}
           </p>
-          <p className="mt-1.5 text-[19px] font-medium leading-snug">เริ่มบันทึกรายการแรกของคุณ</p>
-          <p className="mt-1 text-[12.5px] opacity-80">ป้ายทอใบนี้จะค่อย ๆ เต็มไปด้วยตัวเลขของคุณเอง</p>
+          <p className="mt-1.5 text-[19px] font-medium leading-snug">{title}</p>
+          <p className="mt-1 text-[12.5px] leading-snug opacity-80">{description}</p>
           <button
             type="button"
-            onClick={onStart}
+            onClick={onAction}
             className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-btn bg-brand-thread px-4 py-2 text-[13px] font-medium text-brand-fabric"
           >
             <IconPlus size={16} />
-            เพิ่มรายการแรก
+            {actionLabel}
           </button>
         </div>
       </div>

@@ -24,6 +24,7 @@ import { CategoriesManager } from '@/components/CategoriesManager'
 import { WalletsManager } from '@/components/WalletsManager'
 import { FavoritesManager } from '@/components/FavoritesManager'
 import { RecurringManager } from '@/components/RecurringManager'
+import { ProfileManager } from '@/components/ProfileManager'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories, useFavorites } from '@/hooks/useLookups'
 import { useRecurringCount, useWallets } from '@/hooks/useSettings'
@@ -41,7 +42,7 @@ export function SettingsPage() {
   const { mode, setMode } = useTheme()
 
   const [manager, setManager] = useState<
-    'categories' | 'wallets' | 'favorites' | 'recurring' | null
+    'profile' | 'categories' | 'wallets' | 'favorites' | 'recurring' | null
   >(null)
   const [ai, setAi] = useState<AiPrefs>(() => loadAiPrefs())
 
@@ -101,6 +102,12 @@ export function SettingsPage() {
       </div>
 
       <Group title="ทั่วไป">
+        <Row
+          icon={IconUserCircle}
+          label="โปรไฟล์"
+          sub="ชื่อที่เพื่อนเห็น · รหัสเพื่อน"
+          onClick={() => setManager('profile')}
+        />
         <ToggleRow
           icon={IconMoon}
           label="โหมดมืด"
@@ -194,6 +201,7 @@ export function SettingsPage() {
         </button>
       </div>
 
+      {manager === 'profile' && <ProfileManager onClose={() => setManager(null)} />}
       {manager === 'categories' && <CategoriesManager onClose={() => setManager(null)} />}
       {manager === 'wallets' && <WalletsManager onClose={() => setManager(null)} />}
       {manager === 'favorites' && <FavoritesManager onClose={() => setManager(null)} />}
