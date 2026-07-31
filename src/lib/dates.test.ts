@@ -2,8 +2,12 @@ import { describe, it, expect } from 'vitest'
 import {
   todayISO,
   monthBounds,
+  monthBoundsFromKey,
+  monthAnchorFromKey,
+  addMonthsToKey,
   dayOfMonthISO,
   daysLeftInMonth,
+  daysLeftInMonthKey,
   currentMonthAnchor,
   toISODate,
   formatRecentDayLabel,
@@ -48,6 +52,66 @@ describe('monthBounds — window seeded from the Bangkok month', () => {
     expect(dec.next).toBe('2027-01-01') // rolls into next year
     const feb = monthBounds(new Date('2028-02-10T12:00:00+07:00'))
     expect(feb.days).toBe(29) // 2028 is a leap year
+  })
+})
+
+describe('addMonthsToKey — pure integer month shift on a YYYY-MM key', () => {
+  it('steps back over a year boundary and forward over one', () => {
+    expect(addMonthsToKey('2026-01', -1)).toBe('2025-12')
+    expect(addMonthsToKey('2026-12', 1)).toBe('2027-01')
+  })
+
+  it('shifts by more than a year in one call', () => {
+    expect(addMonthsToKey('2026-07', -13)).toBe('2025-06')
+  })
+
+  it('is a no-op for delta 0', () => {
+    expect(addMonthsToKey('2026-07', 0)).toBe('2026-07')
+  })
+})
+
+describe('monthBoundsFromKey — window for an explicit YYYY-MM key', () => {
+  it('counts leap February from the key alone (no instant needed)', () => {
+    expect(monthBoundsFromKey('2028-02').days).toBe(29) // 2028 is a leap year
+  })
+
+  it('yields the previous/next month across a year boundary', () => {
+    const b = monthBoundsFromKey('2026-01')
+    expect(b.start).toBe('2026-01-01')
+    expect(b.prevStart).toBe('2025-12-01')
+    expect(b.next).toBe('2026-02-01')
+    expect(b.key).toBe('2026-01')
+  })
+
+  it('matches monthBounds(now) for the current month', () => {
+    const now = new Date('2026-07-15T12:00:00+07:00')
+    expect(monthBoundsFromKey('2026-07')).toEqual(monthBounds(now))
+  })
+})
+
+describe('monthAnchorFromKey — a mid-month Date for the key', () => {
+  it('lands mid-month so it can never cross a boundary', () => {
+    const anchor = monthAnchorFromKey('2026-08')
+    expect(anchor.getFullYear()).toBe(2026)
+    expect(anchor.getMonth()).toBe(7) // August (0-indexed)
+    expect(anchor.getDate()).toBe(15)
+  })
+})
+
+describe('daysLeftInMonthKey — days left keyed on which month, not just now', () => {
+  it('is 0 for a past month even when today sits mid-month elsewhere', () => {
+    // Viewing June while "now" is mid-July: the month is over, nothing left.
+    expect(daysLeftInMonthKey('2026-06', new Date('2026-07-15T12:00:00+07:00'))).toBe(0)
+  })
+
+  it('is the whole month for a future key', () => {
+    // UI blocks this, but the definition is explicit rather than ambiguous.
+    expect(daysLeftInMonthKey('2026-09', new Date('2026-07-15T12:00:00+07:00'))).toBe(30)
+  })
+
+  it('equals daysLeftInMonth(now) exactly for the current month', () => {
+    const now = new Date('2026-07-29T12:00:00+07:00')
+    expect(daysLeftInMonthKey(monthBounds(now).key, now)).toBe(daysLeftInMonth(now))
   })
 })
 

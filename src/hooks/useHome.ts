@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { dayOfMonthISO, daysLeftInMonth, monthBounds } from '@/lib/dates'
+import { dayOfMonthISO, daysLeftInMonthKey, monthBoundsFromKey, monthKey } from '@/lib/dates'
 import { isBudgetSpendingRow, isIncomeRow, isSpendingRow } from '@/lib/ledger'
 import type { Category, TransactionType } from '@/lib/db'
 
@@ -35,9 +35,9 @@ export interface RecentRow {
  * this month's in/out, safe-to-spend, the daily trend, the category donut, and
  * the month-over-month delta, all from a single query.
  */
-export function useMonthTransactions() {
+export function useMonthTransactions(month: string = monthKey()) {
   const { user } = useAuth()
-  const b = monthBounds()
+  const b = monthBoundsFromKey(month)
   return useQuery({
     queryKey: ['transactions', 'summary', user?.id, b.key],
     enabled: !!user,
@@ -121,12 +121,14 @@ export interface HomeSummary {
 export function computeHomeSummary(
   rows: MonthRow[],
   categories: Category[],
-  now = new Date(),
+  month: string = monthKey(),
+  now: Date = new Date(),
 ): HomeSummary {
-  // `now` is injectable purely so tests can pin the month with fixed dates
-  // instead of sharing monthBounds() with the code under test; it defaults to
-  // the current time, so runtime behaviour is unchanged.
-  const b = monthBounds(now)
+  // `month` ("which month") is split from `now` ("what day is it"): they agree
+  // for the current month but diverge for a past one, where daysLeft must read 0
+  // rather than a plausible-looking mid-month count. Both default to the present,
+  // so runtime behaviour is unchanged.
+  const b = monthBoundsFromKey(month)
   const catById = new Map(categories.map((c) => [c.id, c]))
 
   let income = 0
@@ -176,8 +178,9 @@ export function computeHomeSummary(
     prevSafe > 0 ? Math.round(((safeToSpend - prevSafe) / prevSafe) * 100) : null
 
   // Days remaining in the month, today included — the shared helper so this and
-  // the budget page never disagree about "เหลือกี่วัน" (convention 10).
-  const daysLeft = daysLeftInMonth(now)
+  // the budget page never disagree about "เหลือกี่วัน" (convention 10). Keyed on
+  // `month`: a past month is over → 0, so dailyAllowance can't show a stale figure.
+  const daysLeft = daysLeftInMonthKey(month, now)
   const dailyAllowance = daysLeft > 0 && safeToSpend > 0 ? safeToSpend / daysLeft : 0
 
   const donut: DonutSlice[] = [...byCat.entries()]
