@@ -27,7 +27,7 @@ import { catColorVar } from '@/lib/catColor'
 import { formatRecentDayLabel, formatUpcomingDayLabel, monthKey } from '@/lib/dates'
 import { largestRemainderPercents } from '@/lib/percent'
 import { translateError } from '@/lib/errors'
-import { loadHideBalance, saveHideBalance } from '@/lib/prefs'
+import { useHideBalance } from '@/hooks/useHideBalance'
 import { formatBaht, formatSigned, MASKED_BAHT } from '@/lib/format'
 
 interface LegendRow {
@@ -82,7 +82,7 @@ export function HomePage() {
   const toast = useToast()
   const [panelOpen, setPanelOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [hideBalance, setHideBalance] = useState(loadHideBalance)
+  const { hideBalance, toggleHideBalance } = useHideBalance()
   // Which ledger tab is showing. Always starts on "recent" — not remembered across
   // visits (no prefs entry), per spec.
   const [tab, setTab] = useState<'recent' | 'pending'>('recent')
@@ -93,14 +93,6 @@ export function HomePage() {
   useEffect(() => {
     if (upcomingQ.error) toast.error(`รายการรอจ่ายไม่ทำงาน: ${translateError(upcomingQ.error)}`)
   }, [upcomingQ.error, toast])
-
-  function toggleHideBalance() {
-    setHideBalance((v) => {
-      const next = !v
-      saveHideBalance(next)
-      return next
-    })
-  }
 
   const summary = useMemo(
     () => computeHomeSummary(monthQ.data ?? [], catsQ.data ?? []),

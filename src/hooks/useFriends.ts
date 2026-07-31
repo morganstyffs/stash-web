@@ -1,0 +1,220 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
+import type { Debt, FriendConnection, FriendDebtsSummary, Profile } from '@/lib/db'
+
+/**
+ * ยอดค้าง data layer. The tables are select-only under RLS and every write goes
+ * through a SECURITY DEFINER RPC (0015), so the mutations below call `.rpc(...)`,
+ * never `.update(...)`, except display_name (profiles has an own-row UPDATE
+ * policy — 0015 §3, no RPC needed).
+ *
+ * Query keys are shared so one mutation refreshes everything it touches:
+ *   ['friend_debts_summary'] the friend list + balances (RPC, all accepted friends)
+ *   ['friend_connections']   pending requests in/out
+ *   ['debts','pending']      debts awaiting MY confirmation
+ *   ['profile']              my own profile row
+ *   ['debts_badge']          the single nav-badge count (see useDebtsBadgeCount)
+ */
+
+/** Friend list + net balances — one row per accepted friend (cleared or not). */
+export function useDebtsSummary() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['friend_debts_summary', user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<FriendDebtsSummary[]> => {
+      const { data, error } = await supabase.rpc('friend_debts_summary')
+      if (error) throw error
+      return (data ?? []) as FriendDebtsSummary[]
+    },
+  })
+}
+
+/** Shared debts the OTHER party created that are waiting for me to confirm. RLS
+ *  already limits SELECT to shared rows I'm party to; `neq created_by` drops the
+ *  ones I created (those wait on THEM, not me). */
+export function usePendingDebts() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['debts', 'pending', user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<Debt[]> => {
+      const { data, error } = await supabase
+        .from('debts')
+        .select('*')
+        .eq('status', 'pending_confirmation')
+        .eq('visibility', 'shared')
+        .neq('created_by', user!.id)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return (data ?? []) as Debt[]
+    },
+  })
+}
+
+export interface FriendRequests {
+  incoming: FriendConnection[]
+  outgoing: FriendConnection[]
+}
+
+/** Pending friend requests, split by direction. Both parties can SELECT the row
+ *  (0015 §2); the requester's/addressee's *name* is deliberately not resolvable
+ *  until the request is accepted (profiles RLS), so the UI shows no identity yet. */
+export function useFriendRequests() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['friend_connections', 'pending', user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<FriendRequests> => {
+      const { data, error } = await supabase
+        .from('friend_connections')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      const uid = user!.id
+      const rows = (data ?? []) as FriendConnection[]
+      return {
+        incoming: rows.filter((r) => r.addressee_id === uid),
+        outgoing: rows.filter((r) => r.requester_id === uid),
+      }
+    },
+  })
+}
+
+/** My own profile (display_name + friend_code). */
+export function useOwnProfile() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['profile', user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<Profile | null> => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user!.id)
+        .maybeSingle()
+      if (error) throw error
+      return (data as Profile) ?? null
+    },
+  })
+}
+
+/**
+ * The nav badge count — the ONE place it's computed (convention 10): incoming
+ * friend requests awaiting my answer + shared debts awaiting my confirmation.
+ * Head-count queries only (no rows fetched), so it's cheap to keep on every
+ * screen via <AppLayout>.
+ */
+export function useDebtsBadgeCount() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['debts_badge', user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<number> => {
+      const uid = user!.id
+      const [reqs, debts] = await Promise.all([
+        supabase
+          .from('friend_connections')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending')
+          .eq('addressee_id', uid),
+        supabase
+          .from('debts')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending_confirmation')
+          .eq('visibility', 'shared')
+          .neq('created_by', uid),
+      ])
+      if (reqs.error) throw reqs.error
+      if (debts.error) throw debts.error
+      return (reqs.count ?? 0) + (debts.count ?? 0)
+    },
+  })
+}
+
+export function useSendFriendRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (code: string) => {
+      // friend_request_send raises ready-to-show Thai errors (ไม่พบรหัสเพื่อนนี้,
+      // เพิ่มตัวเองเป็นเพื่อนไม่ได้, …) — translateError passes those through.
+      const { error } = await supabase.rpc('friend_request_send', { p_code: code })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['friend_connections'] })
+      qc.invalidateQueries({ queryKey: ['friend_debts_summary'] })
+      qc.invalidateQueries({ queryKey: ['debts_badge'] })
+    },
+  })
+}
+
+export function useRespondFriendRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, accept }: { id: string; accept: boolean }) => {
+      const { error } = await supabase.rpc('friend_request_respond', {
+        p_connection_id: id,
+        p_accept: accept,
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['friend_connections'] })
+      qc.invalidateQueries({ queryKey: ['friend_debts_summary'] })
+      qc.invalidateQueries({ queryKey: ['debts_badge'] })
+    },
+  })
+}
+
+export function useConfirmDebt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (debtId: string) => {
+      const { error } = await supabase.rpc('debt_confirm', { p_debt_id: debtId })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['debts'] })
+      qc.invalidateQueries({ queryKey: ['friend_debts_summary'] })
+      qc.invalidateQueries({ queryKey: ['debts_badge'] })
+    },
+  })
+}
+
+export function useRejectDebt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (debtId: string) => {
+      const { error } = await supabase.rpc('debt_reject', { p_debt_id: debtId })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['debts'] })
+      qc.invalidateQueries({ queryKey: ['friend_debts_summary'] })
+      qc.invalidateQueries({ queryKey: ['debts_badge'] })
+    },
+  })
+}
+
+export function useUpdateDisplayName() {
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  return useMutation({
+    mutationFn: async (name: string) => {
+      if (!user) throw new Error('ยังไม่ได้เข้าสู่ระบบ')
+      const { error } = await supabase
+        .from('profiles')
+        .update({ display_name: name })
+        .eq('user_id', user.id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['profile'] })
+      // the name rides along in friend_debts_summary rows, so refresh those too.
+      qc.invalidateQueries({ queryKey: ['friend_debts_summary'] })
+    },
+  })
+}
