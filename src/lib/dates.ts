@@ -69,6 +69,34 @@ export function currentMonthAnchor(now: Date = new Date()): Date {
   return new Date(y, m - 1, 15)
 }
 
+/**
+ * 'YYYY-MM' shifted by `delta` months. Pure integer arithmetic on the year and
+ * month parsed out of the string — never new Date(key), which would parse a
+ * bare month as UTC and can drift (rule 17). `key` is the app-wide unit for "a
+ * month": a string that slots straight into a queryKey / URL and compares with
+ * < / > directly, no Date involved.
+ */
+export function addMonthsToKey(key: string, delta: number): string {
+  const y = Number(key.slice(0, 4))
+  const month1 = Number(key.slice(5, 7)) // 1–12
+  const total = y * 12 + (month1 - 1) + delta // absolute month index, 0-based
+  const ny = Math.floor(total / 12)
+  const nm = total - ny * 12 + 1 // back to 1–12
+  return `${ny}-${pad2(nm)}`
+}
+
+/**
+ * A Date positioned mid-month for a 'YYYY-MM' key — the key's own equivalent of
+ * currentMonthAnchor. Safe to hand to the device-local month-name formatters:
+ * mid-month can't cross a boundary, so the built-and-read frame cancels and the
+ * label is always the correct month.
+ */
+export function monthAnchorFromKey(key: string): Date {
+  const y = Number(key.slice(0, 4))
+  const month1 = Number(key.slice(5, 7)) // 1–12
+  return new Date(y, month1 - 1, 15)
+}
+
 export interface MonthBounds {
   /** first day of this month, inclusive */
   start: string
@@ -156,7 +184,24 @@ export function formatUpcomingDayLabel(iso: string, now: Date = new Date()): str
  * the home summary and the budget page route through here (convention 10).
  */
 export function daysLeftInMonth(now: Date = new Date()): number {
-  return monthBounds(now).days - dayOfMonthISO(todayISO(now)) + 1
+  return daysLeftInMonthKey(monthKey(now), now)
+}
+
+/**
+ * Days remaining in the month named by `key`, counting today (Asia/Bangkok).
+ * Splitting "which month" (key) from "what day is it" (now) is the whole point:
+ * once you view a past month, the two diverge and must not be conflated.
+ *   key in the past    → 0   (the month is over — no days left to spend)
+ *   key = current month → identical to the old daysLeftInMonth(now)
+ *   key in the future   → the whole month (the UI already blocks this; defining
+ *                         it beats leaving it ambiguous)
+ * The comparison is on 'YYYY-MM' strings, so it can't drift a day.
+ */
+export function daysLeftInMonthKey(key: string, now: Date = new Date()): number {
+  const nowKey = monthKey(now)
+  if (key < nowKey) return 0
+  if (key > nowKey) return monthBoundsFromKey(key).days
+  return monthBoundsFromKey(key).days - dayOfMonthISO(todayISO(now)) + 1
 }
 
 /**
@@ -182,18 +227,33 @@ export function daysSince(isoTimestamp: string, now: Date = new Date()): number 
   return Math.max(0, Math.round((toDay - fromDay) / 86400000))
 }
 
-export function monthBounds(now: Date = new Date()): MonthBounds {
-  // Seed from the Bangkok calendar; the rest is pure month arithmetic. Building
-  // via new Date(y, m, …) then toISODate keeps both construction and read in the
-  // same (device-local) frame, so they cancel and the strings are tz-stable —
-  // only the seed year/month is timezone-sensitive, and that's now Bangkok.
-  const { y, m: month1 } = bangkokYMD(now)
+/**
+ * Month window for an explicit 'YYYY-MM' key. The month-arithmetic technique is
+ * copied verbatim from monthBounds: building via new Date(y, m, …) then toISODate
+ * keeps construction and read in the same (device-local) frame, so they cancel
+ * and the strings are tz-stable — the key is already an absolute Bangkok month,
+ * so nothing here is timezone-sensitive. `days` is read from new Date(y, m+1, 0)
+ * in that same frame.
+ */
+export function monthBoundsFromKey(key: string): MonthBounds {
+  const y = Number(key.slice(0, 4))
+  const month1 = Number(key.slice(5, 7)) // 1–12
   const m = month1 - 1 // 0-indexed for Date()
   return {
     start: toISODate(new Date(y, m, 1)),
     next: toISODate(new Date(y, m + 1, 1)),
     prevStart: toISODate(new Date(y, m - 1, 1)),
     days: new Date(y, m + 1, 0).getDate(),
-    key: `${y}-${pad2(month1)}`,
+    key,
   }
+}
+
+/**
+ * Month window for "now" (default) or any instant, seeded from the Bangkok
+ * calendar. A thin wrapper over monthBoundsFromKey so there is exactly one month
+ * formula in the file (convention 10); the seed year/month is the only
+ * timezone-sensitive part, and that's Bangkok.
+ */
+export function monthBounds(now: Date = new Date()): MonthBounds {
+  return monthBoundsFromKey(monthKey(now))
 }

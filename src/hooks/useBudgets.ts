@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { dayOfMonthISO, monthBounds, todayISO } from '@/lib/dates'
+import { dayOfMonthISO, monthBounds, monthBoundsFromKey, monthKey, todayISO } from '@/lib/dates'
 
 export interface BudgetRow {
   id: string
@@ -11,9 +11,9 @@ export interface BudgetRow {
 }
 
 /** Budgets for the current month, joined with their category. */
-export function useBudgets() {
+export function useBudgets(month: string = monthKey()) {
   const { user } = useAuth()
-  const b = monthBounds()
+  const b = monthBoundsFromKey(month)
   return useQuery({
     queryKey: ['budgets', user?.id, b.key],
     enabled: !!user,
@@ -29,9 +29,9 @@ export function useBudgets() {
 }
 
 /** Sum of this month's budgets — used by the home "งบที่ตั้งไว้" strip. */
-export function useMonthBudgetTotal() {
+export function useMonthBudgetTotal(month: string = monthKey()) {
   const { user } = useAuth()
-  const b = monthBounds()
+  const b = monthBoundsFromKey(month)
   return useQuery({
     queryKey: ['budgets', 'total', user?.id, b.key],
     enabled: !!user,
@@ -47,9 +47,9 @@ export function useMonthBudgetTotal() {
 }
 
 /** This month's spending per category (expense, stock purchases excluded). */
-export function useMonthSpending() {
+export function useMonthSpending(month: string = monthKey()) {
   const { user } = useAuth()
-  const b = monthBounds()
+  const b = monthBoundsFromKey(month)
   return useQuery({
     queryKey: ['transactions', 'byCategory', user?.id, b.key],
     enabled: !!user,

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { monthBounds } from '@/lib/dates'
+import { monthBoundsFromKey, monthKey } from '@/lib/dates'
 
 /** One recorded sale of an item (for the item's sale history + reverse action). */
 export interface ItemSale {
@@ -45,11 +45,12 @@ export interface SalesSummary {
  * (aggregation is done in SQL — PostgREST can't sum sale_price*qty_sold). Feeds
  * the stock screen and the home WovenHero's STOCK PROFIT label.
  */
-export function useStockSalesSummary() {
+export function useStockSalesSummary(month: string = monthKey()) {
   const { user } = useAuth()
-  // monthBounds() is reckoned in Asia/Bangkok, the same calendar the RPC compares
-  // sold_on against — so p_from/p_to never drift a day on a non-Bangkok device.
-  const b = monthBounds()
+  // The key defaults to the Asia/Bangkok current month, the same calendar the RPC
+  // compares sold_on against — so p_from/p_to never drift a day on a non-Bangkok
+  // device.
+  const b = monthBoundsFromKey(month)
   return useQuery({
     queryKey: ['stock_sales', 'summary', user?.id, b.key],
     enabled: !!user,
