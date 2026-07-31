@@ -224,10 +224,11 @@ export function AddPage() {
   // confirmation lives under the finger, not only in the toast down at the foot.
   const [justSavedId, setJustSavedId] = useState<string | null>(null)
   const justSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Id of the most recent quick-save toast, so we dismiss it before showing the
-  // next one — three rapid saves must not stack three unreadable toasts, and
-  // "เลิกทำ" must always mean the latest entry.
-  const lastQuickToastId = useRef<number | null>(null)
+  // Id of the most recent save toast, so we dismiss it before showing the next
+  // one — three rapid saves must not stack three unreadable toasts, and "เลิกทำ"
+  // must always mean the latest entry. Shared by both save paths (the save
+  // button and the long-press quick-save) via showSavedToast below.
+  const lastSaveToastId = useRef<number | null>(null)
 
   // Drop the checkmark timer if the page unmounts mid-flash.
   useEffect(() => {
@@ -313,6 +314,34 @@ export function AddPage() {
     setNote(f.note ?? '')
   }
 
+  // Show the "saved, with undo" toast for a row that was just inserted. Shared
+  // by the save button and the long-press quick-save so both gestures confirm
+  // identically: one toast at a time (dismiss the previous), duration 6s, and
+  // "เลิกทำ" that deletes the row and always means the latest entry. Extracted
+  // per convention 10 — this toast+undo block used to live only in quickSave and
+  // save() would otherwise duplicate it.
+  function showSavedToast(message: string, newId: string) {
+    if (lastSaveToastId.current != null) toast.dismiss(lastSaveToastId.current)
+    lastSaveToastId.current = toast.show({
+      kind: 'success',
+      message,
+      duration: 6000,
+      action: {
+        label: 'เลิกทำ',
+        onClick: () => {
+          void (async () => {
+            try {
+              await del.mutateAsync(newId)
+              toast.success('ยกเลิกรายการแล้ว')
+            } catch (e) {
+              toast.error(translateError(e)) // never swallow (convention 16)
+            }
+          })()
+        },
+      },
+    })
+  }
+
   // Long-press on a fast-label: save the whole entry straight away, no trip to
   // the save button. It must land the SAME row a tap-then-save would (every
   // field mirrors applyFavorite), and it never touches the form — the user may
@@ -339,32 +368,12 @@ export function AddPage() {
         date: dateStr,
         note: f.note,
       })
-      const newId = row.id
       // Confirm on the label itself for ~900ms (an overlay, not a text swap, so
       // the label keeps its width and its neighbours don't jitter).
       setJustSavedId(f.id)
       if (justSavedTimer.current != null) clearTimeout(justSavedTimer.current)
       justSavedTimer.current = setTimeout(() => setJustSavedId(null), 900)
-      // One quick-save toast at a time.
-      if (lastQuickToastId.current != null) toast.dismiss(lastQuickToastId.current)
-      lastQuickToastId.current = toast.show({
-        kind: 'success',
-        message: `บันทึก “${f.label}” แล้ว`,
-        duration: 6000,
-        action: {
-          label: 'เลิกทำ',
-          onClick: () => {
-            void (async () => {
-              try {
-                await del.mutateAsync(newId)
-                toast.success('ยกเลิกรายการแล้ว')
-              } catch (e) {
-                toast.error(translateError(e)) // never swallow (convention 16)
-              }
-            })()
-          },
-        },
-      })
+      showSavedToast(`บันทึก “${f.label}” แล้ว`, row.id)
     } catch (e) {
       toast.error(translateError(e))
     }
@@ -373,7 +382,7 @@ export function AddPage() {
   async function save() {
     if (!canSave) return
     try {
-      await add.mutateAsync({
+      const row = await add.mutateAsync({
         type,
         amount,
         categoryId,
@@ -381,8 +390,18 @@ export function AddPage() {
         date: dateStr,
         note: note.trim() || null,
       })
-      toast.success('บันทึกรายการแล้ว')
-      navigate('/')
+      // Stay on the page so the next receipt can be entered without walking back
+      // through home → + → form. Clear only what belongs to THIS row — amount and
+      // note — and keep type / category / wallet / date, since a batch of receipts
+      // is usually the same category, day and wallet; clearing everything would be
+      // a fresh form each time, no faster than before. Clearing the amount also
+      // flips canSave false at once, so double-tapping บันทึก can't bank a
+      // duplicate — a structural guard, not a timing one. Do NOT touch savedFavSig:
+      // the amount change moves the signature, so favSaved falls back to false on
+      // its own (PR-28). The user leaves via the back arrow, top-left.
+      setAmountStr('')
+      setNote('')
+      showSavedToast('บันทึกรายการแล้ว', row.id)
     } catch (e) {
       toast.error(translateError(e))
     }
