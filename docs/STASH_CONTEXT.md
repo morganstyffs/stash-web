@@ -107,7 +107,8 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 
 - `qty_remaining` / `status` **คำนวณจากจำนวนเสมอ** ห้าม toggle (`sold` เมื่อเหลือ 0 · `partial` เมื่อเหลือ < ทั้งหมด · `in_stock` เมื่อเท่าทั้งหมด)
 - `cost_per_unit` และ `qty_total` **ถูกล็อกเมื่อมีการขายแล้ว** (trigger ระดับ DB)
-- **SKU สร้างจาก DB ตาม `stock_sku_config` ของแต่ละ user** ตัวนับเดินหน้าอย่างเดียว ห้ามพึ่ง `count(*)` ห้ามรีเซ็ต · สูตรประกอบ SKU อยู่ที่ `stock_sku_build` **ที่เดียว** (intake + preview เรียกตัวเดียวกัน)
+- **SKU สร้างจาก DB ตาม `stock_sku_config` ของแต่ละ user** · รูปแบบ **`{PREFIX}-{SEQ}`** เช่น `STZ-0000` (0025 · เดิม 3 ท่อน `STZ-GEN-0002`) — prefix 3 ตัว `^[A-Z0-9]{3}$` · seq 4 หลัก zero-pad เกิน 9999 ขยายเอง ไม่ตัด · **ตัวนับ 1 ตัวต่อ user เริ่ม 0 เดินหน้าอย่างเดียว** ห้ามพึ่ง `count(*)` ห้ามรีเซ็ต · สูตรประกอบอยู่ที่ `stock_sku_build(prefix, seq)` **ที่เดียว** (intake + preview เรียกตัวเดียวกัน · ฝั่ง client `src/lib/sku.ts` มีแค่ normalize/validate prefix ไม่ประกอบ SKU)
+- **prefix แก้เองได้ตลอด** ผ่านหน้าตั้งค่า (`SkuManager.tsx` เขียน `stock_sku_config` ตรง ผ่าน own-row policy) — **มีผลกับของที่รับเข้าใหม่เท่านั้น** ของที่มีป้ายแล้วไม่เปลี่ยน · **ตัวนับไม่รีเซ็ต** นับต่อจากเดิม (`STZ-0042` → `ABC-0043`) · ของเก่ารูปแบบ 3 ท่อน **ไม่ backfill** ปล่อยไว้
 - สินค้าที่มีประวัติขาย **ลบไม่ได้** (FK RESTRICT) ต้อง reverse ก่อน
 
 **แนวคิด "แถวที่ล็อก" — รวมที่ `lib/ledger.ts` `lockedRowInfo(r)` ที่เดียว:** แถวใน ledger บางประเภทแก้/ลบตรงไม่ได้เพราะผูกกับสิ่งอื่น มี trigger กันที่ DB และ UI ต้องบอกผู้ใช้ว่า "ล็อกไหม/เพราะอะไร/ไปย้อนที่ไหน" — `lockedRowInfo` คืน `{ kind, dateEditable, reason, actionLabel, actionTo }` ครอบ 3 ชนิด:
@@ -222,8 +223,10 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 
 ## 10. สถานะปัจจุบัน
 
-**ไฟล์ migration บน main: `0001`–`0022`** (ล่าสุด `0022_transactions_search.sql`) — ทุกฟังก์ชัน/ตารางใน `database.types.ts` มีไฟล์ migration รองรับครบ (ตรวจ cross-check แล้ว ไม่มี "อยู่ใน types แต่ไม่มีไฟล์")
-`0015` = ยอดค้าง (tables+RPC+`is_debt_settlement`) · `0016` = `color_index` 1–6 + DROP `categories.color` · `0017` = `friend_debts_summary` แยก private/shared + rename หมวดยอดค้าง + seed 13 หมวด · `0018` = `debt_share_private` + reproduce `debt_cancel` · `0019` = fix cast enum ใน `debt_create` · `0020` = `username` (+ trigger set-once) · `0021` = `debt_settle_many` · **`0022` = `transactions_search` (RPC ค้นหา note+หมวด+ยอด + window-aggregate totals) + index `transactions_user_page_idx`**
+**ไฟล์ migration ในสาขานี้: `0001`–`0025`** (ล่าสุด `0025_sku_prefix_only.sql`) — ทุกฟังก์ชัน/ตารางใน `database.types.ts` มีไฟล์ migration รองรับครบ (ตรวจ cross-check แล้ว ไม่มี "อยู่ใน types แต่ไม่มีไฟล์")
+`0015` = ยอดค้าง (tables+RPC+`is_debt_settlement`) · `0016` = `color_index` 1–6 + DROP `categories.color` · `0017` = `friend_debts_summary` แยก private/shared + rename หมวดยอดค้าง + seed 13 หมวด · `0018` = `debt_share_private` + reproduce `debt_cancel` · `0019` = fix cast enum ใน `debt_create` · `0020` = `username` (+ trigger set-once) · `0021` = `debt_settle_many` · `0022` = `transactions_search` (RPC ค้นหา note+หมวด+ยอด + window-aggregate totals) + index `transactions_user_page_idx` · `0023` = เพิ่มตัวกรองเดือนให้ `transactions_search` (PR-36) · `0024` = เพิ่มตัวกรอง `category_id` ให้ `transactions_search` (PR-37) · **`0025` = SKU แบบ prefix-only `{PREFIX}-{SEQ}` — DROP คอลัมน์แบรนด์ (`use_brand_code`/`brand_len`/`seq_digits`/`separator`) · `stock_sku_build(prefix,seq)` · `stock_sku_preview()` ไม่มีอาร์กิวเมนต์ · `stock_intake_create` เลิกรับ `p_brand_code` · CHECK prefix `^[A-Z0-9]{3}$` · ตัวนับเริ่ม 0**
+
+> **หมายเหตุ:** ก่อน `0025` เอกสารนี้ค้างอยู่ที่ `0022` — `0023`/`0024` (PR-36/PR-37) เข้ามาระหว่างนั้นโดยไม่ได้อัปเดตหัวข้อนี้ · §12 (main sha, จำนวน RPC/เทสต์) ยังอิงสแนปช็อตเก่า `eba4891` ยังไม่ประกอบใหม่ทั้งฉบับ
 
 **หน้าจริงในแอป (13 ไฟล์ `*Page.tsx`, 13 route + catch-all `*` → `/` ใน `router.tsx`):**
 Home `/` · History `/history` · **Debts `/debts`** · **FriendHistory `/debts/friend/:friendId`** · Stock `/stock` · StockIntake `/stock/intake` · StockQueue `/stock/queue` · Budget `/budget` · Settings `/settings` · Login `/login` · ForgotPassword `/forgot-password` · ResetPassword `/reset-password` · Add `/add`
@@ -250,6 +253,7 @@ Home `/` · History `/history` · **Debts `/debts`** · **FriendHistory `/debts/
 - **`refetchOnWindowFocus` เปิด** + effect ที่ seed ฟอร์มผูกกับ `id` (§11.4-17)
 - **ป้ายด่วน**: แตะ = เติมทั้งรายการ (`favoriteSignature` กันปุ่ม "บันทึกแล้ว" โกหก) · คีย์บอร์ดจริงขับยอด (`keypadActionFromKey`) · **กดค้าง = บันทึกทันที + เลิกทำ** (`useLongPress` — §11.4-22)
 - แก้บันเดิลค้าง: app shell **network-first** + SW **self-activate**
+- **หน้าตั้งค่ารูปแบบ SKU แบบแก้ได้** (`SkuManager.tsx` + `useSkuConfig.ts`) — แก้ prefix เองได้ตลอด เขียน `stock_sku_config` ตรงผ่าน own-row policy · SKU เป็น prefix-only `{PREFIX}-{SEQ}` (0025 · §11.4-23/24)
 
 **ยังไม่ได้ทำ / หนี้ที่รู้ตัว:**
 - **`0022 transactions_search` ยังไม่มีหลักฐานว่าถูกรัน smoke test** ทั้งที่ UI เรียกอยู่บน production แล้ว — smoke test 10 เคสอยู่ในหัวไฟล์ migration พร้อมรัน แต่ต้องให้เจ้าของรันใน `begin;…rollback;` แล้วรายงานผล (ตรงข้ามกับบทเรียน `debt_create` ที่ §9 บันทึกไว้เอง)
@@ -260,7 +264,7 @@ Home `/` · History `/history` · **Debts `/debts`** · **FriendHistory `/debts/
 - **กวาดข้อความ error ภาษาไทยในชุด RPC `0015` ที่ยังใช้คำว่า "หนี้/เจ้าหนี้/ลูกหนี้"** (0015/0018/0019) — ผู้ใช้เห็นได้จริงเพราะ `errors.ts` ส่งข้อความไทยผ่านตรง ๆ = migration เดี่ยว reproduce ทั้งชุดเปลี่ยน literal
 - **`top: 98` ใน `WovenHero.tsx`** เป็นเลขที่คำนวณมือจากค่าคงที่หลายตัว (ดูคอมเมนต์ใกล้เคียง) — เปราะถ้าเรขาคณิตฮีโร่เปลี่ยน
 - **`friend_code` + `generate_friend_code()`** เลิกใช้แล้วแต่ยังอยู่ในตาราง/ยัง seed อยู่ (ไม่ drop เลี่ยง migration destructive · ไม่มี code path อ่าน) — PR ทีหลังค่อย drop เมื่อมั่นใจ
-- หน้าตั้งค่ารูปแบบ SKU แบบแก้ได้ (ตอนนี้ read-only) · ยอดเงินคงเหลือรายกระเป๋า · ถังขยะ/กู้ข้อมูล/สำรองข้อมูล · ฟีเจอร์ AI (โครงเปล่า toggle ใน `prefs.ts`)
+- ยอดเงินคงเหลือรายกระเป๋า · ถังขยะ/กู้ข้อมูล/สำรองข้อมูล · ฟีเจอร์ AI (โครงเปล่า toggle ใน `prefs.ts`)
 - **`src/lib/offlineQueue.ts` มีอยู่แต่ยังไม่มีไฟล์ไหน import** (ยืนยันด้วย grep) → ทำต่อหรือลบทิ้ง
 - ESLint (ตอนนี้ `npm run lint` = `tsc -b`)
 
@@ -320,6 +324,11 @@ Home `/` · History `/history` · **Debts `/debts`** · **FriendHistory `/debts/
 20. **`computeHomeSummary` แยก `month` ออกจาก `now`** — เดิม `now` ทำสองหน้าที่ ("เดือนไหน" + "วันนี้วันที่เท่าไหร่") พอดูเดือนย้อนหลังสองอย่างนี้แยกกัน · `daysLeftInMonthKey(key)` คืน 0 เมื่อเดือนจบไปแล้ว — ถ้าไม่แยกจะได้ "ใช้ได้วันละ ฿X เหลืออีก N วัน" ของเดือนที่ปิดไปแล้ว (ค่า default ยังเป็นปัจจุบันทั้งคู่ พฤติกรรม runtime เดิมไม่เปลี่ยน)
 21. **`useUpcomingBills` จงใจไม่รับเดือน** — "บิลที่ยังไม่ถูกตัด" ผูกกับตอนนี้ ไม่ใช่กับเดือนที่เลือกดู (ใช้ `monthBounds()` = เดือนปัจจุบันเสมอ) · **(b)** เดือนที่จบแล้วเปลี่ยน eyebrow + บรรทัดรอง (§11.1) และ **ซ่อนลิสต์ "ล่าสุด"** เพราะ recent เป็น "8 รายการล่าสุดโดยรวม" ไม่ผูกกับเดือน — HomePage gate แท็บ recent/รอจ่ายไว้หลัง `isCurrent`
 22. **`onTap` ของป้ายด่วนอยู่บน `click` ไม่ใช่ `pointerUp`** — Enter/Space บนคีย์บอร์ดยิง `click` อย่างเดียว ไม่ยิง pointer event · ย้ายไป `pointerUp` แล้วคีย์บอร์ดพังเงียบ ๆ · และ `moveTolerancePx` (กับการ suppress `click` ที่ตามหลังการเลื่อน) คือสิ่งที่กันไม่ให้ "ปัดดูป้ายในแถว `overflow-x-auto`" กลายเป็น "บันทึกเงิน" · กดค้างบันทึกทันทีแล้ว **ไม่แตะฟอร์ม** (ผู้ใช้อาจกรอกรายการอื่นค้างอยู่) และลงวันตาม `dateStr` ที่เลือก ไม่ใช่ today ตายตัว
+
+**— ตัดสินใจรอบ SKU prefix-only (0025) —**
+
+23. **ตัดท่อนแบรนด์ออกจาก SKU** (เดิม `STZ-GEN-0002` → เหลือ `STZ-0002`) — แบรนด์ไทยแปลงเป็น code ละตินไม่ได้ ของส่วนใหญ่เลยกองรวมกันที่ท่อน `GEN` ซึ่งไม่ได้ให้ข้อมูลอะไร · SKU ทำหน้าที่แค่เป็นเลขอ้างอิงที่ไม่ซ้ำ ไม่ต้องอ่านออกความหมาย (ป้ายติดอยู่กับตัวของอยู่แล้ว แบรนด์อยู่ในฟิลด์ `brand` ของสินค้า ไม่หาย) · คอลัมน์ format ที่ไม่มีใครใช้ (`use_brand_code`/`brand_len`/`seq_digits`/`separator`) **drop ทิ้ง ไม่ปล่อยเป็นคอลัมน์ตาย** เพราะยังไม่มีข้อมูลจริงในระบบ
+24. **ตัวนับ SKU ผูกกับ user ไม่ผูกกับ prefix** — ถ้าผูกกับ prefix การเปลี่ยน `STZ`→`ABC`→`STZ` จะทำให้เลขนับกลับมาชนของเดิม (`STZ-0000` ซ้ำ) · ผูกกับ user แล้วตัวนับเดินหน้าอย่างเดียวไม่ว่า prefix เปลี่ยนกี่รอบ (`STZ-0042` → `ABC-0043`) · เพราะงั้นการแก้ prefix จึงปลอดภัยและให้แก้ได้ตลอด (มีผลกับของใหม่เท่านั้น) · preview (`stock_sku_preview` = STABLE) **ไม่จองเลข** เลขจริงออกตอนกดบันทึกในทรานแซกชันที่ row-lock config → ถ้อยคำบนหน้ารับเข้าต้องเป็น "โดยประมาณ" ไม่ใช่ "จะได้ป้ายนี้"
 
 ### 11.5 บั๊กจริงในโค้ด — B1–B14 แก้แล้วทั้งหมด (รอบ redesign)
 B1/B2 (hero base = `isBudgetSpendingRow`, ไม่ clamp) · B3 legend ตัด slice · B4 หัวแถวซ้ำ/เส้นแบ่งวัน · B5 `totalUsed` · B6 `daysLeft` นับวันนี้ · B7 แถบสองท่อน · B8–B10 หน้าคลัง · B11 `favoriteLabel()` · B12 favorites `wallet_id`+`note` (0014) · B13 ล้างยอดเดิม · B14 contrast ไอคอน error · `WalletHero` → `WovenHero`

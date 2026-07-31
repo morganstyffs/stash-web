@@ -110,7 +110,11 @@ export function translateError(err: unknown): string {
     case '23001':
       return 'ทำรายการไม่ได้ เพราะยังมีข้อมูลอื่นอ้างอิงอยู่'
     case '23514':
-      return 'ข้อมูลไม่ผ่านเงื่อนไข ลองตรวจตัวเลขอีกครั้ง'
+      // CHECK violation — shared across constraints (numeric value bounds AND
+      // the SKU prefix format, 0025). Kept general so it reads correctly for
+      // both; the specific field is validated client-side before we ever get
+      // here (rule 16: the error must still reach the user if it does fire).
+      return 'ข้อมูลไม่ผ่านเงื่อนไข ลองตรวจรูปแบบที่กรอกอีกครั้ง'
     case '23502':
       return 'กรอกข้อมูลให้ครบก่อนบันทึก'
   }

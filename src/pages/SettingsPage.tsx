@@ -25,8 +25,10 @@ import { WalletsManager } from '@/components/WalletsManager'
 import { FavoritesManager } from '@/components/FavoritesManager'
 import { RecurringManager } from '@/components/RecurringManager'
 import { ProfileManager } from '@/components/ProfileManager'
+import { SkuManager } from '@/components/SkuManager'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories, useFavorites } from '@/hooks/useLookups'
+import { useSkuConfig } from '@/hooks/useSkuConfig'
 import { useRecurringCount, useWallets } from '@/hooks/useSettings'
 import { useTheme } from '@/hooks/useTheme'
 import { loadAiPrefs, saveAiPrefs, type AiPrefs } from '@/lib/prefs'
@@ -39,13 +41,14 @@ export function SettingsPage() {
   const { data: wallets } = useWallets()
   const { data: favorites } = useFavorites()
   const { data: recurringCount } = useRecurringCount()
+  const { data: skuConfig } = useSkuConfig()
   const { mode, setMode } = useTheme()
   const location = useLocation()
 
   // Deep-link: navigating here with `state.openManager` (e.g. the "ตั้งชื่อผู้ใช้"
   // shortcut from ยอดค้าง) opens that manager straight away. Read once on mount.
   const [manager, setManager] = useState<
-    'profile' | 'categories' | 'wallets' | 'favorites' | 'recurring' | null
+    'profile' | 'categories' | 'wallets' | 'favorites' | 'recurring' | 'sku' | null
   >(() => {
     const s = location.state as { openManager?: 'profile' } | null
     return s?.openManager ?? null
@@ -154,7 +157,14 @@ export function SettingsPage() {
           sub={stockCatNames || 'ยังไม่ได้ตั้ง'}
           onClick={() => setManager('categories')}
         />
-        <Row icon={IconTag} label="รูปแบบ SKU" value="STZ-" mono last />
+        <Row
+          icon={IconTag}
+          label="รูปแบบ SKU"
+          value={`${skuConfig?.prefix ?? 'STZ'}-`}
+          mono
+          last
+          onClick={() => setManager('sku')}
+        />
       </Group>
 
       <Group title="รายการประจำ · ผู้ช่วย AI">
@@ -212,6 +222,7 @@ export function SettingsPage() {
       {manager === 'wallets' && <WalletsManager onClose={() => setManager(null)} />}
       {manager === 'favorites' && <FavoritesManager onClose={() => setManager(null)} />}
       {manager === 'recurring' && <RecurringManager onClose={() => setManager(null)} />}
+      {manager === 'sku' && <SkuManager onClose={() => setManager(null)} />}
     </div>
   )
 }
