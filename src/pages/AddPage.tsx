@@ -46,6 +46,26 @@ export function favoriteLabel(
 }
 
 /**
+ * Signature of the five values that make up one fast-label. The "saved" button
+ * decides whether the current entry has already been saved as a label by
+ * comparing signatures — NOT a boolean flag reset by hand in each editing path.
+ * A hand-reset flag went stale the moment a field it didn't know about changed
+ * (the bug: save "อาหาร 100", then key another digit → button still claimed it had
+ * saved "อาหาร 1,005"). note is trimmed to match how a label is actually saved;
+ * JSON.stringify keeps the parts unambiguous even when a note contains the
+ * delimiter, and keeps null distinct from '' (no category vs an empty one).
+ */
+export function favoriteSignature(f: {
+  type: TransactionType
+  amount: number
+  categoryId: string | null
+  walletId: string | null
+  note: string
+}): string {
+  return JSON.stringify([f.type, f.amount, f.categoryId, f.walletId, f.note.trim()])
+}
+
+/**
  * Why the save button is disabled, as user-facing text — or null when the entry
  * is complete and the bar should hide. The four states the spec enumerates.
  */
@@ -129,7 +149,9 @@ export function AddPage() {
   const [walletId, setWalletId] = useState<string | null>(null)
   const [dateStr, setDateStr] = useState(today)
   const [note, setNote] = useState(prefill?.note ?? '')
-  const [favSaved, setFavSaved] = useState(false)
+  // Signature of the fields that made up the last successfully-saved fast-label
+  // (null = none saved this session). favSaved is derived from it below.
+  const [savedFavSig, setSavedFavSig] = useState<string | null>(null)
   const [managingCats, setManagingCats] = useState(false)
   const [managingFavs, setManagingFavs] = useState(false)
 
@@ -138,13 +160,16 @@ export function AddPage() {
   // Keep the 'T00:00:00' suffix: it is verified-correct, not a rule-18 slip.
   const dateLabel = dateStr === today ? 'วันนี้' : formatDayShort(new Date(dateStr + 'T00:00:00'))
 
-  // Default the wallet to the first one once wallets load (wallet_id is optional
-  // in the schema, so if the user has none we simply save without a wallet).
+  // The wallet an unspecified entry falls back to: the user's first wallet, or
+  // null when they have none (wallet_id is optional in the schema). One shared
+  // definition so the mount-time default AND applyFavorite's "label with no
+  // wallet" reset use the exact same rule, never two copies (convention 10).
+  const defaultWalletId = walletsQ.data?.[0]?.id ?? null
+
+  // Default the wallet once wallets load, unless the user already picked one.
   useEffect(() => {
-    if (walletId == null && walletsQ.data && walletsQ.data.length > 0) {
-      setWalletId(walletsQ.data[0].id)
-    }
-  }, [walletsQ.data, walletId])
+    if (walletId == null && defaultWalletId != null) setWalletId(defaultWalletId)
+  }, [defaultWalletId, walletId])
 
   // Category chips: categories of the chosen kind, excluding stock-intake
   // categories and three system categories that only ever come from their own
@@ -175,6 +200,11 @@ export function AddPage() {
   const selectedCat = categories.find((c) => c.id === categoryId)
   const pendingFavName = favoriteLabel(selectedCat?.name, amount > 0 ? amount : null)
 
+  // "Saved" is true only while the current fields still match what was last saved
+  // as a label — edit any of the five and the button truthfully re-enables.
+  const currentFavSig = favoriteSignature({ type, amount, categoryId, walletId, note })
+  const favSaved = savedFavSig !== null && savedFavSig === currentFavSig
+
   function press(key: string) {
     setAmountStr((prev) => pressKey(prev, key))
   }
@@ -182,23 +212,24 @@ export function AddPage() {
   function switchType(next: TransactionType) {
     setType(next)
     setCategoryId(null)
-    setFavSaved(false)
   }
 
   function pickCategory(id: string) {
     setCategoryId(id)
-    setFavSaved(false)
   }
 
-  // Apply a fast-label. B13: the amount is set on *every* tap — a label with no
-  // amount clears whatever was in the box, so it can't fuse with a stale value.
+  // Apply a fast-label — the full template of ONE entry. B13, extended to every
+  // field: amount / note / wallet are each set on EVERY tap, so a label that omits
+  // one CLEARS whatever the previous entry left instead of fusing with it (tap
+  // "กาแฟ 60" after a stale "ค่าแท็กซี่" note → the note is gone, not silently carried
+  // onto the coffee). A label with no wallet falls back to the default wallet — the
+  // one explainable state — never a stale, invisible pick from the last entry.
   function applyFavorite(f: Favorite) {
     setType(f.type)
     setAmountStr(f.amount != null ? String(f.amount) : '')
     setCategoryId(f.category_id)
-    if (f.wallet_id) setWalletId(f.wallet_id)
-    if (f.note) setNote(f.note)
-    setFavSaved(false)
+    setWalletId(f.wallet_id ?? defaultWalletId)
+    setNote(f.note ?? '')
   }
 
   async function save() {
@@ -232,7 +263,7 @@ export function AddPage() {
         wallet_id: walletId,
         note: note.trim() || null,
       })
-      setFavSaved(true)
+      setSavedFavSig(currentFavSig)
       toast.success('บันทึกเป็นป้ายด่วนแล้ว')
     } catch (e) {
       toast.error(translateError(e))
