@@ -53,37 +53,69 @@ export function usePendingDebts() {
   })
 }
 
-export interface FriendRequests {
-  incoming: FriendConnection[]
-  outgoing: FriendConnection[]
+/** A pending request with the OTHER party's identity resolved. Since 0020 the
+ *  profiles SELECT policy exposes a counterpart on ANY connection row (not just
+ *  accepted), so name + username are known BEFORE accepting — the whole point of
+ *  this PR (you accept because you know who it is). */
+export interface PendingRequest {
+  /** friend_connections.id — pass to friend_request_respond */
+  id: string
+  counterpartId: string
+  displayName: string | null
+  username: string | null
 }
 
-/** Pending friend requests, split by direction. Both parties can SELECT the row
- *  (0015 §2); the requester's/addressee's *name* is deliberately not resolvable
- *  until the request is accepted (profiles RLS), so the UI shows no identity yet. */
+export interface FriendRequests {
+  incoming: PendingRequest[]
+  outgoing: PendingRequest[]
+}
+
 export function useFriendRequests() {
   const { user } = useAuth()
   return useQuery({
     queryKey: ['friend_connections', 'pending', user?.id],
     enabled: !!user,
     queryFn: async (): Promise<FriendRequests> => {
+      const uid = user!.id
       const { data, error } = await supabase
         .from('friend_connections')
         .select('*')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
       if (error) throw error
-      const uid = user!.id
       const rows = (data ?? []) as FriendConnection[]
+      const incoming = rows.filter((r) => r.addressee_id === uid)
+      const outgoing = rows.filter((r) => r.requester_id === uid)
+
+      // Resolve each counterpart's profile in one round-trip (no FK from
+      // friend_connections to profiles, so this can't be a PostgREST embed).
+      const ids = [
+        ...new Set([...incoming.map((r) => r.requester_id), ...outgoing.map((r) => r.addressee_id)]),
+      ]
+      const byId = new Map<string, { display_name: string; username: string | null }>()
+      if (ids.length) {
+        const { data: profs, error: pe } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, username')
+          .in('user_id', ids)
+        if (pe) throw pe
+        for (const p of profs ?? []) byId.set(p.user_id, { display_name: p.display_name, username: p.username })
+      }
+      const toReq = (r: FriendConnection, counterpartId: string): PendingRequest => ({
+        id: r.id,
+        counterpartId,
+        displayName: byId.get(counterpartId)?.display_name ?? null,
+        username: byId.get(counterpartId)?.username ?? null,
+      })
       return {
-        incoming: rows.filter((r) => r.addressee_id === uid),
-        outgoing: rows.filter((r) => r.requester_id === uid),
+        incoming: incoming.map((r) => toReq(r, r.requester_id)),
+        outgoing: outgoing.map((r) => toReq(r, r.addressee_id)),
       }
     },
   })
 }
 
-/** My own profile (display_name + friend_code). */
+/** My own profile (display_name + username). */
 export function useOwnProfile() {
   const { user } = useAuth()
   return useQuery({
@@ -138,7 +170,7 @@ export function useSendFriendRequest() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (code: string) => {
-      // friend_request_send raises ready-to-show Thai errors (ไม่พบรหัสเพื่อนนี้,
+      // friend_request_send raises ready-to-show Thai errors (ไม่พบผู้ใช้นี้,
       // เพิ่มตัวเองเป็นเพื่อนไม่ได้, …) — translateError passes those through.
       const { error } = await supabase.rpc('friend_request_send', { p_username: code })
       if (error) throw error
@@ -217,6 +249,29 @@ export function useUpdateDisplayName() {
       qc.invalidateQueries({ queryKey: ['profile'] })
       // the name rides along in friend_debts_summary rows, so refresh those too.
       qc.invalidateQueries({ queryKey: ['friend_debts_summary'] })
+    },
+  })
+}
+
+/** Set the username once. The DB (0020) enforces set-once + format + uniqueness;
+ *  the client only needs to translate the duplicate case. Caught by CODE, never
+ *  by message (rule 14); the set-once trigger's own Thai message passes straight
+ *  through translateError, so it needs no case here. */
+export function useSetUsername() {
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  return useMutation({
+    mutationFn: async (username: string) => {
+      if (!user) throw new Error('ยังไม่ได้เข้าสู่ระบบ')
+      const { error } = await supabase.from('profiles').update({ username }).eq('user_id', user.id)
+      if (error) {
+        if (error.code === '23505') throw new Error('ชื่อผู้ใช้นี้มีคนใช้แล้ว')
+        throw error
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['profile'] })
+      qc.invalidateQueries({ queryKey: ['friend_connections'] })
     },
   })
 }
