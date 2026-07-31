@@ -120,6 +120,55 @@
 --
 --   -- 4. exactly one seed function:
 --   select count(*) as seed_defs from pg_proc where proname = 'seed_defaults_internal';  -- expect 1
+--
+--   -- 5. FULL PATH with fabricated data — the one that actually proves the logic.
+--   --    On a fresh DB friend_connections is empty, so tests 1/1b return 0 rows and
+--   --    NEVER exercise the join or the shared/private split. This inserts a real
+--   --    accepted friendship + one SHARED and one PRIVATE confirmed debt between
+--   --    two real users (me as creditor on both, distinct amounts 500 / 300), calls
+--   --    the function as me, and asserts the two groups land in separate columns
+--   --    (a bug that merged them would show 800 in shared_they_owe_me). Everything
+--   --    is ROLLED BACK — no row survives. Needs >= 2 users and assumes the two
+--   --    picked users aren't already connected (true on a fresh DB).
+--   begin;
+--   do $$
+--   declare
+--     v_me     uuid;
+--     v_friend uuid;
+--     v_rows   int;
+--     v_sto    numeric;   -- shared_they_owe_me
+--     v_pto    numeric;   -- private_they_owe_me
+--     v_sio    numeric;   -- shared_i_owe_them
+--   begin
+--     select p.user_id into v_me     from public.profiles p order by p.created_at, p.user_id limit 1;
+--     select p.user_id into v_friend from public.profiles p
+--       where p.user_id <> v_me order by p.created_at, p.user_id limit 1;
+--     if v_friend is null then
+--       raise notice 'skip test 5: need >= 2 users';
+--       return;
+--     end if;
+--
+--     perform set_config('request.jwt.claims', json_build_object('sub', v_me)::text, true);
+--
+--     insert into public.friend_connections (requester_id, addressee_id, status, responded_at)
+--       values (v_me, v_friend, 'accepted', now());
+--
+--     insert into public.debts (creditor_id, debtor_id, amount, visibility, status, created_by, confirmed_at)
+--       values (v_me, v_friend, 500, 'shared',  'confirmed', v_me, now()),
+--              (v_me, v_friend, 300, 'private', 'confirmed', v_me, now());
+--
+--     select count(*) into v_rows from public.friend_debts_summary();
+--     select s.shared_they_owe_me, s.private_they_owe_me, s.shared_i_owe_them
+--       into v_sto, v_pto, v_sio
+--       from public.friend_debts_summary() s;
+--
+--     assert v_rows = 1,   format('test 5: expected 1 row, got %s', v_rows);
+--     assert v_sto  = 500, format('test 5: shared_they_owe_me expected 500, got %s (private leaked in?)', v_sto);
+--     assert v_pto  = 300, format('test 5: private_they_owe_me expected 300, got %s', v_pto);
+--     assert v_sio  = 0,   format('test 5: shared_i_owe_them expected 0, got %s', v_sio);
+--     raise notice 'test 5 OK: 1 row, shared_they_owe_me=% private_they_owe_me=% (groups separate)', v_sto, v_pto;
+--   end $$;
+--   rollback;
 -- ============================================================================
 
 
