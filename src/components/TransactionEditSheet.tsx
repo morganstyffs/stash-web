@@ -56,7 +56,8 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
     setWalletId(tx.wallet_id)
     setDateStr(tx.date)
     setNote(tx.note ?? '')
-  }, [tx])
+    // ผูกกับ id ไม่ใช่ object: refetch-on-focus จะรัน effect ซ้ำแล้วทับสิ่งที่ผู้ใช้พิมพ์ค้างไว้
+  }, [tx?.id])
 
   const categories = (catsQ.data ?? []).filter(
     (c) => tx && c.kind === tx.type && !c.is_stock_category,

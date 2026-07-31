@@ -8,9 +8,14 @@ import { router } from './router'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      // staleTime กันไม่ให้สลับแอปไปมาแล้วยิง query รัว (คงไว้ 30s)
       staleTime: 30_000,
       retry: 1,
-      refetchOnWindowFocus: false,
+      // เปิด refetch-on-focus: PWA ที่ค้าง background ครึ่งวันกลับมาแล้วต้องสด
+      // ไม่ใช่โชว์ตัวเลขเมื่อวานจนกว่าจะกดเปลี่ยนหน้า
+      // เงื่อนไข: useEffect ที่ seed ฟอร์มจาก object ของ query ต้องผูกกับ id
+      // ไม่ใช่ object — ไม่งั้น refetch จะรัน effect ซ้ำแล้วทับสิ่งที่ผู้ใช้พิมพ์/อัปโหลดค้าง
+      refetchOnWindowFocus: true,
     },
   },
 })

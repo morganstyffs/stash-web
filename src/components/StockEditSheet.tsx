@@ -78,7 +78,8 @@ export function StockEditSheet({
     return () => {
       alive = false
     }
-  }, [item])
+    // ผูกกับ id ไม่ใช่ object: refetch-on-focus จะรัน effect ซ้ำแล้วทับรูปที่เพิ่งอัปโหลดแต่ยังไม่เซฟ
+  }, [item.id])
 
   async function onAddPhotos(files: File[]) {
     if (!user) return
