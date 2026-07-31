@@ -1,9 +1,10 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { formatDayShort } from '@/lib/format'
 import { todayISO } from '@/lib/dates'
 import type { TransactionType } from '@/lib/db'
+import type { Database } from '@/lib/database.types'
 
 export type HistoryFilter = 'all' | 'income' | 'expense' | 'stock'
 
@@ -24,10 +25,87 @@ export interface HistoryRow {
   category: { name: string; icon: string; color_index: number } | null
 }
 
+export interface HistoryTotals {
+  count: number
+  income: number
+  expense: number
+}
+
+/** One page of search results: the rows for that page + the totals for the WHOLE
+ *  match set (not just this page). */
+export interface HistorySearchPage {
+  rows: HistoryRow[]
+  totals: HistoryTotals
+}
+
+export const EMPTY_TOTALS: HistoryTotals = { count: 0, income: 0, expense: 0 }
+
+/** A raw row from the transactions_search RPC — derived from the generated types,
+ *  never hand-typed (convention 12). Its columns are flat (category_name / _icon /
+ *  _color_index) and the three match_* totals repeat identically on every row.
+ *
+ *  transactions_search LEFT JOINs categories, so an uncategorised row really comes
+ *  back with category_name = null — but the generator declares it non-null. Correct
+ *  exactly that one left-join column (still derived from the generated row, not a
+ *  hand-written shape); _icon / _color_index stay non-null because they are only
+ *  read inside the `category_name != null` branch of toSearchPage. */
+type RawSearchRow = Database['public']['Functions']['transactions_search']['Returns'][number]
+type SearchRow = Omit<RawSearchRow, 'category_name'> & { category_name: string | null }
+
 /**
- * Transactions for the current user, filtered server-side by the active chip
- * and search text (RLS scopes to auth.uid()). Paged with useInfiniteQuery so
- * long histories load in chunks instead of being silently capped.
+ * Shape the raw transactions_search result into what the screen renders.
+ *
+ * The totals are a window aggregate carried IDENTICALLY on every row (count(*)
+ * over () etc.), so reading the first row is enough. No rows means nothing
+ * matched, which is exactly a zero total set.
+ *
+ * The generator can declare category_name (and _icon / _color_index) non-null
+ * even though the LEFT JOIN really returns null for a row with no category, so
+ * the nest is rebuilt from an explicit `category_name != null` check — which
+ * compiles whether the generator calls it nullable or not, no cast (convention
+ * 11). When it is non-null the row genuinely has a category, so icon + color are
+ * present too.
+ */
+export function toSearchPage(raw: SearchRow[]): HistorySearchPage {
+  const rows: HistoryRow[] = raw.map((r) => ({
+    id: r.id,
+    type: r.type,
+    amount: Number(r.amount),
+    date: r.date,
+    note: r.note,
+    created_at: r.created_at,
+    is_stock_purchase: r.is_stock_purchase,
+    is_stock_cogs: r.is_stock_cogs,
+    is_debt_settlement: r.is_debt_settlement,
+    stock_item_id: r.stock_item_id,
+    category:
+      r.category_name != null
+        ? {
+            name: r.category_name,
+            icon: r.category_icon,
+            color_index: r.category_color_index,
+          }
+        : null,
+  }))
+
+  const first = raw[0]
+  const totals: HistoryTotals = first
+    ? {
+        count: Number(first.match_count),
+        income: Number(first.match_income),
+        expense: Number(first.match_expense),
+      }
+    : EMPTY_TOTALS
+
+  return { rows, totals }
+}
+
+/**
+ * Transactions for the current user, filtered server-side by the active chip and
+ * searched across note + category name + amount, in a single RPC that also
+ * returns the totals for the whole match set (RLS scopes to auth.uid()). Paged
+ * with useInfiniteQuery so long histories load in chunks instead of being
+ * silently capped.
  */
 export function useHistory(filter: HistoryFilter, search: string) {
   const { user } = useAuth()
@@ -36,84 +114,23 @@ export function useHistory(filter: HistoryFilter, search: string) {
     queryKey: ['transactions', 'history', user?.id, filter, q],
     enabled: !!user,
     initialPageParam: 0,
-    queryFn: async ({ pageParam }): Promise<HistoryRow[]> => {
-      let query = supabase
-        .from('transactions')
-        .select(
-          'id, type, amount, date, note, created_at, is_stock_purchase, is_stock_cogs, is_debt_settlement, stock_item_id, category:categories(name, icon, color_index)',
-        )
-
-      if (filter === 'income') query = query.eq('type', 'income')
-      else if (filter === 'expense')
-        query = query.eq('type', 'expense').eq('is_stock_purchase', false)
-      else if (filter === 'stock')
-        query = query.or('is_stock_purchase.eq.true,stock_item_id.not.is.null')
-
-      if (q) query = query.ilike('note', `%${q}%`)
-
-      const from = pageParam * HISTORY_PAGE_SIZE
-      query = query
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .range(from, from + HISTORY_PAGE_SIZE - 1)
-
-      const { data, error } = await query
+    queryFn: async ({ pageParam }): Promise<HistorySearchPage> => {
+      const { data, error } = await supabase.rpc('transactions_search', {
+        p_filter: filter,
+        // blank = no search: the RPC nullifs an empty/whitespace p_q itself
+        // (nullif(btrim(coalesce(p_q,'')),'')), so the empty string is the null
+        // case. Passed as a string because the generated arg type is non-null;
+        // do NOT "fix" this to `q || null` — that reintroduces a type error.
+        p_q: q,
+        p_limit: HISTORY_PAGE_SIZE,
+        p_offset: pageParam * HISTORY_PAGE_SIZE,
+      })
       if (error) throw error
-      return data ?? []
+      return toSearchPage(data ?? [])
     },
     // A full-size page means there may be more; a short page is the end.
     getNextPageParam: (lastPage, allPages) =>
-      lastPage.length === HISTORY_PAGE_SIZE ? allPages.length : undefined,
-  })
-}
-
-export interface HistoryTotals {
-  count: number
-  income: number
-  expense: number
-}
-
-/**
- * True totals for the active filter + search — NOT derived from `rows` in
- * HistoryPage, which only holds whatever pages useHistory() has paged in so
- * far. Runs its own narrow `type, amount` select against the same filter
- * predicates as useHistory()'s queryFn above.
- *
- * NOTE: the filter branches below are intentionally a copy of the ones in
- * useHistory()'s queryFn, not a shared helper — supabase-js's query builder
- * generics make a generic wrapper awkward under strict mode. If you change
- * one, change the other, or the summary card and the filtered list below it
- * will silently disagree (the same class of bug just fixed on the Stock
- * page's age threshold — see PR-N).
- */
-export function useHistoryTotals(filter: HistoryFilter, search: string) {
-  const { user } = useAuth()
-  const q = search.trim()
-  return useQuery({
-    queryKey: ['transactions', 'history-totals', user?.id, filter, q],
-    enabled: !!user,
-    queryFn: async (): Promise<HistoryTotals> => {
-      let query = supabase.from('transactions').select('type, amount')
-
-      if (filter === 'income') query = query.eq('type', 'income')
-      else if (filter === 'expense')
-        query = query.eq('type', 'expense').eq('is_stock_purchase', false)
-      else if (filter === 'stock')
-        query = query.or('is_stock_purchase.eq.true,stock_item_id.not.is.null')
-
-      if (q) query = query.ilike('note', `%${q}%`)
-
-      const { data, error } = await query
-      if (error) throw error
-      const rows = data ?? []
-      let income = 0
-      let expense = 0
-      for (const r of rows) {
-        if (r.type === 'income') income += Number(r.amount) || 0
-        else expense += Number(r.amount) || 0
-      }
-      return { count: rows.length, income, expense }
-    },
+      lastPage.rows.length === HISTORY_PAGE_SIZE ? allPages.length : undefined,
   })
 }
 

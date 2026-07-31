@@ -4,13 +4,14 @@ import { IconChartBar, IconSearch, IconX, IconBox, IconLock } from '@tabler/icon
 import {
   groupByDay,
   useHistory,
-  useHistoryTotals,
   type HistoryFilter,
   type HistoryRow,
 } from '@/hooks/useHistory'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 import { LedgerIcon } from '@/components/LedgerIcon'
+import { useToast } from '@/components/Toast'
 import { lockedRowInfo } from '@/lib/ledger'
+import { translateError } from '@/lib/errors'
 import { categoryIcon } from '@/lib/icons'
 import { catColorVar } from '@/lib/catColor'
 import { formatBaht, formatSigned } from '@/lib/format'
@@ -38,6 +39,7 @@ export function HistoryPage() {
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const toast = useToast()
 
   // debounce search → one query per pause, not per keystroke
   useEffect(() => {
@@ -45,14 +47,21 @@ export function HistoryPage() {
     return () => clearTimeout(t)
   }, [searchInput])
 
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useHistory(
+  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useHistory(
     filter,
     search,
   )
-  const rows = useMemo(() => data?.pages.flat() ?? [], [data])
+  const rows = useMemo(() => data?.pages.flatMap((p) => p.rows) ?? [], [data])
   const groups = useMemo(() => groupByDay(rows), [rows])
-  const totals = useHistoryTotals(filter, search)
+  // Every page carries the same whole-match-set totals; the first page is enough.
+  const totals = data?.pages[0]?.totals
   const filterLabel = FILTERS.find((f) => f.key === filter)?.label
+
+  // The list + its totals now ride one RPC; if it fails, the screen would just go
+  // empty and silent, which is worse than the old two-query path. Surface it.
+  useEffect(() => {
+    if (error) toast.error(`ค้นหาประวัติไม่ทำงาน: ${translateError(error)}`)
+  }, [error, toast])
 
   return (
     <div className="flex min-h-full flex-col">
@@ -67,7 +76,7 @@ export function HistoryPage() {
             aria-label="ค้นหารายการ"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="ค้นหาโน้ตรายการ..."
+            placeholder="ค้นหาโน้ต · หมวด · ยอดเงิน"
             className="w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
           />
           {searchInput && (
@@ -106,19 +115,19 @@ export function HistoryPage() {
         })}
       </div>
 
-      {totals.data && totals.data.count > 0 && (
+      {totals && totals.count > 0 && (
         <div className="mx-4 mb-1 mt-2.5 flex items-center gap-3 rounded-[14px] bg-brand-tint px-[15px] py-3">
           <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-white">
             <IconChartBar size={18} className="text-brand-ink" aria-hidden />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[13.5px] font-medium text-brand-ink">
-              {totals.data.count} รายการ{filterLabel ? ` (${filterLabel})` : ''}
+              {totals.count} รายการ{filterLabel ? ` (${filterLabel})` : ''}
             </p>
             <p className="mt-px text-[11px]">
-              <span className="text-income">+{formatBaht(totals.data.income)}</span>
+              <span className="text-income">+{formatBaht(totals.income)}</span>
               {' · '}
-              <span className="text-expense">-{formatBaht(totals.data.expense)}</span>
+              <span className="text-expense">-{formatBaht(totals.expense)}</span>
             </p>
           </div>
         </div>

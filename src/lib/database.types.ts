@@ -1000,6 +1000,32 @@ export type Database = {
         Args: { p_brand?: string; p_brand_code?: string }
         Returns: string
       }
+      transactions_search: {
+        Args: {
+          p_filter: string
+          p_limit: number
+          p_offset: number
+          p_q: string
+        }
+        Returns: {
+          amount: number
+          category_color_index: number
+          category_icon: string
+          category_name: string
+          created_at: string
+          date: string
+          id: string
+          is_debt_settlement: boolean
+          is_stock_cogs: boolean
+          is_stock_purchase: boolean
+          match_count: number
+          match_expense: number
+          match_income: number
+          note: string
+          stock_item_id: string
+          type: Database["public"]["Enums"]["transaction_type"]
+        }[]
+      }
     }
     Enums: {
       category_kind: "income" | "expense"
