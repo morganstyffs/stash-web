@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { IconChartBar, IconSearch, IconX, IconBox, IconLock } from '@tabler/icons-react'
+import {
+  IconChartBar,
+  IconSearch,
+  IconX,
+  IconBox,
+  IconLock,
+  IconChevronDown,
+} from '@tabler/icons-react'
 import {
   groupByDay,
   useHistory,
@@ -8,13 +15,15 @@ import {
   type HistoryRow,
 } from '@/hooks/useHistory'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
+import { MonthFilterSheet } from '@/components/MonthFilterSheet'
 import { LedgerIcon } from '@/components/LedgerIcon'
 import { useToast } from '@/components/Toast'
 import { lockedRowInfo } from '@/lib/ledger'
 import { translateError } from '@/lib/errors'
 import { categoryIcon } from '@/lib/icons'
 import { catColorVar } from '@/lib/catColor'
-import { formatBaht, formatSigned } from '@/lib/format'
+import { monthAnchorFromKey, parseOptionalMonthParam } from '@/lib/dates'
+import { formatBaht, formatMonthShort, formatSigned } from '@/lib/format'
 
 const FILTERS: { key: HistoryFilter; label: string }[] = [
   { key: 'all', label: 'ทั้งหมด' },
@@ -31,11 +40,26 @@ function isFilter(v: string | null): v is HistoryFilter {
 
 export function HistoryPage() {
   // Allow deep-linking a filter, e.g. /history?filter=income from the home hero.
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const initialFilter = searchParams.get('filter')
   const [filter, setFilter] = useState<HistoryFilter>(
     isFilter(initialFilter) ? initialFilter : 'all',
   )
+  // The month filter lives in the URL (?m=YYYY-MM) so it survives a refresh / SW
+  // update and can be deep-linked; '' = every month, which is the default the page
+  // has always shown. Untrusted URL input, validated the same way as the home
+  // screen — except here a bad/future/missing value means "no filter", not the
+  // current month (parseOptionalMonthParam, convention 10: no second regex).
+  const month = parseOptionalMonthParam(searchParams.get('m'))
+  const setMonth = (target: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (target) next.set('m', target)
+    else next.delete('m')
+    // replace, not push: picking through months is one history entry, not a stack.
+    setSearchParams(next, { replace: true })
+  }
+  const monthLabel = month ? formatMonthShort(monthAnchorFromKey(month)) : 'ทุกเดือน'
+  const [monthSheetOpen, setMonthSheetOpen] = useState(false)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -50,6 +74,7 @@ export function HistoryPage() {
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useHistory(
     filter,
     search,
+    month,
   )
   const rows = useMemo(() => data?.pages.flatMap((p) => p.rows) ?? [], [data])
   const groups = useMemo(() => groupByDay(rows), [rows])
@@ -113,6 +138,28 @@ export function HistoryPage() {
             </button>
           )
         })}
+        {/* Month picker — a pill on the same filter row that opens a sheet (not a
+            native month input, which iOS renders as an empty text box). Tinted
+            like a pressed chip when a month is active, so "I'm filtering a month"
+            reads at a glance. */}
+        <button
+          type="button"
+          onClick={() => setMonthSheetOpen(true)}
+          aria-haspopup="dialog"
+          aria-label={`เลือกเดือน · ${monthLabel}`}
+          className="flex min-h-[44px] shrink-0 items-center"
+        >
+          <span
+            className={`flex items-center gap-1 rounded-pill px-[14px] py-1.5 text-[12px] ${
+              month
+                ? 'bg-brand-tint font-medium text-brand-ink'
+                : 'border-[0.5px] border-hairline text-muted'
+            }`}
+          >
+            {monthLabel}
+            <IconChevronDown size={13} aria-hidden />
+          </span>
+        </button>
       </div>
 
       {totals && totals.count > 0 && (
@@ -167,9 +214,17 @@ export function HistoryPage() {
             )}
           </>
         ) : (
-          <p className="py-10 text-center text-[13px] text-faint">ไม่พบรายการ</p>
+          // Name the month when one is filtered, so an empty month reads as "nothing
+          // logged in ก.ค. 2569" rather than a bare "ไม่พบรายการ" that looks like lost data.
+          <p className="py-10 text-center text-[13px] text-faint">
+            {month ? `ไม่มีรายการใน ${monthLabel}` : 'ไม่พบรายการ'}
+          </p>
         )}
       </div>
+
+      {monthSheetOpen && (
+        <MonthFilterSheet month={month} onSelect={setMonth} onClose={() => setMonthSheetOpen(false)} />
+      )}
 
       {editingId && (
         <TransactionEditSheet id={editingId} onClose={() => setEditingId(null)} />

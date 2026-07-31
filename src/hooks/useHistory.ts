@@ -107,11 +107,13 @@ export function toSearchPage(raw: SearchRow[]): HistorySearchPage {
  * with useInfiniteQuery so long histories load in chunks instead of being
  * silently capped.
  */
-export function useHistory(filter: HistoryFilter, search: string) {
+export function useHistory(filter: HistoryFilter, search: string, month: string) {
   const { user } = useAuth()
   const q = search.trim()
   return useInfiniteQuery({
-    queryKey: ['transactions', 'history', user?.id, filter, q],
+    // `month` is part of the key: without it, switching months would serve the
+    // previous month's cached pages until the query happened to refetch.
+    queryKey: ['transactions', 'history', user?.id, filter, q, month],
     enabled: !!user,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<HistorySearchPage> => {
@@ -122,6 +124,12 @@ export function useHistory(filter: HistoryFilter, search: string) {
         // case. Passed as a string because the generated arg type is non-null;
         // do NOT "fix" this to `q || null` — that reintroduces a type error.
         p_q: q,
+        // Same pattern as p_q exactly: '' = every month, the RPC nullifs an
+        // empty/whitespace p_month itself (nullif(btrim(coalesce(p_month,'')),'')).
+        // Passed straight through as a string because the generated arg type is
+        // non-null; do NOT "fix" this to `month || null` — that reintroduces a
+        // type error (see the migration header on 0023).
+        p_month: month,
         p_limit: HISTORY_PAGE_SIZE,
         p_offset: pageParam * HISTORY_PAGE_SIZE,
       })
