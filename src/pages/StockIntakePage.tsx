@@ -90,8 +90,9 @@ export function StockIntakePage() {
   const profit = targetNum != null && costNum > 0 ? targetNum - costNum : null
   const profitPct = profit != null && costNum > 0 ? Math.round((profit / costNum) * 100) : null
 
-  // Live SKU preview from the DB (approximate — see useSkuPreview).
-  const skuQ = useSkuPreview(brand)
+  // Live SKU preview from the DB (approximate — see useSkuPreview). The SKU no
+  // longer encodes the brand (0025), so this doesn't depend on the brand field.
+  const skuQ = useSkuPreview()
 
   const canSave = name.trim() !== '' && !!categoryId && costNum >= 0 && !intake.isPending
 
@@ -242,7 +243,7 @@ export function StockIntakePage() {
           <span className="woven rounded-[4px] bg-brand-fabric-stock px-[7px] py-[3px] font-mono text-[9.5px] font-medium tracking-wide text-brand-thread">
             {skuQ.data ?? '…'}
           </span>
-          <span className="text-[11px] text-faint">จะได้ป้ายนี้ติดของชิ้นนี้</span>
+          <span className="text-[11px] text-faint">เลขที่จะได้ (โดยประมาณ) · เลขจริงออกตอนกดบันทึก</span>
         </div>
 
         <div className="mb-3 flex gap-[10px]">
