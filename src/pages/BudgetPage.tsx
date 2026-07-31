@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   IconFlame,
   IconAlertCircle,
@@ -19,8 +20,9 @@ import {
 import { useCategories } from '@/hooks/useLookups'
 import { useToast } from '@/components/Toast'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { currentMonthAnchor, daysLeftInMonth } from '@/lib/dates'
-import { formatBaht, formatMonthShort } from '@/lib/format'
+import { MonthSwitcher } from '@/components/MonthSwitcher'
+import { addMonthsToKey, daysLeftInMonthKey, monthKey, parseMonthParam } from '@/lib/dates'
+import { formatBaht } from '@/lib/format'
 import { translateError } from '@/lib/errors'
 import { useDialogA11y } from '@/lib/useDialogA11y'
 
@@ -33,8 +35,25 @@ interface EditorState {
 }
 
 export function BudgetPage() {
-  const budgetsQ = useBudgets()
-  const spendingQ = useMonthSpending()
+  // Which month the budget screen is showing, from ?m=YYYY-MM (untrusted URL input,
+  // validated in parseMonthParam: bad/future → current month). Same pattern as the
+  // home screen, so a refresh or SW update stays on the same month and the ‹ / ›
+  // stepper is shared (convention 10). Editing budgets is a current-month-only
+  // action (see the read-only gating below).
+  const [searchParams, setSearchParams] = useSearchParams()
+  const month = parseMonthParam(searchParams.get('m'))
+  const isCurrent = month === monthKey()
+  const goToMonth = (target: string) => {
+    const next = new URLSearchParams(searchParams)
+    // Drop the param entirely for the current month so it collapses back to "/budget".
+    if (target === monthKey()) next.delete('m')
+    else next.set('m', target)
+    // replace, not push: browsing six months back is one history entry, not six.
+    setSearchParams(next, { replace: true })
+  }
+
+  const budgetsQ = useBudgets(month)
+  const spendingQ = useMonthSpending(month)
   const catsQ = useCategories()
   const upsert = useUpsertBudget()
   const del = useDeleteBudget()
@@ -54,7 +73,10 @@ export function BudgetPage() {
   const hasBudget = totalBudget > 0
   const overAmount = hasBudget && usedInBudgeted > totalBudget ? usedInBudgeted - totalBudget : 0
   const isOver = overAmount > 0
-  const daysLeft = daysLeftInMonth()
+  // Keyed on the VIEWED month, not "now": a closed month has 0 days left, so the
+  // "เหลือ N วัน" line is hidden for it entirely (§11.4-20). Uses the month-keyed
+  // helper, never the today-bound one, which would always report the current month.
+  const daysLeft = daysLeftInMonthKey(month)
 
   // Progress bar as two segments in one track (B7 — no Math.min(100, …) clamp).
   // Over budget: the full bar is the used amount, split into within-budget +
@@ -101,9 +123,12 @@ export function BudgetPage() {
     <div className="flex min-h-full flex-col">
       <div className="flex items-center justify-between px-[18px] pb-3 pt-[18px]">
         <p className="text-[17px] font-medium">งบประมาณ</p>
-        <span className="rounded-pill border-[0.5px] border-hairline px-3 py-[5px] text-[12px] text-muted">
-          {formatMonthShort(currentMonthAnchor())}
-        </span>
+        <MonthSwitcher
+          month={month}
+          isCurrent={isCurrent}
+          onPrev={() => goToMonth(addMonthsToKey(month, -1))}
+          onNext={() => goToMonth(addMonthsToKey(month, 1))}
+        />
       </div>
 
       {/* hero — a single woven budget label, same fabric as the BUDGET label on
@@ -138,7 +163,9 @@ export function BudgetPage() {
                 <span>
                   ใช้ไป {formatBaht(usedInBudgeted)} / {formatBaht(totalBudget)}
                 </span>
-                <span>เหลือ {daysLeft} วัน</span>
+                {/* "days left" is a pace cue that only means something while the
+                    month is running — a closed month has none, so hide it (§11.4-20). */}
+                {isCurrent && <span>เหลือ {daysLeft} วัน</span>}
               </div>
               {isOver && (
                 <span className="mt-2 inline-flex items-center gap-1 rounded-pill bg-white/[0.14] px-[9px] py-[3px] text-[11.5px] font-medium">
@@ -153,8 +180,10 @@ export function BudgetPage() {
         </div>
       </div>
 
-      {/* off-budget spend — its own strip so it never drags the hero red (B5) */}
-      {offBudget > 0 && (
+      {/* off-budget spend — its own strip so it never drags the hero red (B5).
+          It's a shortcut into "set a budget for this category", so it only shows on
+          the current month; past months are read-only (see งบต่อหมวด header). */}
+      {isCurrent && offBudget > 0 && (
         <div className="px-4 pb-4">
           <button
             onClick={openOffBudget}
@@ -172,14 +201,23 @@ export function BudgetPage() {
       {/* per-category */}
       <div className="mb-1 flex items-center justify-between px-4">
         <p className="text-[13px] font-medium">งบต่อหมวด</p>
-        {addable.length > 0 && (
-          <button
-            onClick={() => setEditor({ categoryId: addable[0].id, amount: '' })}
-            className="flex items-center gap-1 text-[12px] font-medium text-brand-deep"
-          >
-            <IconPlus size={14} />
-            ตั้งงบเพิ่ม
-          </button>
+        {/* Budgets are a per-month row and CAN be changed retroactively, but there's
+            no reason to and it's an easy way to edit the wrong month by mistake — so
+            past months are read-only (like §11.4-7: the two mistakes don't cost the
+            same). Set/edit/delete are hidden, not just no-ops, so nothing looks
+            tappable then silently does nothing. */}
+        {isCurrent ? (
+          addable.length > 0 && (
+            <button
+              onClick={() => setEditor({ categoryId: addable[0].id, amount: '' })}
+              className="flex items-center gap-1 text-[12px] font-medium text-brand-deep"
+            >
+              <IconPlus size={14} />
+              ตั้งงบเพิ่ม
+            </button>
+          )
+        ) : (
+          <span className="text-[12px] text-faint">ดูย้อนหลังได้อย่างเดียว</span>
         )}
       </div>
 
@@ -190,6 +228,7 @@ export function BudgetPage() {
               key={bud.id}
               row={bud}
               used={spending[bud.category_id] ?? 0}
+              editable={isCurrent}
               onEdit={() =>
                 setEditor({
                   categoryId: bud.category_id,
@@ -201,7 +240,11 @@ export function BudgetPage() {
           ))
         ) : (
           <p className="py-8 text-center text-[13px] text-faint">
-            {budgetsQ.isLoading ? 'กำลังโหลด…' : 'ยังไม่ได้ตั้งงบ — แตะ “ตั้งงบเพิ่ม” เพื่อเริ่ม'}
+            {budgetsQ.isLoading
+              ? 'กำลังโหลด…'
+              : isCurrent
+                ? 'ยังไม่ได้ตั้งงบ — แตะ “ตั้งงบเพิ่ม” เพื่อเริ่ม'
+                : 'ไม่ได้ตั้งงบในเดือนนี้'}
           </p>
         )}
       </div>
@@ -260,31 +303,42 @@ export function BudgetPage() {
 function BudgetRowView({
   row,
   used,
+  editable,
   onEdit,
 }: {
   row: BudgetRow
   used: number
+  /** current month → tap to edit + show pace; past month → static, no pace */
+  editable: boolean
   onEdit: () => void
 }) {
-  const pace = computePace(used, Number(row.amount))
-  const arc = Math.min(pace.ratio, 1) * RING_C
-  const noteColor =
-    pace.state === 'over' ? 'text-expense' : pace.state === 'fast' ? 'text-warn' : 'text-faint'
-  const pctColor =
-    pace.state === 'over' ? 'text-expense' : pace.state === 'fast' ? 'text-warn' : 'text-ink'
-  const ringColor =
-    pace.state === 'over' ? 'stroke-expense' : pace.state === 'fast' ? 'stroke-warn' : 'stroke-brand'
+  const budget = Number(row.amount)
+  // Pace ("used faster than the elapsed days") is meaningless once the month is
+  // over — no days remain to be ahead or behind of. For a closed month we DON'T
+  // call computePace at all (§11.4-20) and show only used / budget / over-or-not.
+  const pace = editable ? computePace(used, budget) : null
+  const ratio = pace ? pace.ratio : budget > 0 ? used / budget : 0
+  const pct = pace ? pace.pct : Math.round(ratio * 100)
+  const isOver = pace ? pace.state === 'over' : used > budget && budget > 0
+  const isFast = pace?.state === 'fast'
+  const arc = Math.min(ratio, 1) * RING_C
+  const note = pace
+    ? pace.note
+    : isOver
+      ? `เกินงบ ${Math.round(used - budget).toLocaleString('th-TH')} ฿`
+      : 'อยู่ในงบ'
 
-  return (
-    <button
-      onClick={onEdit}
-      className="flex w-full items-center gap-[13px] border-b-[0.5px] border-hairline py-[11px] text-left last:border-b-0"
-    >
+  const noteColor = isOver ? 'text-expense' : isFast ? 'text-warn' : 'text-faint'
+  const pctColor = isOver ? 'text-expense' : isFast ? 'text-warn' : 'text-ink'
+  const ringColor = isOver ? 'stroke-expense' : isFast ? 'stroke-warn' : 'stroke-brand'
+
+  const inner = (
+    <>
       <svg viewBox="0 0 44 44" className="h-[42px] w-[42px] shrink-0">
         <circle cx="22" cy="22" r="17" fill="none" className="stroke-fill" strokeWidth="5" />
         {/* skip the arc entirely at ratio 0 — a round linecap on a 0-length arc
             leaves a stray dot on the ring */}
-        {pace.ratio > 0 && (
+        {ratio > 0 && (
           <circle
             cx="22"
             cy="22"
@@ -301,19 +355,29 @@ function BudgetRowView({
       <div className="min-w-0 flex-1">
         <p className="text-[13px]">{row.category?.name ?? 'หมวด'}</p>
         <p className={`mt-0.5 text-[11px] ${noteColor}`}>
-          {pace.state === 'fast' && <IconFlame size={11} className="-mb-px mr-0.5 inline" />}
-          {pace.state === 'over' && (
-            <IconAlertCircle size={11} className="-mb-px mr-0.5 inline" />
-          )}
-          {pace.note}
+          {isFast && <IconFlame size={11} className="-mb-px mr-0.5 inline" />}
+          {isOver && <IconAlertCircle size={11} className="-mb-px mr-0.5 inline" />}
+          {note}
         </p>
       </div>
       <div className="shrink-0 text-right">
-        <p className={`text-[12px] font-medium ${pctColor}`}>{pace.pct}%</p>
+        <p className={`text-[12px] font-medium ${pctColor}`}>{pct}%</p>
         <p className="mt-px text-[11px] text-faint">
-          {formatBaht(used)}/{Number(row.amount).toLocaleString('th-TH')}
+          {formatBaht(used)}/{budget.toLocaleString('th-TH')}
         </p>
       </div>
+    </>
+  )
+
+  const rowClass =
+    'flex w-full items-center gap-[13px] border-b-[0.5px] border-hairline py-[11px] text-left last:border-b-0'
+
+  // Past months are read-only: render a plain div (no button, nothing tappable)
+  // rather than a button whose tap silently does nothing.
+  if (!editable) return <div className={rowClass}>{inner}</div>
+  return (
+    <button onClick={onEdit} className={rowClass}>
+      {inner}
     </button>
   )
 }
