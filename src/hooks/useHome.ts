@@ -5,8 +5,11 @@ import { dayOfMonthISO, daysLeftInMonth, monthBounds } from '@/lib/dates'
 import { isBudgetSpendingRow, isIncomeRow, isSpendingRow } from '@/lib/ledger'
 import type { Category, TransactionType } from '@/lib/db'
 
+/** The recent list is capped here (also the cache-warm slice in useAddTransaction). */
+export const RECENT_LIMIT = 8
+
 /** Minimal transaction shape used by the home aggregates. */
-interface MonthRow {
+export interface MonthRow {
   amount: number
   type: TransactionType
   date: string
@@ -50,11 +53,17 @@ export function useMonthTransactions() {
   })
 }
 
-/** The latest handful of transactions for the "รายการล่าสุด" list. */
-export function useRecentTransactions(limit = 8) {
+/**
+ * The latest handful of transactions for the "รายการล่าสุด" list.
+ *
+ * limit is a constant (not a queryKey part) so useAddTransaction can warm this
+ * cache without first reading the limit back out of the key. Sole caller is
+ * HomePage; a caller that ever needs a different size must revisit that write.
+ */
+export function useRecentTransactions() {
   const { user } = useAuth()
   return useQuery({
-    queryKey: ['transactions', 'recent', user?.id, limit],
+    queryKey: ['transactions', 'recent', user?.id],
     enabled: !!user,
     queryFn: async (): Promise<RecentRow[]> => {
       const { data, error } = await supabase
@@ -64,7 +73,7 @@ export function useRecentTransactions(limit = 8) {
         )
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
-        .limit(limit)
+        .limit(RECENT_LIMIT)
       if (error) throw error
       return data ?? []
     },
