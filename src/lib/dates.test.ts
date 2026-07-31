@@ -5,6 +5,7 @@ import {
   monthBoundsFromKey,
   monthAnchorFromKey,
   addMonthsToKey,
+  parseMonthParam,
   dayOfMonthISO,
   daysLeftInMonth,
   daysLeftInMonthKey,
@@ -112,6 +113,31 @@ describe('daysLeftInMonthKey — days left keyed on which month, not just now', 
   it('equals daysLeftInMonth(now) exactly for the current month', () => {
     const now = new Date('2026-07-29T12:00:00+07:00')
     expect(daysLeftInMonthKey(monthBounds(now).key, now)).toBe(daysLeftInMonth(now))
+  })
+})
+
+describe('parseMonthParam — untrusted ?m= URL input → safe month key', () => {
+  const now = new Date('2026-07-15T12:00:00+07:00') // current month = 2026-07 (Bangkok)
+
+  it('keeps a well-formed past month', () => {
+    expect(parseMonthParam('2026-06', now)).toBe('2026-06')
+  })
+
+  it('falls back to the current month for an out-of-range month number', () => {
+    expect(parseMonthParam('2026-13', now)).toBe('2026-07')
+    expect(parseMonthParam('2026-00', now)).toBe('2026-07')
+  })
+
+  it('falls back to the current month for junk / empty / missing values', () => {
+    expect(parseMonthParam('banana', now)).toBe('2026-07')
+    expect(parseMonthParam('', now)).toBe('2026-07')
+    expect(parseMonthParam(null, now)).toBe('2026-07')
+    expect(parseMonthParam(undefined, now)).toBe('2026-07')
+  })
+
+  it('refuses a future month — never shows the future', () => {
+    expect(parseMonthParam('2027-01', now)).toBe('2026-07')
+    expect(parseMonthParam('2026-08', now)).toBe('2026-07')
   })
 })
 

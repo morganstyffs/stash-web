@@ -8,13 +8,14 @@ import {
   budgetOverAmount,
   budgetSubline,
   deltaChip,
+  endedSubline,
   overBudgetChip,
   safeBig,
   safeMini,
   stockSubline,
   type WovenHeroProps,
 } from '@/components/WovenHero'
-import { formatBaht } from '@/lib/format'
+import { formatBaht, MASKED_BAHT } from '@/lib/format'
 import type { SalesSummary } from '@/hooks/useStockSales'
 
 // These cover the pure text-selection edge cases the spec calls out — the same
@@ -83,6 +84,24 @@ describe('stock label', () => {
   })
 })
 
+describe('ended-month safe label', () => {
+  // A closed month recaps รับ/จ่าย in place of the live per-day line.
+  it('shows both figures for a closed month', () => {
+    const line = endedSubline(12_000, 8_000, false)
+    expect(line).toContain(formatBaht(12_000))
+    expect(line).toContain(formatBaht(8_000))
+    expect(line).toBe(`รับ ${formatBaht(12_000)} · จ่าย ${formatBaht(8_000)}`)
+  })
+
+  it('masks BOTH figures together while the balance is hidden (never one leaking)', () => {
+    const line = endedSubline(12_000, 8_000, true)
+    expect(line).toContain(MASKED_BAHT)
+    expect(line).not.toContain(formatBaht(12_000))
+    expect(line).not.toContain(formatBaht(8_000))
+    expect(line).toBe(`รับ ${MASKED_BAHT} · จ่าย ${MASKED_BAHT}`)
+  })
+})
+
 describe('delta chip', () => {
   it('is absent when there is no comparison basis', () => {
     expect(deltaChip(null)).toBeNull()
@@ -119,6 +138,8 @@ function renderHero(over: Partial<WovenHeroProps> = {}) {
     stock: STOCK,
     hideBalance: false,
     onToggleHide: () => {},
+    income: 0,
+    expense: 0,
     ...over,
   }
   return render(

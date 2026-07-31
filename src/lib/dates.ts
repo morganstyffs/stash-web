@@ -97,6 +97,19 @@ export function monthAnchorFromKey(key: string): Date {
   return new Date(y, month1 - 1, 15)
 }
 
+/**
+ * Resolve the home screen's ?m=YYYY-MM query param to a safe month key. The raw
+ * value is untrusted URL input, so anything that isn't a well-formed month at or
+ * before the current month falls back to the current month — the app never shows
+ * a future month. Pure (compares 'YYYY-MM' strings, never new Date(raw)) so it
+ * can be unit-tested against the validation table.
+ */
+export function parseMonthParam(raw: string | null | undefined, now: Date = new Date()): string {
+  const current = monthKey(now)
+  if (!raw || !/^\d{4}-(0[1-9]|1[0-2])$/.test(raw)) return current
+  return raw > current ? current : raw
+}
+
 export interface MonthBounds {
   /** first day of this month, inclusive */
   start: string
