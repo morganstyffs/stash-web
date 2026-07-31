@@ -71,6 +71,11 @@
       html.dark #boot-splash {
         background: #17160f; /* mirrors --color-surface (dark) */
       }
+      /* Lift the indigo dial in dark mode so it clears 3:1 on the dark bg —
+         mirrors --color-dial dark (90 104 201) in src/styles/index.css. */
+      html.dark #boot-splash .dial {
+        fill: #5a68c9;
+      }
     </style>
   </head>
   <body>
@@ -87,7 +92,7 @@
             <line x1="19.06" y1="40.84" x2="15.53" y2="44.37" />
           </g>
           <line x1="59.1" y1="26" x2="59.1" y2="38" stroke="#5CBFA3" stroke-width="3.85" stroke-linecap="round" />
-          <circle cx="27.9" cy="32" r="9.1" fill="#4A57B5" />
+          <circle class="dial" cx="27.9" cy="32" r="9.1" fill="#4A57B5" />
           <g fill="none" stroke="#FFFFFF" stroke-width="2.05" stroke-linecap="round">
             <line x1="24.65" y1="28.6" x2="24.65" y2="30.5" />
             <line x1="31.15" y1="28.6" x2="31.15" y2="30.5" />
