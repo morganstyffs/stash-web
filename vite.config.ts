@@ -70,14 +70,17 @@ export default defineConfig({
       manifestFilename: 'site.webmanifest',
       includeAssets: [
         'favicon.ico',
+        'favicon.svg',
         'favicon-16.png',
         'favicon-32.png',
         'favicon-48.png',
         'apple-touch-icon.png',
+        // stash-mark/stash-logo are the OLD mark, still rendered by live screens
+        // (HomePage, AppLayout, Login/Reset/Forgot) — kept until those screens move
+        // to the new BrandMark in a later PR. The -white variants were unreferenced
+        // and were removed with the logo v2 install.
         'stash-mark.svg',
-        'stash-mark-white.svg',
         'stash-logo.svg',
-        'stash-logo-white.svg',
       ],
       manifest: {
         name: 'Stash',

@@ -22,6 +22,13 @@
     --color-surface: 246 243 236;
     --color-fill: 237 233 222;
     --color-chevron: 200 194 180;
+    /* mint — logo shell of the หน้าปัดตู้เซฟ brand mark (BrandMark.tsx via
+       `text-mint`). INTENTIONAL REVERSAL of PR-C (which removed mint for indigo):
+       logo v2 wraps a mint shell around the indigo dial, so mint is deliberately
+       back. Do NOT delete as a stray PR-C leftover — see design-spec §11.4-1.
+       Re-added 2026-07-31 (mint-soft #5CBFA3 = 92 191 163). A brand-constant, so
+       it lives in :root only and dark inherits it (like the cat-2..6 slots). */
+    --color-mint: 92 191 163;
     /* category palette (colorblind-checked). One source of truth for the donut
        + category icons; the DB stores a slot 1–6 (categories.color_index), the
        client maps it to these. All ≥3:1 on the light surface. cat.1 shares the
