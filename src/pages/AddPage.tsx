@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   IconAlertCircle,
@@ -12,6 +12,8 @@ import {
 } from '@tabler/icons-react'
 import { useCategories, useFavorites, useUpsertFavorite } from '@/hooks/useLookups'
 import { useAddTransaction } from '@/hooks/useAddTransaction'
+import { useDeleteTransaction } from '@/hooks/useTransactions'
+import { useLongPress } from '@/hooks/useLongPress'
 import { useWallets } from '@/hooks/useSettings'
 import { CategoriesManager } from '@/components/CategoriesManager'
 import { FavoritesManager } from '@/components/FavoritesManager'
@@ -124,9 +126,11 @@ export function pressKey(prev: string, key: string): string {
   }
 }
 
-/** Accessible name for a fast-label button (spec: `${ชื่อป้าย} ${ยอด} บาท`). */
+/** Accessible name for a fast-label button. Ends by naming both gestures so a
+ *  screen-reader user knows the label does more than a plain tap. */
 function favoriteAria(label: string, amount: number | null): string {
-  return amount != null ? `${label} ${intFmt.format(amount)} บาท` : `${label} ยังไม่ระบุยอด`
+  const head = amount != null ? `${label} ${intFmt.format(amount)} บาท` : `${label} ยังไม่ระบุยอด`
+  return `${head} · แตะเพื่อเติม กดค้างเพื่อบันทึก`
 }
 
 // ── Keyboard → keypad wiring (exported for tests) ────────────────────────────
@@ -192,6 +196,7 @@ export function AddPage() {
   const favQ = useFavorites()
   const walletsQ = useWallets()
   const add = useAddTransaction()
+  const del = useDeleteTransaction()
   const saveFav = useUpsertFavorite()
   const toast = useToast()
 
@@ -215,6 +220,21 @@ export function AddPage() {
   const [savedFavSig, setSavedFavSig] = useState<string | null>(null)
   const [managingCats, setManagingCats] = useState(false)
   const [managingFavs, setManagingFavs] = useState(false)
+  // The label just saved by a long-press — drives the on-label checkmark so the
+  // confirmation lives under the finger, not only in the toast down at the foot.
+  const [justSavedId, setJustSavedId] = useState<string | null>(null)
+  const justSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Id of the most recent quick-save toast, so we dismiss it before showing the
+  // next one — three rapid saves must not stack three unreadable toasts, and
+  // "เลิกทำ" must always mean the latest entry.
+  const lastQuickToastId = useRef<number | null>(null)
+
+  // Drop the checkmark timer if the page unmounts mid-flash.
+  useEffect(() => {
+    return () => {
+      if (justSavedTimer.current != null) clearTimeout(justSavedTimer.current)
+    }
+  }, [])
 
   // Local midnight from the numeric parts (via formatDayShort's device-local
   // formatter) cancels out — the label is the correct day in every timezone.
@@ -291,6 +311,63 @@ export function AddPage() {
     setCategoryId(f.category_id)
     setWalletId(f.wallet_id ?? defaultWalletId)
     setNote(f.note ?? '')
+  }
+
+  // Long-press on a fast-label: save the whole entry straight away, no trip to
+  // the save button. It must land the SAME row a tap-then-save would (every
+  // field mirrors applyFavorite), and it never touches the form — the user may
+  // be part-way through a different entry. It also does NOT navigate away: the
+  // whole point is rattling off several in a row. The home caches are already
+  // warm from useAddTransaction, so the home screen is correct when reached.
+  async function quickSave(f: Favorite) {
+    // A label with no amount can't be saved outright — fall back to filling the
+    // form (exactly like a tap) and say why, instead of banking a ฿0 entry.
+    if (f.amount == null || f.amount <= 0) {
+      applyFavorite(f)
+      toast.show({ kind: 'info', message: 'ป้ายนี้ยังไม่ได้ตั้งยอด — ใส่ยอดแล้วกดบันทึก' })
+      return
+    }
+    try {
+      const row = await add.mutateAsync({
+        type: f.type,
+        amount: f.amount,
+        categoryId: f.category_id,
+        // Same fallback the tap path uses — one shared rule, never a copy (conv 10).
+        walletId: f.wallet_id ?? defaultWalletId,
+        // The date the user is looking at on the header pill, not a hardcoded
+        // today: backdate the header, long-press, and the row must land on that day.
+        date: dateStr,
+        note: f.note,
+      })
+      const newId = row.id
+      // Confirm on the label itself for ~900ms (an overlay, not a text swap, so
+      // the label keeps its width and its neighbours don't jitter).
+      setJustSavedId(f.id)
+      if (justSavedTimer.current != null) clearTimeout(justSavedTimer.current)
+      justSavedTimer.current = setTimeout(() => setJustSavedId(null), 900)
+      // One quick-save toast at a time.
+      if (lastQuickToastId.current != null) toast.dismiss(lastQuickToastId.current)
+      lastQuickToastId.current = toast.show({
+        kind: 'success',
+        message: `บันทึก “${f.label}” แล้ว`,
+        duration: 6000,
+        action: {
+          label: 'เลิกทำ',
+          onClick: () => {
+            void (async () => {
+              try {
+                await del.mutateAsync(newId)
+                toast.success('ยกเลิกรายการแล้ว')
+              } catch (e) {
+                toast.error(translateError(e)) // never swallow (convention 16)
+              }
+            })()
+          },
+        },
+      })
+    } catch (e) {
+      toast.error(translateError(e))
+    }
   }
 
   async function save() {
@@ -407,7 +484,7 @@ export function AddPage() {
             <div className="flex items-center justify-between px-4 pb-[7px]">
               <p className="flex items-center gap-1 text-[11px] text-muted">
                 <IconStar size={12} />
-                กดครั้งเดียวจบ
+                แตะเติม · กดค้างบันทึกเลย
               </p>
               <button
                 type="button"
@@ -419,7 +496,13 @@ export function AddPage() {
             </div>
             <div className="no-scrollbar flex gap-[7px] overflow-x-auto px-4 pb-2.5">
               {favorites.map((f) => (
-                <FastLabel key={f.id} fav={f} onClick={() => applyFavorite(f)} />
+                <FastLabel
+                  key={f.id}
+                  fav={f}
+                  saved={justSavedId === f.id}
+                  onTap={() => applyFavorite(f)}
+                  onLongPress={() => void quickSave(f)}
+                />
               ))}
             </div>
           </div>
@@ -583,7 +666,7 @@ export function AddPage() {
             <p className="text-[11.5px] leading-relaxed text-muted">
               ยังไม่มีป้ายด่วน — กด{' '}
               <span className="font-medium text-brand-deep">☆ บันทึกเป็นป้ายด่วน</span> ด้านบน
-              หลังกรอกยอด+เลือกหมวด ครั้งหน้าจะแตะครั้งเดียวจบ
+              หลังกรอกยอด+เลือกหมวด ครั้งหน้าแตะเพื่อเติม หรือกดค้างเพื่อบันทึกเลย
             </p>
           </div>
         )}
@@ -648,14 +731,34 @@ export function AddPage() {
  * amount first); income labels wear the green fabric so จ่าย/รับ tell apart
  * before the tap. `amount = null` shows "ใส่ยอด" in the amount slot.
  */
-function FastLabel({ fav, onClick }: { fav: Favorite; onClick: () => void }) {
+function FastLabel({
+  fav,
+  saved,
+  onTap,
+  onLongPress,
+}: {
+  fav: Favorite
+  saved: boolean
+  onTap: () => void
+  onLongPress: () => void
+}) {
   const fabric = fav.type === 'income' ? 'bg-brand-fabric-income' : 'bg-brand-fabric-stock'
+  const press = useLongPress({ onTap, onLongPress })
   return (
     <button
       type="button"
-      onClick={onClick}
+      onPointerDown={press.onPointerDown}
+      onPointerMove={press.onPointerMove}
+      onPointerUp={press.onPointerUp}
+      onPointerCancel={press.onPointerCancel}
+      onPointerLeave={press.onPointerLeave}
+      onContextMenu={press.onContextMenu}
+      onClick={press.onClick}
       aria-label={favoriteAria(fav.label, fav.amount)}
-      className={`woven relative flex min-h-[46px] shrink-0 flex-col justify-center overflow-hidden rounded-[9px] px-3 py-1.5 text-left text-brand-thread ${fabric}`}
+      // select-none: no text-selection flash on a long-press. touch-pan-x keeps
+      // the row horizontally swipeable — locking the touch-action would eat the
+      // swipe (see index.css for the iOS callout suppression too).
+      className={`woven fast-label relative flex min-h-[46px] shrink-0 select-none touch-pan-x flex-col justify-center overflow-hidden rounded-[9px] px-3 py-1.5 text-left text-brand-thread ${fabric}`}
     >
       <span aria-hidden className="selvedge absolute inset-x-0 top-0 h-[3px]" />
       <span aria-hidden className="selvedge absolute inset-x-0 bottom-0 h-[3px]" />
@@ -663,6 +766,16 @@ function FastLabel({ fav, onClick }: { fav: Favorite; onClick: () => void }) {
         {fav.amount != null ? formatBaht(fav.amount) : 'ใส่ยอด'}
       </span>
       <span className="text-[10px] leading-tight text-brand-thread/70">{fav.label}</span>
+      {/* "saved!" confirmation — overlaid on the label (never a text swap, which
+          would change the label's width and jitter the row). */}
+      {saved && (
+        <span
+          aria-hidden
+          className="absolute inset-0 flex items-center justify-center bg-brand-deep text-white"
+        >
+          <IconCheck size={22} />
+        </span>
+      )}
     </button>
   )
 }
