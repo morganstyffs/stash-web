@@ -25,6 +25,12 @@ import type { Favorite, TransactionType } from '@/lib/db'
 const intFmt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 })
 /** Amount as it appears inside a fast-label's default name — grouped, up to 2dp, no ฿. */
 const labelAmountFmt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 })
+/** Amount read aloud by the aria-live region — a plain money reading ("1,234.00 บาท"),
+ *  never the char-split ฿ / int / dec spans a screen reader would otherwise spell out. */
+const ariaAmountFmt = new Intl.NumberFormat('th-TH', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 
 const MAX_DIGITS = 9
 
@@ -121,6 +127,61 @@ export function pressKey(prev: string, key: string): string {
 /** Accessible name for a fast-label button (spec: `${ชื่อป้าย} ${ยอด} บาท`). */
 function favoriteAria(label: string, amount: number | null): string {
   return amount != null ? `${label} ${intFmt.format(amount)} บาท` : `${label} ยังไม่ระบุยอด`
+}
+
+// ── Keyboard → keypad wiring (exported for tests) ────────────────────────────
+
+export type KeypadAction =
+  | { kind: 'press'; key: string } // feed on to pressKey()
+  | { kind: 'save' }
+
+/**
+ * Map one physical key to what it should do on this page — or null when the
+ * keystroke is none of our business. Kept pure (takes the minimal event shape,
+ * not a real KeyboardEvent) so tests call it with plain objects, no jsdom, no
+ * cast (conventions 10/11). It maps keys onto the SAME pressKey() reducer the
+ * on-screen keypad uses — there is no second number-entry rulebook here.
+ *
+ * The two conditions that need the live DOM — a sheet being open, and Enter
+ * landing while a <button> is focused — are decided in the effect, not here.
+ */
+export function keypadActionFromKey(e: {
+  key: string
+  ctrlKey: boolean
+  metaKey: boolean
+  altKey: boolean
+  isComposing?: boolean
+}): KeypadAction | null {
+  // A held modifier means the user is driving the browser (Cmd+R / Ctrl+F), and
+  // isComposing means the Thai IME is mid-character — never our keystroke.
+  if (e.ctrlKey || e.metaKey || e.altKey) return null
+  if (e.isComposing) return null
+
+  const { key } = e
+  if (key.length === 1 && key >= '0' && key <= '9') return { kind: 'press', key }
+  // ',' maps to the decimal point too: some numpad layouts send ',' from the
+  // decimal key, and ',' has no other meaning in a Thai amount field.
+  if (key === '.' || key === ',') return { kind: 'press', key: '.' }
+  if (key === 'Backspace') return { kind: 'press', key: 'back' }
+  if (key === 'Delete') return { kind: 'press', key: 'clear' }
+  if (key === 'Enter') return { kind: 'save' }
+  // Everything else — letters, F-keys, arrows, Escape (which belongs to any open
+  // sheet) — is left alone.
+  return null
+}
+
+/**
+ * Is this keystroke's target a place where the user is typing text (the note
+ * field, the hidden date <input>, any field inside a manager sheet)? Those must
+ * never leak into the amount — typing a note must not move the money. Minimal
+ * element shape so tests pass a plain object (convention 11).
+ */
+export function isTypingTarget(
+  el: { tagName: string; isContentEditable?: boolean } | null,
+): boolean {
+  if (!el) return false
+  if (el.isContentEditable) return true
+  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -278,6 +339,41 @@ export function AddPage() {
   const zeroDisabled = amountStr === '' || amountStr === '0' || amountStr.includes('.')
   const clearDisabled = amountStr === ''
 
+  // Hardware keyboard → the same keypad. On a wide (rail) layout the amount was
+  // only reachable by clicking digits one at a time; this lets a physical
+  // keyboard drive the existing pressKey() reducer instead. The guards below are
+  // what keep "typing a note" from silently moving the money.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      // A sheet is open — even if focus isn't in a text field, keys must not
+      // change the amount hidden behind it.
+      if (managingCats || managingFavs) return
+      // Focus is in a text field (note / date input / a field inside a sheet).
+      if (isTypingTarget(e.target instanceof HTMLElement ? e.target : null)) return
+
+      const action = keypadActionFromKey(e)
+      if (!action) return
+
+      if (action.kind === 'save') {
+        // Enter while a <button> is focused (e.g. Tab'd to บันทึก) belongs to that
+        // button — let its own onClick fire so we don't save twice.
+        if (document.activeElement?.tagName === 'BUTTON') return
+        if (!canSave) return
+        e.preventDefault()
+        void save()
+        return
+      }
+
+      // Only swallow keys we actually consumed: a bare Backspace would otherwise
+      // navigate back in some browsers.
+      e.preventDefault()
+      press(action.key)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [managingCats, managingFavs, canSave, save, press])
+
   return (
     <div className="mx-auto flex h-full max-w-md flex-col bg-white">
       {/* header */}
@@ -349,7 +445,15 @@ export function AddPage() {
 
         {/* amount + 000 / ล้าง (stacked to the right, number stays centred) */}
         <div className="relative px-4 pb-2.5 pt-0.5 text-center">
-          <p className="text-[40px] font-medium tracking-[-1px]">
+          {/* aria-live so a keyboard-driven amount is announced even though nothing
+              is focused; aria-label gives a clean money reading ("1,234.00 บาท")
+              instead of the char-split ฿ / int / dec spans below it. */}
+          <p
+            aria-live="polite"
+            aria-atomic="true"
+            aria-label={`${ariaAmountFmt.format(amount)} บาท`}
+            className="text-[40px] font-medium tracking-[-1px]"
+          >
             <span className="text-[26px] text-muted">฿</span>
             {intDisplay}
             <span className="text-muted">{decSuffix}</span>

@@ -1,5 +1,21 @@
 import { describe, it, expect } from 'vitest'
-import { favoriteLabel, favoriteSignature, saveBlockedReason, pressKey } from '@/pages/AddPage'
+import {
+  favoriteLabel,
+  favoriteSignature,
+  saveBlockedReason,
+  pressKey,
+  keypadActionFromKey,
+  isTypingTarget,
+} from '@/pages/AddPage'
+
+// minimal event shape the pure fn accepts — no modifiers held, not composing
+const keyEvent = (over: Partial<Parameters<typeof keypadActionFromKey>[0]>) => ({
+  key: '',
+  ctrlKey: false,
+  metaKey: false,
+  altKey: false,
+  ...over,
+})
 
 describe('favoriteLabel (B11 — distinguishable default names)', () => {
   it('folds the amount into the name when there is one', () => {
@@ -102,6 +118,66 @@ describe('pressKey — keypad reducer', () => {
   it('caps the integer part at 9 digits', () => {
     expect(pressKey('123456789', '0')).toBe('123456789')
     expect(pressKey('12345678', '9')).toBe('123456789')
+  })
+})
+
+describe('keypadActionFromKey — physical key → keypad action', () => {
+  it('feeds a digit straight through to pressKey', () => {
+    expect(keypadActionFromKey(keyEvent({ key: '5' }))).toEqual({ kind: 'press', key: '5' })
+  })
+
+  it('maps both "." and "," to the decimal point (some numpads send ",")', () => {
+    expect(keypadActionFromKey(keyEvent({ key: '.' }))).toEqual({ kind: 'press', key: '.' })
+    expect(keypadActionFromKey(keyEvent({ key: ',' }))).toEqual({ kind: 'press', key: '.' })
+  })
+
+  it('maps Backspace → back and Delete → clear', () => {
+    expect(keypadActionFromKey(keyEvent({ key: 'Backspace' }))).toEqual({
+      kind: 'press',
+      key: 'back',
+    })
+    expect(keypadActionFromKey(keyEvent({ key: 'Delete' }))).toEqual({
+      kind: 'press',
+      key: 'clear',
+    })
+  })
+
+  it('maps Enter → save', () => {
+    expect(keypadActionFromKey(keyEvent({ key: 'Enter' }))).toEqual({ kind: 'save' })
+  })
+
+  it('ignores a key held with a modifier (Cmd+R / Ctrl+F must still work)', () => {
+    expect(keypadActionFromKey(keyEvent({ key: '5', ctrlKey: true }))).toBeNull()
+    expect(keypadActionFromKey(keyEvent({ key: '5', metaKey: true }))).toBeNull()
+    expect(keypadActionFromKey(keyEvent({ key: '5', altKey: true }))).toBeNull()
+  })
+
+  it('ignores keys that are not part of the keypad — incl. Escape (belongs to sheets)', () => {
+    expect(keypadActionFromKey(keyEvent({ key: 'a' }))).toBeNull()
+    expect(keypadActionFromKey(keyEvent({ key: 'F5' }))).toBeNull()
+    expect(keypadActionFromKey(keyEvent({ key: 'ArrowLeft' }))).toBeNull()
+    expect(keypadActionFromKey(keyEvent({ key: 'Escape' }))).toBeNull()
+  })
+
+  it('ignores a keystroke that is still being IME-composed', () => {
+    expect(keypadActionFromKey(keyEvent({ key: '5', isComposing: true }))).toBeNull()
+  })
+})
+
+describe('isTypingTarget — keystrokes owned by a text field never reach the keypad', () => {
+  it('is true for real text-entry elements', () => {
+    expect(isTypingTarget({ tagName: 'INPUT' })).toBe(true)
+    expect(isTypingTarget({ tagName: 'TEXTAREA' })).toBe(true)
+  })
+
+  it('is true for a contentEditable element', () => {
+    expect(isTypingTarget({ tagName: 'DIV', isContentEditable: true })).toBe(true)
+  })
+
+  it('is false for buttons, plain elements, and nothing', () => {
+    expect(isTypingTarget({ tagName: 'BUTTON' })).toBe(false)
+    expect(isTypingTarget({ tagName: 'DIV' })).toBe(false)
+    expect(isTypingTarget(null)).toBe(false)
   })
 })
 
