@@ -24,6 +24,7 @@ import { LedgerRow } from '@/components/LedgerRow'
 import { useToast } from '@/components/Toast'
 import { categoryIcon } from '@/lib/icons'
 import { catColorVar } from '@/lib/catColor'
+import { lockedRowInfo } from '@/lib/ledger'
 import { formatRecentDayLabel, formatUpcomingDayLabel, monthKey } from '@/lib/dates'
 import { largestRemainderPercents } from '@/lib/percent'
 import { translateError } from '@/lib/errors'
@@ -437,6 +438,7 @@ function RecentItem({
       }
       onClick={onOpen}
       last={last}
+      locked={lockedRowInfo(tx) !== null}
     />
   )
 }

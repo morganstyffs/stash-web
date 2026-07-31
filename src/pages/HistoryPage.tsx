@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { IconChartBar, IconSearch, IconX, IconBox } from '@tabler/icons-react'
+import { IconChartBar, IconSearch, IconX, IconBox, IconLock } from '@tabler/icons-react'
 import {
   groupByDay,
   useHistory,
@@ -10,7 +10,7 @@ import {
 } from '@/hooks/useHistory'
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 import { LedgerIcon } from '@/components/LedgerIcon'
-import { isStockLinkedRow } from '@/lib/ledger'
+import { lockedRowInfo } from '@/lib/ledger'
 import { categoryIcon } from '@/lib/icons'
 import { catColorVar } from '@/lib/catColor'
 import { formatBaht, formatSigned } from '@/lib/format'
@@ -188,7 +188,8 @@ function HistorySkeleton() {
 }
 
 function LedgerRow({ row, onOpen }: { row: HistoryRow; onOpen: () => void }) {
-  const isStock = isStockLinkedRow(row)
+  const lock = lockedRowInfo(row)
+  const isStock = lock?.kind === 'stock_purchase' || lock?.kind === 'stock_sale'
   const Icon = isStock ? IconBox : categoryIcon(row.category?.icon)
   const time = new Date(row.created_at).toLocaleTimeString('th-TH', {
     hour: '2-digit',
@@ -204,7 +205,10 @@ function LedgerRow({ row, onOpen }: { row: HistoryRow; onOpen: () => void }) {
         color={isStock ? 'rgb(var(--color-brand-deep))' : catColorVar(row.category?.color_index)}
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px]">{row.note || row.category?.name || 'รายการ'}</p>
+        <div className="flex items-center gap-1">
+          <p className="truncate text-[13px]">{row.note || row.category?.name || 'รายการ'}</p>
+          {lock && <IconLock size={12} aria-label="ล็อก" className="shrink-0 text-faint" />}
+        </div>
         <p className="mt-px text-[11px] text-faint">
           {row.category?.name ?? (isStock ? 'สต็อก' : 'ไม่มีหมวด')} · {time}
         </p>

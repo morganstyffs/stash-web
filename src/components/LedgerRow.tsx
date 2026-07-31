@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Icon as TablerIcon } from '@tabler/icons-react'
+import { IconLock, type Icon as TablerIcon } from '@tabler/icons-react'
 import { LedgerIcon } from '@/components/LedgerIcon'
 
 /**
@@ -23,6 +23,7 @@ export function LedgerRow({
   onClick,
   last = false,
   muted = false,
+  locked = false,
 }: {
   icon: TablerIcon
   iconColor: string
@@ -32,6 +33,10 @@ export function LedgerRow({
   onClick?: () => void
   last?: boolean
   muted?: boolean
+  /** show a lock glyph — this row is managed by a flow (stock sale, ยอดค้าง
+   *  settlement) and can't be edited inline. An explicit icon, never colour
+   *  alone, so it reads without relying on hue (design-spec §2). */
+  locked?: boolean
 }) {
   const className = `flex w-full items-center gap-[11px] py-2.5 text-left${
     last ? '' : ' border-b-[0.5px] border-hairline'
@@ -40,7 +45,10 @@ export function LedgerRow({
     <>
       <LedgerIcon icon={icon} color={iconColor} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px]">{title}</p>
+        <div className="flex items-center gap-1">
+          <p className="truncate text-[13px]">{title}</p>
+          {locked && <IconLock size={12} aria-label="ล็อก" className="shrink-0 text-faint" />}
+        </div>
         <p className="mt-px text-[11px] text-faint">{subtitle}</p>
       </div>
       {right}

@@ -796,6 +796,13 @@ export type Database = {
           transaction_id: string
         }[]
       }
+      debt_settle_many: {
+        Args: { p_debt_ids: string[]; p_wallet_id: string }
+        Returns: {
+          debt: Database["public"]["Tables"]["debts"]["Row"]
+          transaction_id: string
+        }[]
+      }
       debt_settle_reverse: {
         Args: { p_debt_id: string }
         Returns: {

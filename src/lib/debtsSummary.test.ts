@@ -126,19 +126,15 @@ describe('computeFriendLedger', () => {
     expect(l.rejectedMine[0].created_by).toBe(ME)
   })
 
-  it('drops cancelled and settled rows from every block', () => {
+  it('drops cancelled rows, buckets settled separately, neither hits a total', () => {
     const l = computeFriendLedger(
-      [debt({ status: 'cancelled' }), debt({ status: 'settled' })],
+      [debt({ status: 'cancelled' }), debt({ status: 'settled' }), debt({ visibility: 'private', status: 'settled' })],
       ME,
     )
-    expect(l).toMatchObject({
-      agreedNet: 0,
-      privateNet: 0,
-      agreedItems: [],
-      privateItems: [],
-      pendingIncoming: [],
-      pendingOutgoing: [],
-      rejectedMine: [],
-    })
+    expect(l.agreedNet).toBe(0)
+    expect(l.privateNet).toBe(0)
+    expect(l.agreedItems).toEqual([])
+    expect(l.privateItems).toEqual([])
+    expect(l.settledItems).toHaveLength(2) // the two settled (shared + private); cancelled dropped
   })
 })

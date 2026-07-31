@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   IconAlertCircle,
   IconArrowLeft,
@@ -115,12 +115,20 @@ export function AddPage() {
   const toast = useToast()
 
   const today = todayISO()
-  const [type, setType] = useState<TransactionType>('expense')
-  const [amountStr, setAmountStr] = useState('')
+  // Optional prefill (e.g. the ยอดค้าง "บันทึกรายการเงินของคุณ" nudge). Read once
+  // on mount; the user still picks the category + wallet and can change anything.
+  const location = useLocation()
+  const prefill = (
+    location.state as { prefill?: { type?: TransactionType; amount?: number; note?: string } } | null
+  )?.prefill
+  const [type, setType] = useState<TransactionType>(prefill?.type ?? 'expense')
+  const [amountStr, setAmountStr] = useState(
+    prefill?.amount != null && prefill.amount > 0 ? String(prefill.amount) : '',
+  )
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [walletId, setWalletId] = useState<string | null>(null)
   const [dateStr, setDateStr] = useState(today)
-  const [note, setNote] = useState('')
+  const [note, setNote] = useState(prefill?.note ?? '')
   const [favSaved, setFavSaved] = useState(false)
   const [managingCats, setManagingCats] = useState(false)
   const [managingFavs, setManagingFavs] = useState(false)

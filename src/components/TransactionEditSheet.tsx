@@ -1,18 +1,17 @@
 import { useEffect, useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconBox, IconTrash, IconX } from '@tabler/icons-react'
+import { IconArrowsExchange, IconBox, IconTrash, IconX } from '@tabler/icons-react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useDialogA11y } from '@/lib/useDialogA11y'
 import { useToast } from '@/components/Toast'
 import { useCategories } from '@/hooks/useLookups'
 import { useWallets } from '@/hooks/useSettings'
 import {
-  isSaleLinked,
-  isStockLinked,
   useDeleteTransaction,
   useTransaction,
   useUpdateTransaction,
 } from '@/hooks/useTransactions'
+import { lockedRowInfo } from '@/lib/ledger'
 import { categoryIcon } from '@/lib/icons'
 import { todayISO } from '@/lib/dates'
 import { formatDayShort } from '@/lib/format'
@@ -41,10 +40,12 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
   const [confirming, setConfirming] = useState(false)
 
   const tx = txQ.data
-  const stockLinked = tx ? isStockLinked(tx) : false
-  // Sale-linked rows (income/COGS of a sale) are stricter: a DB trigger blocks
-  // changing the date too, so lock it and route deletion to the reverse flow.
-  const saleLinked = tx ? isSaleLinked(tx) : false
+  // One concept for every locked row (stock purchase/sale, debt settlement): its
+  // amount + category are never editable inline; some kinds also lock the date; a
+  // DB trigger enforces all of it, so route deletion to the matching undo flow.
+  const lock = tx ? lockedRowInfo(tx) : null
+  const locked = lock !== null
+  const dateLocked = lock !== null && !lock.dateEditable
   const today = todayISO()
 
   // seed the form once the row loads
@@ -63,17 +64,18 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
   const wallets = walletsQ.data ?? []
 
   const amount = Number(amountStr || '0')
-  const canSave = !!tx && (stockLinked || (amount > 0 && !!categoryId)) && !update.isPending
+  const canSave = !!tx && (locked || (amount > 0 && !!categoryId)) && !update.isPending
 
   async function save() {
     if (!tx) return
     try {
       await update.mutateAsync(
-        saleLinked
-          ? // sale rows: only wallet + note are editable (trigger blocks the rest)
+        dateLocked
+          ? // sale / settlement rows: only wallet + note editable (trigger blocks the rest)
             { id: tx.id, wallet_id: walletId, note: note.trim() || null }
-          : stockLinked
-            ? { id: tx.id, wallet_id: walletId, date: dateStr, note: note.trim() || null }
+          : locked
+            ? // stock purchase: wallet + date + note editable
+              { id: tx.id, wallet_id: walletId, date: dateStr, note: note.trim() || null }
             : {
                 id: tx.id,
                 amount,
@@ -137,14 +139,14 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
             </div>
           ) : (
             <>
-              {stockLinked && (
+              {lock && (
                 <div className="mb-3 flex items-start gap-2 rounded-card bg-brand-tint px-3 py-2.5">
-                  <IconBox size={15} className="mt-px shrink-0 text-brand-deep" />
-                  <p className="text-[11.5px] leading-relaxed text-brand-ink">
-                    {saleLinked
-                      ? 'รายการนี้มาจากการขายสต็อก — ยอด หมวด และวันที่ล็อกไว้ ที่นี่แก้ได้เฉพาะกระเป๋าและโน้ต ถ้าจะแก้ต้องย้อนการขายที่หน้าคลังสินค้า'
-                      : 'รายการนี้มาจากการซื้อเข้าสต็อก — ยอดเงินและหมวดแก้ที่หน้าคลังสินค้า ที่นี่แก้ได้เฉพาะกระเป๋า วันที่ และโน้ต'}
-                  </p>
+                  {lock.kind === 'debt_settlement' ? (
+                    <IconArrowsExchange size={15} className="mt-px shrink-0 text-brand-deep" />
+                  ) : (
+                    <IconBox size={15} className="mt-px shrink-0 text-brand-deep" />
+                  )}
+                  <p className="text-[11.5px] leading-relaxed text-brand-ink">{lock.reason}</p>
                 </div>
               )}
 
@@ -152,7 +154,7 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
               <p className="mb-1 ml-0.5 text-[11px] text-faint">จำนวนเงิน</p>
               <div
                 className={`mb-3 flex items-center rounded-input border-[0.5px] border-hairline px-[11px] py-[10px] ${
-                  stockLinked ? 'bg-fill/60' : 'bg-fill'
+                  locked ? 'bg-fill/60' : 'bg-fill'
                 }`}
               >
                 <span className="mr-1 text-[13px] text-faint">฿</span>
@@ -160,16 +162,16 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                   value={amountStr}
                   onChange={(e) => setAmountStr(e.target.value.replace(/[^0-9.]/g, ''))}
                   inputMode="decimal"
-                  disabled={stockLinked}
+                  disabled={locked}
                   className="w-full bg-transparent text-[13px] outline-none disabled:text-muted"
                 />
               </div>
 
               {/* category */}
               <p className="mb-1 ml-0.5 text-[11px] text-faint">หมวด</p>
-              {stockLinked ? (
+              {locked ? (
                 <div className="mb-3 rounded-input border-[0.5px] border-hairline bg-fill/60 px-[11px] py-[10px] text-[13px] text-muted">
-                  {catsQ.data?.find((c) => c.id === categoryId)?.name ?? 'หมวดสต็อก'}
+                  {catsQ.data?.find((c) => c.id === categoryId)?.name ?? 'หมวดระบบ'}
                 </div>
               ) : (
                 <div className="no-scrollbar mb-3 flex gap-[7px] overflow-x-auto">
@@ -227,21 +229,21 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                 </>
               )}
 
-              {/* date — locked for sale rows (DB trigger blocks changing it) */}
+              {/* date — locked for sale + settlement rows (DB trigger blocks it) */}
               <p className="mb-1 ml-0.5 text-[11px] text-faint">วันที่</p>
               <label
                 className={`mb-3 flex items-center justify-between rounded-input border-[0.5px] border-hairline px-[11px] py-[10px] text-[13px] ${
-                  saleLinked ? 'bg-fill/60' : 'bg-fill'
+                  dateLocked ? 'bg-fill/60' : 'bg-fill'
                 }`}
               >
-                <span className={saleLinked ? 'text-muted' : undefined}>
+                <span className={dateLocked ? 'text-muted' : undefined}>
                   {dateStr === today
                     ? 'วันนี้'
                     : dateStr
                       ? formatDayShort(new Date(dateStr + 'T00:00:00'))
                       : '—'}
                 </span>
-                {!saleLinked && (
+                {!dateLocked && (
                   <input
                     type="date"
                     value={dateStr}
@@ -262,17 +264,21 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
                 className="mb-4 w-full rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px] text-[13px] outline-none placeholder:text-faint focus:border-brand"
               />
 
-              {/* delete / stock hint */}
-              {stockLinked ? (
+              {/* delete / undo hint — routed by the locked kind */}
+              {lock ? (
                 <button
                   onClick={() => {
                     onClose()
-                    navigate('/stock')
+                    navigate(lock.actionTo)
                   }}
                   className="flex items-center gap-1.5 text-[13px] font-medium text-brand-deep"
                 >
-                  <IconBox size={15} />
-                  {saleLinked ? 'ไปที่คลังสินค้าเพื่อย้อนการขาย' : 'ไปที่คลังสินค้าเพื่อลบ'}
+                  {lock.kind === 'debt_settlement' ? (
+                    <IconArrowsExchange size={15} />
+                  ) : (
+                    <IconBox size={15} />
+                  )}
+                  {lock.actionLabel}
                 </button>
               ) : (
                 <button

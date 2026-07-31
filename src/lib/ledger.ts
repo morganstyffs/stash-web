@@ -59,3 +59,67 @@ export function isSaleLinkedRow(r: LedgerRow): boolean {
 export function isStockLinkedRow(r: LedgerRow): boolean {
   return !!r.is_stock_purchase || !!r.is_stock_cogs || r.stock_item_id != null
 }
+
+// ── locked rows — ONE concept, not a second path per type ────────────────────
+
+export type LockedKind = 'stock_purchase' | 'stock_sale' | 'debt_settlement'
+
+export interface LockedRowInfo {
+  kind: LockedKind
+  /** whether the date stays editable — only a stock purchase does; a sale and a
+   *  debt settlement lock the date too (a DB trigger enforces both). */
+  dateEditable: boolean
+  /** why it's locked + where to undo it — shown in the edit sheet. */
+  reason: string
+  /** label of the button that routes to the undo/manage flow. */
+  actionLabel: string
+  /** where that button goes. */
+  actionTo: string
+}
+
+/**
+ * The ONE answer to "is this row locked, why, and where do I undo it?" — stock
+ * purchases/sales and debt settlements all funnel through here so the edit sheet
+ * and the list indicator never grow a per-type branch (convention 3). Each row is
+ * kept read-only by a DB trigger (0012 §8 for sales, 0015 §10 for settlements);
+ * this is the client mirror so the user is told BEFORE they hit the trigger. A
+ * new locked kind is added here once and every surface picks it up.
+ */
+export function lockedRowInfo(r: LedgerRow): LockedRowInfo | null {
+  if (r.is_stock_purchase) {
+    return {
+      kind: 'stock_purchase',
+      dateEditable: true,
+      reason:
+        'รายการนี้มาจากการซื้อเข้าสต็อก — ยอดเงินและหมวดแก้ที่หน้าคลังสินค้า ที่นี่แก้ได้เฉพาะกระเป๋า วันที่ และโน้ต',
+      actionLabel: 'ไปที่คลังสินค้าเพื่อลบ',
+      actionTo: '/stock',
+    }
+  }
+  if (isSaleLinkedRow(r)) {
+    return {
+      kind: 'stock_sale',
+      dateEditable: false,
+      reason:
+        'รายการนี้มาจากการขายสต็อก — ยอด หมวด และวันที่ล็อกไว้ ที่นี่แก้ได้เฉพาะกระเป๋าและโน้ต ถ้าจะแก้ต้องย้อนการขายที่หน้าคลังสินค้า',
+      actionLabel: 'ไปที่คลังสินค้าเพื่อย้อนการขาย',
+      actionTo: '/stock',
+    }
+  }
+  if (r.is_debt_settlement) {
+    return {
+      kind: 'debt_settlement',
+      dateEditable: false,
+      reason:
+        'รายการนี้มาจากการเคลียร์ยอดค้าง — ยอด หมวด และวันที่ล็อกไว้ ที่นี่แก้ได้เฉพาะกระเป๋าและโน้ต ถ้าจะย้อนต้องไปที่หน้ายอดค้าง',
+      actionLabel: 'ไปที่ยอดค้างเพื่อย้อนการเคลียร์',
+      actionTo: '/debts',
+    }
+  }
+  return null
+}
+
+/** Whether a row is locked at all (amount + category are never editable inline). */
+export function isLockedRow(r: LedgerRow): boolean {
+  return lockedRowInfo(r) !== null
+}
