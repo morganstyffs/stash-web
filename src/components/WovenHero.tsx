@@ -212,26 +212,11 @@ export function WovenHero({
               >
                 {EYEBROW[key]}
               </span>
-              {isFront ? (
-                key === 'safe' && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onToggleHide()
-                    }}
-                    aria-label={hideBalance ? 'แสดงยอดเงิน' : 'ซ่อนยอดเงิน'}
-                    aria-pressed={hideBalance}
-                    className="p-0.5"
-                  >
-                    {hideBalance ? (
-                      <IconEyeOff size={16} className="opacity-70" />
-                    ) : (
-                      <IconEye size={16} className="opacity-70" />
-                    )}
-                  </button>
-                )
-              ) : (
+              {/* The front label carries no right-side content: its eye toggle
+                  lives OUTSIDE the label button (rendered after this map) so we
+                  never nest one <button> in another. Folded labels still show
+                  their compact figure here. */}
+              {!isFront && (
                 <span
                   className={`text-[13px] font-medium tabular-nums opacity-[.92]${
                     key === 'stock' && firstSale
@@ -273,6 +258,33 @@ export function WovenHero({
           </button>
         )
       })}
+
+      {/* Hide-balance eye — a SIBLING of the labels, never nested in one (nesting
+          a <button> in a <button> is invalid HTML, mis-serialises in the visual
+          harness, and breaks keyboard/AT semantics). Shown only when SAFE is the
+          front label, and stacked above it (z-10 > the labels' z 2–4) so a tap
+          lands on the eye, not the label. Positioned to sit exactly where the icon
+          used to render inside the header strip: the front label sits at
+          translateY(96px), its 34px strip starts at mt-[7px] (centre y = 96+7+17 =
+          120) and ends 20px in from the container's right edge (label right:2 +
+          px-[18px]) — so a 44px touch target centred on the old 16px icon lands at
+          top:98, right:8. Nothing moves on screen; the hit area just grows. */}
+      {selected === 'safe' && (
+        <button
+          type="button"
+          onClick={onToggleHide}
+          aria-label={hideBalance ? 'แสดงยอดเงิน' : 'ซ่อนยอดเงิน'}
+          aria-pressed={hideBalance}
+          className="absolute z-10 flex h-11 w-11 items-center justify-center text-brand-thread"
+          style={{ top: 98, right: 8 }}
+        >
+          {hideBalance ? (
+            <IconEyeOff size={16} className="opacity-70" />
+          ) : (
+            <IconEye size={16} className="opacity-70" />
+          )}
+        </button>
+      )}
     </div>
   )
 }
