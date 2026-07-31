@@ -65,6 +65,10 @@ export interface FriendLedger {
   pendingOutgoing: Debt[]
   /** shared, I created, the friend rejected — mine to resend or delete. */
   rejectedMine: Debt[]
+  /** settled (shared or private). Whoever settled owns the reverse; the other
+   *  party is nudged to log their own matching entry (settled_by tells them
+   *  apart). Never counted in agreedNet/privateNet — a settled debt is closed. */
+  settledItems: Debt[]
 }
 
 /** A debt's signed contribution from my point of view: + when the friend owes me
@@ -82,8 +86,14 @@ export function computeFriendLedger(debts: Debt[], myUid: string): FriendLedger 
     pendingIncoming: [],
     pendingOutgoing: [],
     rejectedMine: [],
+    settledItems: [],
   }
   for (const d of debts) {
+    // 'settled' is closed regardless of visibility — its own section, no total.
+    if (d.status === 'settled') {
+      l.settledItems.push(d)
+      continue
+    }
     if (d.visibility === 'private') {
       // private notes are created 'confirmed' and only the author sees them.
       if (d.status === 'confirmed') {
@@ -105,7 +115,7 @@ export function computeFriendLedger(debts: Debt[], myUid: string): FriendLedger 
       case 'rejected':
         if (d.created_by === myUid) l.rejectedMine.push(d)
         break
-      // 'cancelled' / 'settled' → shown nowhere on this page
+      // 'cancelled' → shown nowhere on this page
     }
   }
   return l

@@ -6,6 +6,8 @@ import {
   isIntakeRow,
   isSaleLinkedRow,
   isStockLinkedRow,
+  lockedRowInfo,
+  isLockedRow,
   type LedgerRow,
 } from '@/lib/ledger'
 
@@ -82,5 +84,37 @@ describe('isStockLinkedRow (managed by stock flows)', () => {
     expect(isStockLinkedRow(saleIncome)).toBe(true)
     expect(isStockLinkedRow(coffee)).toBe(false)
     expect(isStockLinkedRow(salary)).toBe(false)
+  })
+})
+
+describe('lockedRowInfo (one concept: locked? why? where to undo?)', () => {
+  it('returns null for plain, editable rows', () => {
+    expect(lockedRowInfo(salary)).toBeNull()
+    expect(lockedRowInfo(coffee)).toBeNull()
+    expect(isLockedRow(coffee)).toBe(false)
+  })
+
+  it('a stock purchase locks amount+category but keeps the date, routes to stock', () => {
+    const info = lockedRowInfo(intake)
+    expect(info?.kind).toBe('stock_purchase')
+    expect(info?.dateEditable).toBe(true)
+    expect(info?.actionTo).toBe('/stock')
+  })
+
+  it('a stock sale (COGS or income leg) locks the date too, routes to stock reverse', () => {
+    for (const row of [cogs, saleIncome]) {
+      const info = lockedRowInfo(row)
+      expect(info?.kind).toBe('stock_sale')
+      expect(info?.dateEditable).toBe(false)
+      expect(info?.actionTo).toBe('/stock')
+    }
+  })
+
+  it('a debt settlement locks the date and routes to ยอดค้าง — same concept, new kind', () => {
+    const info = lockedRowInfo(debtSettle)
+    expect(info?.kind).toBe('debt_settlement')
+    expect(info?.dateEditable).toBe(false)
+    expect(info?.actionTo).toBe('/debts')
+    expect(isLockedRow(debtSettle)).toBe(true)
   })
 })

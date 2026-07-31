@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { IconChevronLeft, IconPlus, IconSend } from '@tabler/icons-react'
+import { IconArrowBackUp, IconChevronLeft, IconPlus, IconSend } from '@tabler/icons-react'
 import { useToast } from '@/components/Toast'
 import { ConfirmDebtSheet } from '@/components/ConfirmDebtSheet'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { DebtFormSheet, type DebtFormPrefill } from '@/components/DebtFormSheet'
+import { SettleSheet } from '@/components/SettleSheet'
 import { useAuth } from '@/hooks/useAuth'
 import { useHideBalance } from '@/hooks/useHideBalance'
 import {
   useCancelDebt,
   useDebtsSummary,
   useFriendDebts,
+  useReverseSettle,
   useSharePrivate,
 } from '@/hooks/useFriends'
 import { computeFriendLedger } from '@/lib/debtsSummary'
@@ -38,6 +41,8 @@ export function FriendHistoryPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [prefill, setPrefill] = useState<DebtFormPrefill | undefined>(undefined)
   const [confirming, setConfirming] = useState<Debt | null>(null)
+  const [settling, setSettling] = useState<Debt[] | null>(null)
+  const [reversing, setReversing] = useState<Debt | null>(null)
 
   useEffect(() => {
     if (debtsQ.error) toast.error(`โหลดรายการไม่สำเร็จ: ${translateError(debtsQ.error)}`)
@@ -52,9 +57,39 @@ export function FriendHistoryPage() {
   const money = (v: number) => (hideBalance ? MASKED_BAHT : formatBaht(v))
   const myUid = user?.id ?? ''
 
+  const reverse = useReverseSettle()
+
   function openCreate(pref?: DebtFormPrefill) {
     setPrefill(pref)
     setFormOpen(true)
+  }
+
+  async function doReverse() {
+    if (!reversing) return
+    try {
+      await reverse.mutateAsync(reversing.id)
+      toast.success('ย้อนการเคลียร์แล้ว')
+      setReversing(null)
+    } catch (e) {
+      toast.error(translateError(e))
+      setReversing(null)
+    }
+  }
+
+  /** Open the normal add flow, prefilled to log MY side of a settlement the
+   *  friend recorded (I'm the opposite party: debtor pays → expense, creditor
+   *  receives → income). An invitation, skippable, nothing left pending. */
+  function logMyEntry(d: Debt) {
+    const iAmDebtor = d.debtor_id === myUid
+    navigate('/add', {
+      state: {
+        prefill: {
+          type: iAmDebtor ? 'expense' : 'income',
+          amount: d.amount,
+          note: d.reason || `เคลียร์ยอดกับ${friendName}`,
+        },
+      },
+    })
   }
 
   return (
@@ -149,6 +184,13 @@ export function FriendHistoryPage() {
               {ledger.agreedItems.map((d) => (
                 <ItemRow key={d.id} debt={d} myUid={myUid} friendName={friendName} money={money} />
               ))}
+              <button
+                type="button"
+                onClick={() => setSettling(ledger.agreedItems)}
+                className="mt-2.5 w-full rounded-btn bg-brand-deep py-2.5 text-[13px] font-medium text-white"
+              >
+                เคลียร์ทั้งหมด
+              </button>
             </div>
           ) : (
             // only when there IS other activity — a wholly-empty page shows the
@@ -169,9 +211,33 @@ export function FriendHistoryPage() {
               </div>
               <div className="flex flex-col gap-2">
                 {ledger.privateItems.map((d) => (
-                  <PrivateRow key={d.id} debt={d} myUid={myUid} friendName={friendName} money={money} />
+                  <PrivateRow
+                    key={d.id}
+                    debt={d}
+                    myUid={myUid}
+                    friendName={friendName}
+                    money={money}
+                    onSettle={() => setSettling([d])}
+                  />
                 ))}
               </div>
+            </Section>
+          )}
+
+          {/* settled — closed items; reverse (mine) or a nudge to log mine (theirs) */}
+          {ledger.settledItems.length > 0 && (
+            <Section title="เคลียร์แล้ว">
+              {ledger.settledItems.map((d) => (
+                <SettledRow
+                  key={d.id}
+                  debt={d}
+                  myUid={myUid}
+                  friendName={friendName}
+                  money={money}
+                  onReverse={() => setReversing(d)}
+                  onLogMine={() => logMyEntry(d)}
+                />
+              ))}
             </Section>
           )}
 
@@ -197,6 +263,25 @@ export function FriendHistoryPage() {
           counterpartName={friendName}
           meIsCreditor={confirming.creditor_id === myUid}
           onClose={() => setConfirming(null)}
+        />
+      )}
+      {settling && (
+        <SettleSheet
+          debts={settling}
+          friendName={friendName}
+          myUid={myUid}
+          onClose={() => setSettling(null)}
+        />
+      )}
+      {reversing && (
+        <ConfirmDialog
+          title="ย้อนการเคลียร์?"
+          message="รายการเงินที่สร้างจากการเคลียร์จะถูกลบ และยอดนี้จะกลับมาเป็นค้างอยู่"
+          confirmLabel="ย้อนการเคลียร์"
+          busyLabel="กำลังย้อน…"
+          busy={reverse.isPending}
+          onCancel={() => setReversing(null)}
+          onConfirm={doReverse}
         />
       )}
     </div>
@@ -369,11 +454,13 @@ function PrivateRow({
   myUid,
   friendName,
   money,
+  onSettle,
 }: {
   debt: Debt
   myUid: string
   friendName: string
   money: (v: number) => string
+  onSettle: () => void
 }) {
   const share = useSharePrivate()
   const toast = useToast()
@@ -399,14 +486,72 @@ function PrivateRow({
           {money(debt.amount)}
         </span>
       </div>
-      <button
-        onClick={doShare}
-        disabled={share.isPending}
-        className="mt-2 flex items-center gap-1.5 rounded-btn bg-brand-tint px-3 py-1.5 text-[12px] font-medium text-brand-ink disabled:opacity-40"
-      >
-        <IconSend size={13} />
-        ส่งให้{friendName}ยืนยัน
-      </button>
+      <div className="mt-2 flex gap-2">
+        <button
+          onClick={doShare}
+          disabled={share.isPending}
+          className="flex items-center gap-1.5 rounded-btn bg-brand-tint px-3 py-1.5 text-[12px] font-medium text-brand-ink disabled:opacity-40"
+        >
+          <IconSend size={13} />
+          ส่งให้{friendName}ยืนยัน
+        </button>
+        <button
+          onClick={onSettle}
+          className="rounded-btn border-[0.5px] border-hairline px-3 py-1.5 text-[12px] font-medium text-muted"
+        >
+          เคลียร์
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** A settled (closed) item. If I settled it, I can reverse it. If the friend
+ *  settled a shared one, I'm nudged — not warned — to log my own matching entry;
+ *  the app never creates a money row for me silently (0015 §4). */
+function SettledRow({
+  debt,
+  myUid,
+  friendName,
+  money,
+  onReverse,
+  onLogMine,
+}: {
+  debt: Debt
+  myUid: string
+  friendName: string
+  money: (v: number) => string
+  onReverse: () => void
+  onLogMine: () => void
+}) {
+  const iSettled = debt.settled_by === myUid
+  return (
+    <div className="border-b-[0.5px] border-hairline py-2.5 last:border-b-0">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13.5px]">{debt.reason || directionText(debt, myUid, friendName)}</p>
+          <p className="text-[11px] text-faint">
+            {iSettled ? 'คุณกดเคลียร์แล้ว' : `${friendName}เคลียร์แล้ว`}
+          </p>
+        </div>
+        <span className="shrink-0 text-[13.5px] tabular-nums text-muted">{money(debt.amount)}</span>
+      </div>
+      {iSettled ? (
+        <button
+          onClick={onReverse}
+          className="mt-2 flex items-center gap-1.5 rounded-btn border-[0.5px] border-hairline px-3 py-1.5 text-[12px] font-medium text-muted"
+        >
+          <IconArrowBackUp size={13} />
+          ย้อนการเคลียร์
+        </button>
+      ) : (
+        <button
+          onClick={onLogMine}
+          className="mt-2 rounded-btn bg-brand-tint px-3 py-1.5 text-[12px] font-medium text-brand-ink"
+        >
+          บันทึกรายการเงินของคุณ
+        </button>
+      )}
     </div>
   )
 }

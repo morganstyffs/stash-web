@@ -18,6 +18,8 @@ export interface HistoryRow {
   note: string | null
   created_at: string
   is_stock_purchase: boolean
+  is_stock_cogs: boolean
+  is_debt_settlement: boolean
   stock_item_id: string | null
   category: { name: string; icon: string; color_index: number } | null
 }
@@ -38,7 +40,7 @@ export function useHistory(filter: HistoryFilter, search: string) {
       let query = supabase
         .from('transactions')
         .select(
-          'id, type, amount, date, note, created_at, is_stock_purchase, stock_item_id, category:categories(name, icon, color_index)',
+          'id, type, amount, date, note, created_at, is_stock_purchase, is_stock_cogs, is_debt_settlement, stock_item_id, category:categories(name, icon, color_index)',
         )
 
       if (filter === 'income') query = query.eq('type', 'income')

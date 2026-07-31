@@ -345,3 +345,44 @@ export function useCancelDebt() {
     onSuccess: () => invalidateDebts(qc),
   })
 }
+
+/** Settle + reverse also move a transaction, so refresh the ledger queries too. */
+function invalidateAfterSettle(qc: ReturnType<typeof useQueryClient>) {
+  invalidateDebts(qc)
+  qc.invalidateQueries({ queryKey: ['transactions'] })
+}
+
+/**
+ * Clear one or several agreed balances. ONE server call either way — a single id
+ * goes through debt_settle, several through debt_settle_many (0021), which is one
+ * transaction (all-or-nothing). Never loop settle from the client: a mid-way
+ * failure would leave a half-cleared mess (rule 5).
+ */
+export function useSettleDebts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ debtIds, walletId }: { debtIds: string[]; walletId: string }) => {
+      if (debtIds.length === 0) throw new Error('ไม่มีรายการให้เคลียร์')
+      const { error } =
+        debtIds.length === 1
+          ? await supabase.rpc('debt_settle', { p_debt_id: debtIds[0], p_wallet_id: walletId })
+          : await supabase.rpc('debt_settle_many', { p_debt_ids: debtIds, p_wallet_id: walletId })
+      if (error) throw error
+    },
+    onSuccess: () => invalidateAfterSettle(qc),
+  })
+}
+
+/** Reverse a settlement — deletes the transaction it created and re-opens the
+ *  debt. The DB allows this only for the side that settled (settled_by =
+ *  auth.uid(), 0015 §12); the UI only offers it there. */
+export function useReverseSettle() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (debtId: string) => {
+      const { error } = await supabase.rpc('debt_settle_reverse', { p_debt_id: debtId })
+      if (error) throw error
+    },
+    onSuccess: () => invalidateAfterSettle(qc),
+  })
+}
