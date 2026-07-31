@@ -15,12 +15,18 @@
 --
 --      Shape change: the old function took ONE friend id and returned a single
 --      (they_owe_me, i_owe_them, net) row. The summary page needs every friend
---      at once, so this returns one row PER counterpart, no argument (scoped to
---      auth.uid() as before). Each row carries both directions ("เขาค้างเรา" /
---      "เราค้างเขา") AND a signed net, for the SHARED and PRIVATE groups
---      separately. The headline (sum across friends by net sign) is aggregated
---      in ONE client lib helper, same pattern as computeHomeSummary — nothing is
---      computed in JS and written back to the DB.
+--      at once, so this returns one row PER accepted friend, no argument (scoped
+--      to auth.uid() as before). The BASE is friend_connections (accepted),
+--      LEFT JOINed to debts — so a friend who is all cleared still gets a row
+--      (net 0 → "เคลียร์แล้ว", which is meaningful, not absent) and the page
+--      never has to fetch the friend list from a second place and merge. The
+--      friend's `display_name` rides along in the same row (profiles' SELECT
+--      policy already allows reading an accepted friend's row — no new access),
+--      so name and balance always arrive together. Each row carries both
+--      directions ("เขาค้างเรา" / "เราค้างเขา") AND a signed net, for the
+--      SHARED and PRIVATE groups separately. The headline (sum across friends by
+--      net sign) is aggregated in ONE client lib helper, same pattern as
+--      computeHomeSummary — nothing is computed in JS and written back to the DB.
 --
 --      Changing the returns-table shape means the old definition must be DROPPED
 --      with its real signature (public.friend_debts_summary(uuid)) — NOT
@@ -60,18 +66,38 @@
 --   -- anything else → fix the DROP in SECTION 3 to match, don't guess.
 --
 -- ── SMOKE TEST (run AFTER commit; must prove it WORKS, not just exists) ──────
---   -- 1. friend_debts_summary runs for a REAL user, returns all 7 columns, no
+--   -- 1. friend_debts_summary runs for a REAL user, returns all 8 columns, no
 --   --    error. auth.uid() reads request.jwt.claims->>'sub'; the SQL editor runs
---   --    as owner with a null uid, so impersonate a real user for the call.
---   --    0 rows is fine if that user has no confirmed debts — pick one who does
---   --    (a party to a row in public.debts) to see real numbers.
+--   --    as owner with a null uid, so impersonate a real user for the call (a
+--   --    plain owner call would return an empty set and "pass" without proving
+--   --    anything — the exact trap this project hit twice). Pick a user who has
+--   --    at least one accepted friend to see real rows.
 --   begin;
 --     select set_config(
 --       'request.jwt.claims',
 --       json_build_object('sub', (select p.user_id from public.profiles p limit 1))::text,
 --       true
 --     );
---     select * from public.friend_debts_summary();   -- expect 7 columns, no error
+--     select * from public.friend_debts_summary();   -- expect 8 columns, no error
+--   rollback;
+--
+--   -- 1b. row count = the caller's ACCEPTED-friend count (a cleared friend still
+--   --     gets a row). Impersonate a user WITH accepted friends for this to bite:
+--   begin;
+--     select set_config(
+--       'request.jwt.claims',
+--       json_build_object('sub', (
+--         select fc.requester_id from public.friend_connections fc
+--          where fc.status = 'accepted' limit 1
+--       ))::text,
+--       true
+--     );
+--     select
+--       (select count(*) from public.friend_debts_summary())                    as fn_rows,
+--       (select count(*) from public.friend_connections fc
+--         where fc.status = 'accepted'
+--           and (fc.requester_id = auth.uid() or fc.addressee_id = auth.uid())) as accepted_friends;
+--     -- expect: fn_rows = accepted_friends (skip if there are no accepted rows yet)
 --   rollback;
 --
 --   -- 2. exactly one friend_debts_summary (the old (uuid) overload is gone):
@@ -171,27 +197,33 @@ $$;
 
 
 -- ===========================================================================
--- SECTION 3 — friend_debts_summary: net balance with EVERY friend at once,
--- split by visibility. Drop the old (uuid) overload first — the returns-table
--- shape changes, so create-or-replace is impossible and would leave a stale
--- overload (0015 §9). No `if exists`: fail loudly if the signature is wrong.
+-- SECTION 3 — friend_debts_summary: net balance with EVERY accepted friend at
+-- once, split by visibility. Drop the old (uuid) overload first — the
+-- returns-table shape changes, so create-or-replace is impossible and would
+-- leave a stale overload (0015 §9). No `if exists`: fail loudly if the
+-- signature is wrong.
 --
--- One row per counterpart the caller has a confirmed debt with. For SHARED and
--- PRIVATE separately: `*_they_owe_me` (caller is creditor), `*_i_owe_them`
--- (caller is debtor), `*_net` (they_owe_me − i_owe_them, signed). RETURNS TABLE
--- makes the output names variables in scope, so every table is aliased (d / fr)
--- and every column qualified; the lateral's counterpart column is named
--- `counterpart_id` to avoid colliding with the OUT `friend_id`.
+-- BASE = friend_connections (accepted), LEFT JOINed to confirmed debts, so a
+-- friend who is fully cleared STILL gets a row (all totals 0 → "เคลียร์แล้ว")
+-- and the page never merges a separate friend list. `display_name` rides along
+-- from profiles (its SELECT policy already allows an accepted friend's row).
+-- Per row, for SHARED and PRIVATE separately: `*_they_owe_me` (caller is
+-- creditor), `*_i_owe_them` (caller is debtor), `*_net` (they_owe_me −
+-- i_owe_them, signed).
 --
--- SECURITY INVOKER + STABLE + search_path='': reads through the debts SELECT
--- policy (0015 §8), which already hides another person's private notes, so no
--- private row of the OTHER party can ever leak into these totals.
+-- RETURNS TABLE makes the output names variables in scope, so every table is
+-- aliased (fc / f / p / d) and every column qualified; the derived counterpart
+-- is named `friend_uid` (not `friend_id`) so it can't collide with the OUT
+-- column. SECURITY INVOKER + STABLE + search_path='': reads through the debts
+-- and profiles SELECT policies (0015 §8 / §3), so another person's private note
+-- — or a stranger's profile — can never leak into these rows.
 -- ===========================================================================
 drop function public.friend_debts_summary(uuid);
 
 create or replace function public.friend_debts_summary()
 returns table (
   friend_id           uuid,
+  display_name        text,
   shared_they_owe_me  numeric,
   shared_i_owe_them   numeric,
   shared_net          numeric,
@@ -207,7 +239,8 @@ as $$
 begin
   return query
   select
-    fr.counterpart_id,
+    f.friend_uid,
+    p.display_name,
     coalesce(sum(case when d.visibility = 'shared'  and d.creditor_id = auth.uid() then d.amount else 0 end), 0)::numeric,
     coalesce(sum(case when d.visibility = 'shared'  and d.debtor_id   = auth.uid() then d.amount else 0 end), 0)::numeric,
     coalesce(sum(case when d.visibility = 'shared'
@@ -218,13 +251,18 @@ begin
     coalesce(sum(case when d.visibility = 'private'
                       then (case when d.creditor_id = auth.uid() then d.amount else -d.amount end)
                       else 0 end), 0)::numeric
-  from public.debts d
-  cross join lateral (
-    select case when d.creditor_id = auth.uid() then d.debtor_id else d.creditor_id end as counterpart_id
-  ) fr
-  where d.status = 'confirmed'
-    and (d.creditor_id = auth.uid() or d.debtor_id = auth.uid())
-  group by fr.counterpart_id;
+  from (
+    select case when fc.requester_id = auth.uid() then fc.addressee_id else fc.requester_id end as friend_uid
+    from public.friend_connections fc
+    where fc.status = 'accepted'
+      and (fc.requester_id = auth.uid() or fc.addressee_id = auth.uid())
+  ) f
+  left join public.profiles p on p.user_id = f.friend_uid
+  left join public.debts d
+    on d.status = 'confirmed'
+   and ((d.creditor_id = auth.uid() and d.debtor_id   = f.friend_uid)
+     or (d.debtor_id   = auth.uid() and d.creditor_id = f.friend_uid))
+  group by f.friend_uid, p.display_name;
 end;
 $$;
 
