@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import type { Debt, FriendConnection, FriendDebtsSummary, Profile } from '@/lib/db'
+import type { Debt, DebtCreateArgs, FriendConnection, FriendDebtsSummary, Profile } from '@/lib/db'
 
 /**
  * ยอดค้าง data layer. The tables are select-only under RLS and every write goes
@@ -187,8 +187,10 @@ export function useConfirmDebt() {
 export function useRejectDebt() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (debtId: string) => {
-      const { error } = await supabase.rpc('debt_reject', { p_debt_id: debtId })
+    mutationFn: async ({ debtId, reason }: { debtId: string; reason?: string }) => {
+      // p_reason is optional — omit it when blank so the SQL DEFAULT (null) applies.
+      const args = reason && reason.trim() ? { p_debt_id: debtId, p_reason: reason.trim() } : { p_debt_id: debtId }
+      const { error } = await supabase.rpc('debt_reject', args)
       if (error) throw error
     },
     onSuccess: () => {
@@ -216,5 +218,75 @@ export function useUpdateDisplayName() {
       // the name rides along in friend_debts_summary rows, so refresh those too.
       qc.invalidateQueries({ queryKey: ['friend_debts_summary'] })
     },
+  })
+}
+
+/** Every debt between me and one friend, any status/visibility (RLS already
+ *  limits it to my own private rows + shared rows I'm party to). The history page
+ *  partitions these with computeFriendLedger. */
+export function useFriendDebts(friendId: string | undefined) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['debts', 'friend', friendId, user?.id],
+    enabled: !!user && !!friendId,
+    queryFn: async (): Promise<Debt[]> => {
+      const uid = user!.id
+      const { data, error } = await supabase
+        .from('debts')
+        .select('*')
+        .or(
+          `and(creditor_id.eq.${uid},debtor_id.eq.${friendId}),and(creditor_id.eq.${friendId},debtor_id.eq.${uid})`,
+        )
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return (data ?? []) as Debt[]
+    },
+  })
+}
+
+/** Invalidate everything a debt write can move. */
+function invalidateDebts(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['debts'] }) // covers ['debts','friend',…] and ['debts','pending']
+  qc.invalidateQueries({ queryKey: ['friend_debts_summary'] })
+  qc.invalidateQueries({ queryKey: ['debts_badge'] })
+}
+
+export function useCreateDebt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (args: DebtCreateArgs) => {
+      // debt_create raises ready Thai errors (จำนวนเงินต้องมากกว่า 0, …) — caught
+      // by result and passed through translateError, never by message substring.
+      const { error } = await supabase.rpc('debt_create', args)
+      if (error) throw error
+    },
+    onSuccess: () => invalidateDebts(qc),
+  })
+}
+
+/** Turn a private note into a shared debt awaiting the friend's confirmation,
+ *  atomically (0018) — never delete+create on the client (would lose the note if
+ *  the second call failed). */
+export function useSharePrivate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (debtId: string) => {
+      const { error } = await supabase.rpc('debt_share_private', { p_debt_id: debtId })
+      if (error) throw error
+    },
+    onSuccess: () => invalidateDebts(qc),
+  })
+}
+
+/** Remove a debt I created that is still pending or was rejected (0018 widened
+ *  debt_cancel to accept rejected rows). */
+export function useCancelDebt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (debtId: string) => {
+      const { error } = await supabase.rpc('debt_cancel', { p_debt_id: debtId })
+      if (error) throw error
+    },
+    onSuccess: () => invalidateDebts(qc),
   })
 }

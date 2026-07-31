@@ -35,6 +35,13 @@ export function formatDayShort(date: Date): string {
   return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short' }).format(date)
 }
 
+/** Format a date-only string 'YYYY-MM-DD' (e.g. a debt due date) as "20 ก.ค.".
+ *  Parsed at explicit local midnight (`T00:00:00`), not the bare date-only form
+ *  that parses as UTC and can shift the day (convention 18). */
+export function formatDueDate(dateOnly: string): string {
+  return formatDayShort(new Date(`${dateOnly}T00:00:00`))
+}
+
 /** Buddhist-era month label, e.g. "กรกฎาคม 2569". */
 export function formatMonthLong(date: Date): string {
   return new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric' }).format(date)

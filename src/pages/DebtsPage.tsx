@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { IconEye, IconEyeOff, IconUserPlus } from '@tabler/icons-react'
+import { useNavigate } from 'react-router-dom'
+import { IconChevronRight, IconEye, IconEyeOff, IconUserPlus } from '@tabler/icons-react'
 import { WovenHeroEmpty } from '@/components/WovenHero'
 import { AddFriendSheet } from '@/components/AddFriendSheet'
+import { ConfirmDebtSheet } from '@/components/ConfirmDebtSheet'
 import { useToast } from '@/components/Toast'
 import { useAuth } from '@/hooks/useAuth'
 import { useHideBalance } from '@/hooks/useHideBalance'
-import {
-  useConfirmDebt,
-  useDebtsSummary,
-  useFriendRequests,
-  usePendingDebts,
-  useRejectDebt,
-} from '@/hooks/useFriends'
+import { useDebtsSummary, useFriendRequests, usePendingDebts } from '@/hooks/useFriends'
 import { computeDebtsHeadline, friendDirection } from '@/lib/debtsSummary'
 import { formatBaht, MASKED_BAHT } from '@/lib/format'
 import { translateError } from '@/lib/errors'
@@ -27,12 +23,14 @@ import type { Debt, FriendDebtsSummary } from '@/lib/db'
  */
 export function DebtsPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const summaryQ = useDebtsSummary()
   const pendingQ = usePendingDebts()
   const requestsQ = useFriendRequests()
   const { hideBalance, toggleHideBalance } = useHideBalance()
   const toast = useToast()
   const [addOpen, setAddOpen] = useState(false)
+  const [confirming, setConfirming] = useState<Debt | null>(null)
 
   // Surface query failures — never swallow (convention 17). The pending block is
   // the only channel for a confirmation (no push), so its failure must be loud.
@@ -130,45 +128,82 @@ export function DebtsPage() {
             </div>
           </div>
 
-          {/* awaiting my confirmation — the only channel there is (no push) */}
+          {/* awaiting my confirmation — the only channel there is (no push). The
+              amount is masked here (a glance); tapping opens the confirm sheet,
+              which reveals it (the decision). */}
           {pending.length > 0 && (
             <div className="mx-4 mb-4">
               <p className="mb-1.5 text-[11px] uppercase tracking-[0.5px] text-faint">รอคุณยืนยัน</p>
               <div className="overflow-hidden rounded-card border-[0.5px] border-hairline">
-                {pending.map((d) => (
-                  <PendingDebtRow
-                    key={d.id}
-                    debt={d}
-                    meIsCreditor={!!user && d.creditor_id === user.id}
-                    counterpartName={
-                      nameById.get(d.creditor_id === user?.id ? d.debtor_id : d.creditor_id) ??
-                      'เพื่อน'
-                    }
-                    hideBalance={hideBalance}
-                  />
-                ))}
+                {pending.map((d) => {
+                  const meIsCreditor = !!user && d.creditor_id === user.id
+                  const name =
+                    nameById.get(d.creditor_id === user?.id ? d.debtor_id : d.creditor_id) ?? 'เพื่อน'
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setConfirming(d)}
+                      className="flex w-full items-center gap-3 border-b-[0.5px] border-hairline p-3 text-left last:border-b-0"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13.5px]">
+                          {meIsCreditor ? `${name} บันทึกว่าค้างคุณ` : `${name} บันทึกว่าคุณค้างเขา`}
+                        </p>
+                        <p className="text-[11px] text-warn-ink">แตะเพื่อยืนยัน / ปฏิเสธ</p>
+                      </div>
+                      <span className="shrink-0 text-[13.5px] tabular-nums text-muted">{money(d.amount)}</span>
+                      <IconChevronRight size={16} className="shrink-0 text-chevron" />
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
 
-          {/* friend list */}
+          {/* friend list — each row opens that friend's history */}
           <div className="mx-4 pb-6">
             <p className="mb-1.5 text-[11px] uppercase tracking-[0.5px] text-faint">เพื่อน</p>
             {friends.map((f) => (
-              <FriendRow key={f.friend_id} friend={f} hideBalance={hideBalance} />
+              <FriendRow
+                key={f.friend_id}
+                friend={f}
+                hideBalance={hideBalance}
+                onOpen={() => navigate(`/debts/friend/${f.friend_id}`)}
+              />
             ))}
           </div>
         </>
       )}
 
       {addOpen && <AddFriendSheet onClose={() => setAddOpen(false)} />}
+      {confirming && (
+        <ConfirmDebtSheet
+          debt={confirming}
+          counterpartName={
+            nameById.get(confirming.creditor_id === user?.id ? confirming.debtor_id : confirming.creditor_id) ??
+            'เพื่อน'
+          }
+          meIsCreditor={!!user && confirming.creditor_id === user.id}
+          onClose={() => setConfirming(null)}
+        />
+      )}
     </div>
   )
 }
 
 /** One friend: name + net direction as a sentence (colour reinforces, never
- *  replaces, the word — so direction reads without relying on colour). */
-function FriendRow({ friend, hideBalance }: { friend: FriendDebtsSummary; hideBalance: boolean }) {
+ *  replaces, the word — so direction reads without relying on colour). Opens the
+ *  friend's history. */
+function FriendRow({
+  friend,
+  hideBalance,
+  onOpen,
+}: {
+  friend: FriendDebtsSummary
+  hideBalance: boolean
+  onOpen: () => void
+}) {
   const dir = friendDirection(friend.shared_net)
   const amount = hideBalance ? MASKED_BAHT : formatBaht(Math.abs(friend.shared_net))
   const initial = friend.display_name.trim().charAt(0) || '?'
@@ -179,69 +214,17 @@ function FriendRow({ friend, hideBalance }: { friend: FriendDebtsSummary; hideBa
     dir === 'owes_me' ? 'text-income' : dir === 'i_owe' ? 'text-expense' : 'text-faint'
 
   return (
-    <div className="flex items-center gap-3 border-b-[0.5px] border-hairline py-3 last:border-b-0">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 border-b-[0.5px] border-hairline py-3 text-left last:border-b-0"
+    >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-fill text-[14px] font-medium text-muted">
         {initial}
       </div>
       <p className="min-w-0 flex-1 truncate text-[14px]">{friend.display_name}</p>
       <span className={`shrink-0 text-[14px] font-medium ${tone}`}>{text}</span>
-    </div>
-  )
-}
-
-/** A shared debt the other party logged, waiting for me to confirm or reject.
- *  The amount is shown (not masked): you can't agree to a figure you can't see. */
-function PendingDebtRow({
-  debt,
-  meIsCreditor,
-  counterpartName,
-  hideBalance,
-}: {
-  debt: Debt
-  meIsCreditor: boolean
-  counterpartName: string
-  hideBalance: boolean
-}) {
-  const confirm = useConfirmDebt()
-  const reject = useRejectDebt()
-  const toast = useToast()
-  const busy = confirm.isPending || reject.isPending
-
-  const amount = hideBalance ? MASKED_BAHT : formatBaht(debt.amount)
-  const line = meIsCreditor
-    ? `${counterpartName} บันทึกว่าค้างคุณ ${amount}`
-    : `${counterpartName} บันทึกว่าคุณค้าง ${amount}`
-
-  async function act(accept: boolean) {
-    try {
-      if (accept) await confirm.mutateAsync(debt.id)
-      else await reject.mutateAsync(debt.id)
-      toast.success(accept ? 'ยืนยันแล้ว' : 'ปฏิเสธแล้ว')
-    } catch (e) {
-      toast.error(translateError(e))
-    }
-  }
-
-  return (
-    <div className="border-b-[0.5px] border-hairline p-3 last:border-b-0">
-      <p className="text-[13.5px]">{line}</p>
-      {debt.reason && <p className="mt-0.5 text-[11px] text-faint">{debt.reason}</p>}
-      <div className="mt-2.5 flex gap-2">
-        <button
-          disabled={busy}
-          onClick={() => act(true)}
-          className="flex-1 rounded-btn bg-brand-deep py-2 text-[12.5px] font-medium text-white disabled:opacity-40"
-        >
-          ยืนยัน
-        </button>
-        <button
-          disabled={busy}
-          onClick={() => act(false)}
-          className="rounded-btn border-[0.5px] border-hairline px-4 py-2 text-[12.5px] font-medium text-expense disabled:opacity-40"
-        >
-          ปฏิเสธ
-        </button>
-      </div>
-    </div>
+      <IconChevronRight size={16} className="shrink-0 text-chevron" />
+    </button>
   )
 }
