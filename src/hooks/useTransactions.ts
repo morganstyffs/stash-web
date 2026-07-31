@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { isSaleLinkedRow, isStockLinkedRow } from '@/lib/ledger'
+import { buildRestoreInsert, type RestorableTx } from '@/lib/txRestore'
 import type { TransactionType } from '@/lib/db'
 
 /** Full editable shape of one transaction (fetched when the edit sheet opens). */
@@ -13,6 +14,8 @@ export interface EditableTx {
   wallet_id: string | null
   date: string
   note: string | null
+  /** kept so an undo can restore the row to its original spot in the recent list */
+  created_at: string
   is_stock_purchase: boolean
   is_stock_cogs: boolean
   is_debt_settlement: boolean
@@ -37,7 +40,7 @@ export function useTransaction(id: string | null) {
       const { data, error } = await supabase
         .from('transactions')
         .select(
-          'id, type, amount, category_id, wallet_id, date, note, is_stock_purchase, is_stock_cogs, is_debt_settlement, stock_item_id',
+          'id, type, amount, category_id, wallet_id, date, note, created_at, is_stock_purchase, is_stock_cogs, is_debt_settlement, stock_item_id',
         )
         .eq('id', id!)
         .single()
@@ -67,6 +70,24 @@ export function useUpdateTransaction() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] }),
   })
+}
+
+/**
+ * Re-inserts a just-deleted plain transaction with its original id + created_at,
+ * so an "undo" returns the row to its exact spot in the recent list rather than
+ * bouncing it to the top. A plain async function, not a hook: the undo button is
+ * clicked after TransactionEditSheet has closed and unmounted, so a
+ * component-bound mutation would be firing from a dead component. The caller
+ * invalidates ['transactions'] afterwards to refresh every view.
+ *
+ * buildRestoreInsert throws for locked rows (stock purchase/sale, debt
+ * settlement), so this can never resurrect a row that belongs to
+ * stock_sales/debts as an orphaned transaction (§5).
+ */
+export async function restoreTransaction(snap: RestorableTx, userId: string): Promise<void> {
+  const payload = buildRestoreInsert(snap, userId)
+  const { error } = await supabase.from('transactions').insert(payload)
+  if (error) throw error
 }
 
 /**

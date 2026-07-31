@@ -1,12 +1,15 @@
 import { useEffect, useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { IconArrowsExchange, IconBox, IconTrash, IconX } from '@tabler/icons-react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useDialogA11y } from '@/lib/useDialogA11y'
 import { useToast } from '@/components/Toast'
+import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useLookups'
 import { useWallets } from '@/hooks/useSettings'
 import {
+  restoreTransaction,
   useDeleteTransaction,
   useTransaction,
   useUpdateTransaction,
@@ -26,6 +29,8 @@ import { translateError } from '@/lib/errors'
 export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () => void }) {
   const navigate = useNavigate()
   const toast = useToast()
+  const qc = useQueryClient()
+  const { user } = useAuth()
   const txQ = useTransaction(id)
   const catsQ = useCategories()
   const walletsQ = useWallets()
@@ -94,11 +99,33 @@ export function TransactionEditSheet({ id, onClose }: { id: string; onClose: () 
   }
 
   async function remove() {
-    if (!tx) return
+    if (!tx || !user) return
+    const snap = { ...tx } // snapshot before the delete empties the query
     try {
       await del.mutateAsync(tx.id)
-      toast.success('ลบรายการแล้ว')
-      onClose()
+      onClose() // close before the toast so it isn't hidden behind the sheet
+      toast.show({
+        kind: 'success',
+        message: 'ลบรายการแล้ว',
+        // long enough to catch the undo, short enough not to pile up (default 2600 is too short)
+        duration: 6000,
+        action: {
+          label: 'เลิกทำ',
+          onClick: () => {
+            // fires after this sheet has unmounted; restoreTransaction is a plain
+            // function over the app-level QueryClient, not a component-bound hook
+            void (async () => {
+              try {
+                await restoreTransaction(snap, user.id)
+                qc.invalidateQueries({ queryKey: ['transactions'] })
+                toast.success('คืนรายการแล้ว')
+              } catch (e) {
+                toast.error(translateError(e)) // never swallow (convention 16)
+              }
+            })()
+          },
+        },
+      })
     } catch (e) {
       toast.error(translateError(e))
     }
