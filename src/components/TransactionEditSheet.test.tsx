@@ -25,6 +25,10 @@ vi.mock('@/components/Toast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }))
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }))
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }))
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}))
 
 import { TransactionEditSheet } from '@/components/TransactionEditSheet'
 
@@ -36,6 +40,7 @@ const row = (): EditableTx => ({
   wallet_id: 'w-1',
   date: '2026-07-31',
   note: null,
+  created_at: '2026-07-31T03:00:00+00:00',
   is_stock_purchase: false,
   is_stock_cogs: false,
   is_debt_settlement: false,
