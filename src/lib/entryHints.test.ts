@@ -1,14 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { preferredWalletFor, topCategories, type HintRowLike } from '@/lib/entryHints'
+import {
+  preferredWalletFor,
+  topCategories,
+  typicalAmountFor,
+  unusualAmountBaseline,
+  type HintRowLike,
+} from '@/lib/entryHints'
 
-// A terse row builder so each test reads as data, not boilerplate.
+// A terse row builder so each test reads as data, not boilerplate. `amount`
+// defaults to 0 — the wallet/category tests don't read it, only the
+// typical/unusual-amount tests below do.
 function row(
   type: HintRowLike['type'],
   category_id: string | null,
   wallet_id: string | null,
   date: string,
+  amount = 0,
 ): HintRowLike {
-  return { type, category_id, wallet_id, date }
+  return { type, category_id, wallet_id, date, amount }
 }
 
 describe('preferredWalletFor — the wallet most used with a category', () => {
@@ -107,5 +116,107 @@ describe('topCategories — most-used categories of a type', () => {
     const reversed = topCategories([...rows].reverse(), 'expense', 4)
     expect(forward).toEqual(['bills', 'food', 'fun'])
     expect(reversed).toEqual(forward)
+  })
+})
+
+describe('typicalAmountFor — the median past amount of a category', () => {
+  it('returns the median of the amounts (odd count)', () => {
+    const rows = [
+      row('expense', 'food', 'cash', '2026-07-01', 100),
+      row('expense', 'food', 'cash', '2026-07-02', 200),
+      row('expense', 'food', 'cash', '2026-07-03', 300),
+      row('expense', 'food', 'cash', '2026-07-04', 400),
+      row('expense', 'food', 'cash', '2026-07-05', 500),
+    ]
+    expect(typicalAmountFor(rows, 'food', 'expense')).toBe(300)
+  })
+
+  it('returns null below the minimum sample count (4 rows)', () => {
+    const rows = [
+      row('expense', 'food', 'cash', '2026-07-01', 100),
+      row('expense', 'food', 'cash', '2026-07-02', 200),
+      row('expense', 'food', 'cash', '2026-07-03', 300),
+      row('expense', 'food', 'cash', '2026-07-04', 400),
+    ]
+    expect(typicalAmountFor(rows, 'food', 'expense')).toBeNull()
+  })
+
+  it('an even sample count takes the average of the two middle values', () => {
+    // 6 rows 100..600 → the two middle are 300 and 400 → (300+400)/2 = 350.
+    const rows = [
+      row('expense', 'food', 'cash', '2026-07-01', 100),
+      row('expense', 'food', 'cash', '2026-07-02', 200),
+      row('expense', 'food', 'cash', '2026-07-03', 300),
+      row('expense', 'food', 'cash', '2026-07-04', 400),
+      row('expense', 'food', 'cash', '2026-07-05', 500),
+      row('expense', 'food', 'cash', '2026-07-06', 600),
+    ]
+    expect(typicalAmountFor(rows, 'food', 'expense')).toBe(350)
+  })
+
+  it('filters by type — income amounts never mix into the expense median', () => {
+    // 5 expense rows (median 300) plus income rows on the same category with wild
+    // amounts that would move the median if they leaked in.
+    const rows = [
+      row('expense', 'food', 'cash', '2026-07-01', 100),
+      row('expense', 'food', 'cash', '2026-07-02', 200),
+      row('expense', 'food', 'cash', '2026-07-03', 300),
+      row('expense', 'food', 'cash', '2026-07-04', 400),
+      row('expense', 'food', 'cash', '2026-07-05', 500),
+      row('income', 'food', 'cash', '2026-07-06', 99_999),
+      row('income', 'food', 'cash', '2026-07-07', 88_888),
+    ]
+    expect(typicalAmountFor(rows, 'food', 'expense')).toBe(300)
+  })
+
+  it('is order-independent — shuffling the input yields the same median', () => {
+    const rows = [
+      row('expense', 'food', 'cash', '2026-07-03', 300),
+      row('expense', 'food', 'cash', '2026-07-01', 100),
+      row('expense', 'food', 'cash', '2026-07-05', 500),
+      row('expense', 'food', 'cash', '2026-07-02', 200),
+      row('expense', 'food', 'cash', '2026-07-04', 400),
+    ]
+    const forward = typicalAmountFor(rows, 'food', 'expense')
+    const reversed = typicalAmountFor([...rows].reverse(), 'food', 'expense')
+    expect(forward).toBe(300)
+    expect(reversed).toBe(forward)
+  })
+})
+
+describe('unusualAmountBaseline — flags an amount that dwarfs the category norm', () => {
+  // A category whose typical (median) amount is 300.
+  const history: HintRowLike[] = [
+    row('expense', 'food', 'cash', '2026-07-01', 100),
+    row('expense', 'food', 'cash', '2026-07-02', 200),
+    row('expense', 'food', 'cash', '2026-07-03', 300),
+    row('expense', 'food', 'cash', '2026-07-04', 400),
+    row('expense', 'food', 'cash', '2026-07-05', 500),
+  ]
+
+  it('warns at exactly the 10× threshold, returning the baseline it compared to', () => {
+    // median 300 → threshold 3,000. 3,000 is unusual → warn, baseline 300.
+    expect(unusualAmountBaseline(history, 'food', 'expense', 3_000)).toBe(300)
+  })
+
+  it('does NOT warn just below the threshold', () => {
+    // 2,999 < 3,000 → no warning.
+    expect(unusualAmountBaseline(history, 'food', 'expense', 2_999)).toBeNull()
+  })
+
+  it('returns null when no category is chosen yet', () => {
+    expect(unusualAmountBaseline(history, null, 'expense', 99_999)).toBeNull()
+  })
+
+  it('returns null for a non-positive amount (empty / cleared field)', () => {
+    expect(unusualAmountBaseline(history, 'food', 'expense', 0)).toBeNull()
+  })
+
+  it('returns null when the category has too little history, however high the amount', () => {
+    const thin = [
+      row('expense', 'bills', 'bank', '2026-07-01', 50),
+      row('expense', 'bills', 'bank', '2026-07-02', 50),
+    ]
+    expect(unusualAmountBaseline(thin, 'bills', 'expense', 1_000_000)).toBeNull()
   })
 })
