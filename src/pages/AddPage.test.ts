@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { favoriteLabel, saveBlockedReason, pressKey } from '@/pages/AddPage'
+import { favoriteLabel, favoriteSignature, saveBlockedReason, pressKey } from '@/pages/AddPage'
 
 describe('favoriteLabel (B11 — distinguishable default names)', () => {
   it('folds the amount into the name when there is one', () => {
@@ -105,11 +105,15 @@ describe('pressKey — keypad reducer', () => {
   })
 })
 
-describe('B13 — applying a fast-label with no amount clears a stale amount', () => {
-  // The page sets amountStr to String(amount) when present, else '' — modelled
-  // here as the value derived from a favorite so the clearing rule is locked in.
+describe('B13 — applying a fast-label clears stale fields, never fuses them', () => {
+  // applyFavorite sets amount / note / wallet on EVERY tap. Modelled here as the
+  // pure value each field takes from a favorite, so the clearing rules are locked
+  // in: a label that omits a field resets it, it doesn't inherit the last entry's.
   const amountFromFavorite = (favAmount: number | null): string =>
     favAmount != null ? String(favAmount) : ''
+  const noteFromFavorite = (favNote: string | null): string => favNote ?? ''
+  const walletFromFavorite = (favWallet: string | null, dflt: string | null): string | null =>
+    favWallet ?? dflt
 
   it('clears a leftover amount when the label carries none', () => {
     // amount box held "250", user taps a label whose amount is null
@@ -118,5 +122,58 @@ describe('B13 — applying a fast-label with no amount clears a stale amount', (
 
   it('takes the label amount when it has one', () => {
     expect(amountFromFavorite(120)).toBe('120')
+  })
+
+  it('clears a leftover note when the label has none (bug #1: taxi note on coffee)', () => {
+    expect(noteFromFavorite(null)).toBe('')
+    expect(noteFromFavorite('กาแฟเย็น')).toBe('กาแฟเย็น')
+  })
+
+  it('falls back to the default wallet when the label specifies none', () => {
+    // user had picked "ธนาคาร" (w-bank); a label with no wallet resets to default
+    expect(walletFromFavorite(null, 'w-cash')).toBe('w-cash')
+    expect(walletFromFavorite('w-bank', 'w-cash')).toBe('w-bank')
+  })
+})
+
+describe('favoriteSignature — "saved" button compares signatures, not a stale flag', () => {
+  const base = {
+    type: 'expense' as const,
+    amount: 100,
+    categoryId: 'c1',
+    walletId: 'w1',
+    note: 'x',
+  }
+
+  it('is equal for an identical field set', () => {
+    expect(favoriteSignature(base)).toBe(favoriteSignature({ ...base }))
+  })
+
+  it('differs when only the amount differs (the reported bug: 100 → 1,005)', () => {
+    expect(favoriteSignature(base)).not.toBe(favoriteSignature({ ...base, amount: 1005 }))
+  })
+
+  it('differs when only the wallet differs', () => {
+    expect(favoriteSignature(base)).not.toBe(favoriteSignature({ ...base, walletId: 'w2' }))
+  })
+
+  it('differs when only the note differs', () => {
+    expect(favoriteSignature(base)).not.toBe(favoriteSignature({ ...base, note: 'y' }))
+  })
+
+  it('trims the note before signing (leading/trailing space is not a change)', () => {
+    expect(favoriteSignature({ ...base, note: 'กาแฟ' })).toBe(
+      favoriteSignature({ ...base, note: ' กาแฟ ' }),
+    )
+  })
+
+  it('keeps null category distinct from an empty-string one, delimiter-proof', () => {
+    expect(favoriteSignature({ ...base, categoryId: null })).not.toBe(
+      favoriteSignature({ ...base, categoryId: '' }),
+    )
+    // a note can't forge another field's value by embedding a would-be delimiter
+    expect(favoriteSignature({ ...base, walletId: 'w1', note: 'w2' })).not.toBe(
+      favoriteSignature({ ...base, walletId: 'w2', note: '' }),
+    )
   })
 })
