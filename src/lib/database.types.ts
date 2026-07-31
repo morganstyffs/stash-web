@@ -1002,6 +1002,7 @@ export type Database = {
       }
       transactions_search: {
         Args: {
+          p_category_id: string
           p_filter: string
           p_limit: number
           p_month: string

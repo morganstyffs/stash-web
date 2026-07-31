@@ -101,19 +101,27 @@ export function toSearchPage(raw: SearchRow[]): HistorySearchPage {
 }
 
 /**
- * Transactions for the current user, filtered server-side by the active chip and
+ * Transactions for the current user, filtered server-side by the active chip, an
+ * optional month ('' = every month) and an optional category ('' = every
+ * category, a uuid = just that one — used by the home donut deep link), and
  * searched across note + category name + amount, in a single RPC that also
  * returns the totals for the whole match set (RLS scopes to auth.uid()). Paged
  * with useInfiniteQuery so long histories load in chunks instead of being
  * silently capped.
  */
-export function useHistory(filter: HistoryFilter, search: string, month: string) {
+export function useHistory(
+  filter: HistoryFilter,
+  search: string,
+  month: string,
+  categoryId: string,
+) {
   const { user } = useAuth()
   const q = search.trim()
   return useInfiniteQuery({
-    // `month` is part of the key: without it, switching months would serve the
-    // previous month's cached pages until the query happened to refetch.
-    queryKey: ['transactions', 'history', user?.id, filter, q, month],
+    // `month` and `categoryId` are part of the key: without them, switching month
+    // or category would serve the previous selection's cached pages until the
+    // query happened to refetch.
+    queryKey: ['transactions', 'history', user?.id, filter, q, month, categoryId],
     enabled: !!user,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<HistorySearchPage> => {
@@ -130,6 +138,12 @@ export function useHistory(filter: HistoryFilter, search: string, month: string)
         // non-null; do NOT "fix" this to `month || null` — that reintroduces a
         // type error (see the migration header on 0023).
         p_month: month,
+        // Same pattern once more: '' = every category, the RPC nullifs an
+        // empty/whitespace p_category_id itself and validates a uuid otherwise
+        // (0024). Passed straight through as a string because the generated arg
+        // type is non-null; do NOT coerce it to null — that reintroduces a type
+        // error (same trap the p_q / p_month comments above call out).
+        p_category_id: categoryId,
         p_limit: HISTORY_PAGE_SIZE,
         p_offset: pageParam * HISTORY_PAGE_SIZE,
       })
