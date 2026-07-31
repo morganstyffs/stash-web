@@ -98,6 +98,22 @@ export function monthAnchorFromKey(key: string): Date {
 }
 
 /**
+ * The last `count` month keys ending at the current Bangkok month, newest first:
+ * ['2026-07', '2026-06', … ]. Feeds the history page's month-filter sheet (a fixed
+ * 12-month lookback). Every step goes through addMonthsToKey, so the year boundary
+ * is handled in exactly one place (convention 10) — never re-derived by hand here.
+ */
+export function recentMonthKeys(now: Date = new Date(), count = 12): string[] {
+  const current = monthKey(now)
+  return Array.from({ length: count }, (_, i) => addMonthsToKey(current, -i))
+}
+
+/** A well-formed 'YYYY-MM' month key (month 01–12). The single source of the
+ *  month-param shape — both parsers below test against it, never their own copy
+ *  of the regex (convention 10). */
+const MONTH_KEY_RE = /^\d{4}-(0[1-9]|1[0-2])$/
+
+/**
  * Resolve the home screen's ?m=YYYY-MM query param to a safe month key. The raw
  * value is untrusted URL input, so anything that isn't a well-formed month at or
  * before the current month falls back to the current month — the app never shows
@@ -106,8 +122,25 @@ export function monthAnchorFromKey(key: string): Date {
  */
 export function parseMonthParam(raw: string | null | undefined, now: Date = new Date()): string {
   const current = monthKey(now)
-  if (!raw || !/^\d{4}-(0[1-9]|1[0-2])$/.test(raw)) return current
+  if (!raw || !MONTH_KEY_RE.test(raw)) return current
   return raw > current ? current : raw
+}
+
+/**
+ * Resolve an OPTIONAL month filter (the history page's ?m=YYYY-MM) to either a
+ * safe month key or '' meaning "every month". Same validation as parseMonthParam
+ * — same regex, same never-the-future rule — but a bad/missing/future value falls
+ * back to '' (no filter) instead of the current month, because the history page
+ * defaults to showing every month, not just this one. Pure (compares 'YYYY-MM'
+ * strings, never new Date(raw)).
+ */
+export function parseOptionalMonthParam(
+  raw: string | null | undefined,
+  now: Date = new Date(),
+): string {
+  const current = monthKey(now)
+  if (!raw || !MONTH_KEY_RE.test(raw)) return ''
+  return raw > current ? '' : raw
 }
 
 export interface MonthBounds {

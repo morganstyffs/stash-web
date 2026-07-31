@@ -5,7 +5,9 @@ import {
   monthBoundsFromKey,
   monthAnchorFromKey,
   addMonthsToKey,
+  recentMonthKeys,
   parseMonthParam,
+  parseOptionalMonthParam,
   dayOfMonthISO,
   daysLeftInMonth,
   daysLeftInMonthKey,
@@ -68,6 +70,27 @@ describe('addMonthsToKey — pure integer month shift on a YYYY-MM key', () => {
 
   it('is a no-op for delta 0', () => {
     expect(addMonthsToKey('2026-07', 0)).toBe('2026-07')
+  })
+})
+
+describe('recentMonthKeys — fixed lookback for the history month-filter sheet', () => {
+  it('returns 12 keys, newest first, and each is the previous month of the one before', () => {
+    const keys = recentMonthKeys(new Date('2026-07-15T12:00:00+07:00'))
+    expect(keys).toHaveLength(12)
+    expect(keys[0]).toBe('2026-07') // current Bangkok month, newest
+    expect(keys[11]).toBe('2025-08') // eleven months back, oldest
+    // strictly descending, and every gap is exactly one month (via addMonthsToKey)
+    for (let i = 1; i < keys.length; i++) {
+      expect(keys[i] < keys[i - 1]).toBe(true)
+      expect(keys[i]).toBe(addMonthsToKey(keys[i - 1], -1))
+    }
+  })
+
+  it('crosses the year boundary correctly (2026-01 → 2025-12), not by hand', () => {
+    const keys = recentMonthKeys(new Date('2026-01-15T12:00:00+07:00'))
+    expect(keys[0]).toBe('2026-01')
+    expect(keys[1]).toBe('2025-12') // December of the previous year, not 2026-00
+    expect(keys[11]).toBe('2025-02')
   })
 })
 
@@ -138,6 +161,31 @@ describe('parseMonthParam — untrusted ?m= URL input → safe month key', () =>
   it('refuses a future month — never shows the future', () => {
     expect(parseMonthParam('2027-01', now)).toBe('2026-07')
     expect(parseMonthParam('2026-08', now)).toBe('2026-07')
+  })
+})
+
+describe('parseOptionalMonthParam — optional history filter → key or "" (all months)', () => {
+  const now = new Date('2026-07-15T12:00:00+07:00') // current month = 2026-07 (Bangkok)
+
+  it('keeps a well-formed past month', () => {
+    expect(parseOptionalMonthParam('2026-06', now)).toBe('2026-06')
+  })
+
+  it('keeps the current month (a valid filter, unlike the home screen)', () => {
+    expect(parseOptionalMonthParam('2026-07', now)).toBe('2026-07')
+  })
+
+  it('falls back to "" (every month) for junk / empty / missing values', () => {
+    expect(parseOptionalMonthParam('banana', now)).toBe('')
+    expect(parseOptionalMonthParam('2026-13', now)).toBe('')
+    expect(parseOptionalMonthParam('', now)).toBe('')
+    expect(parseOptionalMonthParam(null, now)).toBe('')
+    expect(parseOptionalMonthParam(undefined, now)).toBe('')
+  })
+
+  it('falls back to "" for a future month — never filters to the future', () => {
+    expect(parseOptionalMonthParam('2026-08', now)).toBe('')
+    expect(parseOptionalMonthParam('2027-01', now)).toBe('')
   })
 })
 

@@ -1004,6 +1004,7 @@ export type Database = {
         Args: {
           p_filter: string
           p_limit: number
+          p_month: string
           p_offset: number
           p_q: string
         }
