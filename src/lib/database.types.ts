@@ -823,11 +823,16 @@ export type Database = {
         }
       }
       friend_debts_summary: {
-        Args: { p_friend_id: string }
+        Args: never
         Returns: {
-          i_owe_them: number
-          net: number
-          they_owe_me: number
+          display_name: string
+          friend_id: string
+          private_i_owe_them: number
+          private_net: number
+          private_they_owe_me: number
+          shared_i_owe_them: number
+          shared_net: number
+          shared_they_owe_me: number
         }[]
       }
       friend_request_respond: {
