@@ -75,11 +75,8 @@ export default defineConfig({
         'favicon-32.png',
         'favicon-48.png',
         'apple-touch-icon.png',
-        // stash-logo.svg is the OLD wordmark lockup (mark + "STASH" text), still
-        // rendered by the auth screens (Login/Reset/Forgot). It stays until a v2
-        // wordmark exists — the logo v2 set ships a bare mark only. stash-mark.svg
-        // was retired here once HomePage/AppLayout moved to the BrandMark component.
-        'stash-logo.svg',
+        // The old stash-mark.svg / stash-logo.svg were retired once every screen
+        // moved to the BrandMark component and the BrandLockup wordmark (logo v2).
       ],
       manifest: {
         name: 'Stash',

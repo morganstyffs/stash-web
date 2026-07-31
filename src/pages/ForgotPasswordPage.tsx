@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { resetRequestOutcome } from '@/lib/auth'
+import { BrandLockup } from '@/components/BrandLockup'
 
 /**
  * Request a password-reset email. Enumeration-safe (Convention 17): after
@@ -32,7 +33,7 @@ export function ForgotPasswordPage() {
     <div className="flex min-h-full items-center justify-center px-6 py-10">
       <div className="w-full max-w-sm rounded-[26px] border-[0.5px] border-hairline bg-white p-7 shadow-card">
         <div className="mb-6 flex flex-col items-center gap-3">
-          <img src="/stash-logo.svg" alt="Stash" className="h-9 w-auto" />
+          <BrandLockup />
           <p className="text-[13px] text-muted">ตั้งรหัสผ่านใหม่</p>
         </div>
 

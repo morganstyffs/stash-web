@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { translateError } from '@/lib/errors'
+import { BrandLockup } from '@/components/BrandLockup'
 
 export function LoginPage() {
   const { session, signInWithPassword } = useAuth()
@@ -29,7 +30,7 @@ export function LoginPage() {
     <div className="flex min-h-full items-center justify-center px-6 py-10">
       <div className="w-full max-w-sm rounded-[26px] border-[0.5px] border-hairline bg-white p-7 shadow-card">
         <div className="mb-6 flex flex-col items-center gap-3">
-          <img src="/stash-logo.svg" alt="Stash" className="h-9 w-auto" />
+          <BrandLockup />
           <p className="text-[13px] text-muted">บันทึกรายรับ-รายจ่าย + สต็อก</p>
         </div>
 
