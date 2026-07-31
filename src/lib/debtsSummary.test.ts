@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { computeDebtsHeadline, friendDirection } from '@/lib/debtsSummary'
-import type { FriendDebtsSummary } from '@/lib/db'
+import { computeDebtsHeadline, computeFriendLedger, friendDirection } from '@/lib/debtsSummary'
+import type { Debt, FriendDebtsSummary } from '@/lib/db'
 
 /** Minimal row factory — only the fields the headline reads need to be real. */
 function row(over: Partial<FriendDebtsSummary>): FriendDebtsSummary {
@@ -52,5 +52,93 @@ describe('friendDirection', () => {
     expect(friendDirection(500)).toBe('owes_me')
     expect(friendDirection(-300)).toBe('i_owe')
     expect(friendDirection(0)).toBe('clear')
+  })
+})
+
+const ME = 'me-uuid'
+const FRIEND = 'friend-uuid'
+
+/** Debt fixture — only the fields the ledger reads matter; the rest are filler. */
+function debt(over: Partial<Debt>): Debt {
+  return {
+    id: Math.random().toString(36).slice(2),
+    creditor_id: ME,
+    debtor_id: FRIEND,
+    amount: 100,
+    reason: null,
+    due_date: null,
+    visibility: 'shared',
+    status: 'confirmed',
+    created_by: ME,
+    rejected_reason: null,
+    settlement_transaction_id: null,
+    settled_by: null,
+    created_at: '2026-07-01T00:00:00Z',
+    confirmed_at: null,
+    rejected_at: null,
+    cancelled_at: null,
+    settled_at: null,
+    updated_at: '2026-07-01T00:00:00Z',
+    ...over,
+  }
+}
+
+describe('computeFriendLedger', () => {
+  it('agreed net = confirmed shared, signed by my role (matches shared_net)', () => {
+    const l = computeFriendLedger(
+      [
+        debt({ creditor_id: ME, debtor_id: FRIEND, amount: 500 }), // friend owes me
+        debt({ creditor_id: FRIEND, debtor_id: ME, amount: 200 }), // I owe friend
+      ],
+      ME,
+    )
+    expect(l.agreedNet).toBe(300)
+    expect(l.agreedItems).toHaveLength(2)
+  })
+
+  it('keeps the private total separate and never folds it into agreed', () => {
+    const l = computeFriendLedger(
+      [
+        debt({ visibility: 'shared', status: 'confirmed', creditor_id: ME, amount: 500 }),
+        debt({ visibility: 'private', status: 'confirmed', creditor_id: ME, amount: 900 }),
+      ],
+      ME,
+    )
+    expect(l.agreedNet).toBe(500)
+    expect(l.privateNet).toBe(900)
+    expect(l.privateItems).toHaveLength(1)
+    expect(l.agreedItems).toHaveLength(1)
+  })
+
+  it('splits pending by who must act, and keeps only my rejected rows', () => {
+    const l = computeFriendLedger(
+      [
+        debt({ status: 'pending_confirmation', created_by: FRIEND }), // awaiting me
+        debt({ status: 'pending_confirmation', created_by: ME }), // awaiting friend
+        debt({ status: 'rejected', created_by: ME }), // mine, they rejected
+        debt({ status: 'rejected', created_by: FRIEND }), // theirs — not my problem
+      ],
+      ME,
+    )
+    expect(l.pendingIncoming).toHaveLength(1)
+    expect(l.pendingOutgoing).toHaveLength(1)
+    expect(l.rejectedMine).toHaveLength(1)
+    expect(l.rejectedMine[0].created_by).toBe(ME)
+  })
+
+  it('drops cancelled and settled rows from every block', () => {
+    const l = computeFriendLedger(
+      [debt({ status: 'cancelled' }), debt({ status: 'settled' })],
+      ME,
+    )
+    expect(l).toMatchObject({
+      agreedNet: 0,
+      privateNet: 0,
+      agreedItems: [],
+      privateItems: [],
+      pendingIncoming: [],
+      pendingOutgoing: [],
+      rejectedMine: [],
+    })
   })
 })
