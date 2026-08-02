@@ -33,10 +33,15 @@ vi.mock('@/hooks/useSettings', () => ({ useWallets: () => ({ data: [] }) }))
 vi.mock('@/components/Toast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn(), show: vi.fn(), dismiss: vi.fn() }),
 }))
-vi.mock('@/components/CategoriesManager', () => ({ CategoriesManager: () => null }))
+// Rendered as an observable marker so a test can prove the "+ เพิ่มหมวด" button
+// actually opens it (Q2 — the handler survived the move to the list's tail).
+vi.mock('@/components/CategoriesManager', () => ({
+  CategoriesManager: () => 'CATS_MANAGER_OPEN',
+}))
 vi.mock('@/components/FavoritesManager', () => ({ FavoritesManager: () => null }))
 
-import { AddPage } from '@/pages/AddPage'
+import { AddPage, isEntrySelectableCategory } from '@/pages/AddPage'
+import type { TransactionType } from '@/lib/db'
 
 const cat = (over: Partial<Category>): Category => ({
   id: 'c1',
@@ -65,11 +70,21 @@ const hint = (category_id: string, date: string): HintRow => ({
 
 const NAMES = ['อาหาร', 'ช้อปปิ้ง', 'เดินทาง']
 
+const INCOME_NAMES = ['เงินเดือน', 'โบนัส']
+
 beforeEach(() => {
   categoriesData = [
+    // selectable expense (the 3 the ordering tests assert on)
     cat({ id: 'food', name: 'อาหาร', sort_order: 0 }),
     cat({ id: 'shop', name: 'ช้อปปิ้ง', sort_order: 1 }),
     cat({ id: 'travel', name: 'เดินทาง', sort_order: 2 }),
+    // selectable income
+    cat({ id: 'salary', name: 'เงินเดือน', kind: 'income', sort_order: 0 }),
+    cat({ id: 'bonus', name: 'โบนัส', kind: 'income', sort_order: 1 }),
+    // NON-selectable — must never render on either side (proves the count is the
+    // selectable set, not "all rows"): a stock-intake category + a system one.
+    cat({ id: 'stk', name: 'ต้นทุนสต็อก', kind: 'expense', is_stock_category: true }),
+    cat({ id: 'sale', name: 'ขายสต็อก', kind: 'income', system_key: 'stock_sale_income' }),
   ]
   hintsData = []
 })
@@ -161,5 +176,57 @@ describe('AddPage — one category list, frequency-ordered (§2.1)', () => {
     // it exists, but as its own dashed affordance — never one of the 3 names
     const add = screen.getByRole('button', { name: /เพิ่มหมวด/ })
     expect(within(add).queryByText(NAMES[0])).toBeNull()
+  })
+})
+
+describe('AddPage — + เพิ่มหมวด still opens the category manager (§Q2)', () => {
+  it('clicking it mounts CategoriesManager (handler survived the move to the tail)', () => {
+    render(<AddPage />)
+    expect(screen.queryByText('CATS_MANAGER_OPEN')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /เพิ่มหมวด/ }))
+    expect(screen.getByText('CATS_MANAGER_OPEN')).toBeTruthy()
+  })
+})
+
+describe('AddPage — no category is dropped: rendered == selectable (§Q3)', () => {
+  // The bug family this guards (donut legend slice(0,3) hiding categories):
+  // reordering the list must never shrink it. Count the rendered chips against
+  // isEntrySelectableCategory — the single source of "what may be picked".
+  function renderedNamesFor(type: TransactionType): string[] {
+    const selectable = categoriesData
+      .filter((c) => isEntrySelectableCategory(c, type))
+      .map((c) => c.name)
+    const rendered = screen
+      .getAllByRole('button')
+      .map((b) => b.textContent?.trim() ?? '')
+      .filter((t) => selectable.includes(t))
+    return rendered
+  }
+
+  it('expense: renders exactly the selectable expense categories, no more, no fewer', () => {
+    render(<AddPage />)
+    const selectable = categoriesData.filter((c) => isEntrySelectableCategory(c, 'expense'))
+    const rendered = renderedNamesFor('expense')
+    expect(rendered.length).toBe(selectable.length) // 3, not the 4 expense ROWS (stock excluded)
+    expect(new Set(rendered)).toEqual(new Set(selectable.map((c) => c.name)))
+    // the non-selectable rows never leak in
+    expect(screen.queryByText('ต้นทุนสต็อก')).toBeNull()
+  })
+
+  it('income: switching to รับ renders exactly the selectable income categories', () => {
+    render(<AddPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'รับ' }))
+    const selectable = categoriesData.filter((c) => isEntrySelectableCategory(c, 'income'))
+    const rendered = renderedNamesFor('income')
+    expect(rendered.length).toBe(selectable.length) // 2 (ขายสต็อก/stock_sale_income excluded)
+    expect(new Set(rendered)).toEqual(new Set(INCOME_NAMES))
+    expect(screen.queryByText('ขายสต็อก')).toBeNull()
+  })
+
+  it('a category ranked frequent AND the rest all survive the reorder (count unchanged)', () => {
+    hintsData = [hint('travel', '2026-07-01'), hint('travel', '2026-07-02')]
+    render(<AddPage />)
+    // เดินทาง leads, but all 3 selectable expense categories are still present
+    expect(renderedNamesFor('expense').length).toBe(3)
   })
 })
