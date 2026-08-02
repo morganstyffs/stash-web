@@ -51,7 +51,7 @@ const CATS: Category[] = [
   cat('c3', 'เดินทาง', 2),
 ]
 const WALLETS: Wallet[] = [
-  { id: 'w1', user_id: 'u1', name: 'เงินสด', type: 'cash', created_at: '', updated_at: '' },
+  { id: 'w1', user_id: 'u1', name: 'เงินสด', type: 'cash', opening_balance: 0, created_at: '', updated_at: '' },
 ]
 const fav = (id: string, label: string, amount: number): Favorite => ({
   id,
