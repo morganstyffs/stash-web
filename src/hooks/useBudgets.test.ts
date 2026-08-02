@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { computeBudgetSummary, computePace, computePaceStatic } from '@/hooks/useBudgets'
+import {
+  budgetableRows,
+  computeBudgetSummary,
+  computePace,
+  computePaceStatic,
+  type BudgetRow,
+} from '@/hooks/useBudgets'
 import { isBudgetSpendingRow, type LedgerRow } from '@/lib/ledger'
 
 describe('computePace — over budget', () => {
@@ -131,6 +137,71 @@ describe('computeBudgetSummary — remaining compares like with like (B5)', () =
     })
     expect(s.offBudget).toBe(120)
     expect(s.offBudgetCount).toBe(1) // transport (0) excluded
+  })
+})
+
+describe('budgetableRows — the one filter home + budget page share', () => {
+  // A budget row carrying its category flags; overrides pick the excluded groups.
+  const row = (
+    category_id: string,
+    amount: number,
+    cat: Partial<NonNullable<BudgetRow['category']>> = {},
+  ): BudgetRow => ({
+    id: `b-${category_id}`,
+    category_id,
+    amount,
+    category: {
+      name: category_id,
+      icon: '💸',
+      color_index: 0,
+      kind: 'expense',
+      is_system: false,
+      is_shop_category: false,
+      is_stock_category: false,
+      ...cat,
+    },
+  })
+
+  // One mixed data set reused by every assertion below: two real expense budgets
+  // plus one of each non-budgetable group (system COGS, shop ถังที่ 2, stock refill,
+  // income) — the exact rows that inflated the home total before this fix.
+  const rows: BudgetRow[] = [
+    row('food', 1_000),
+    row('rent', 2_000),
+    row('cogs', 5_000, { is_system: true }), // ต้นทุนขายสต็อก — excluded
+    row('shop', 800, { is_shop_category: true }), // ถังที่ 2 — excluded
+    row('stock', 3_000, { is_stock_category: true }), // เติมสต็อก — excluded
+    row('salary', 9_000, { kind: 'income' }), // income — excluded
+  ]
+
+  it('keeps only expense, non-system/shop/stock rows (all three groups + income drop)', () => {
+    expect(budgetableRows(rows).map((r) => r.category_id)).toEqual(['food', 'rent'])
+  })
+
+  it('drops a row whose category join is null (no flags to trust → not budgetable)', () => {
+    const orphan: BudgetRow = { id: 'x', category_id: 'gone', amount: 500, category: null }
+    expect(budgetableRows([orphan])).toEqual([])
+  })
+
+  it('home "งบที่ตั้งไว้" total ignores system/shop/stock/income budget rows', () => {
+    // The number useMonthBudgetTotal returns = sum over budgetableRows.
+    const homeTotal = budgetableRows(rows).reduce((s, r) => s + r.amount, 0)
+    expect(homeTotal).toBe(3_000) // 1,000 + 2,000 — NOT + 5,000 + 800 + 3,000 + 9,000
+    // Proof the filter earns its keep: the naïve unfiltered sum was wildly off.
+    const unfiltered = rows.reduce((s, r) => s + r.amount, 0)
+    expect(unfiltered).toBe(20_800)
+    expect(homeTotal).not.toBe(unfiltered)
+  })
+
+  it('home total === budget page totalBudget for the SAME data set (the heart of the fix)', () => {
+    // Home: sum over budgetableRows (what useMonthBudgetTotal computes).
+    const homeTotal = budgetableRows(rows).reduce((s, r) => s + r.amount, 0)
+    // Budget page: computeBudgetSummary over the SAME budgetableRows (what BudgetPage
+    // feeds it after budgetableRows(allBudgets)). Both surfaces funnel through the
+    // one filter, so they can never disagree.
+    const pageTotal = computeBudgetSummary(budgetableRows(rows), {}).totalBudget
+    expect(homeTotal).toBe(pageTotal)
+    expect(homeTotal).toBe(3_000)
   })
 })
 
