@@ -16,6 +16,7 @@ interface FormState {
   kind: CategoryKind
   is_stock_category: boolean
   is_shop_category: boolean
+  is_system: boolean
   icon: string
   /** chosen slot 1–6, or null (create only) = let the DB assign an unused one */
   colorIndex: number | null
@@ -42,69 +43,104 @@ function roleOf(c: { is_stock_category: boolean; is_shop_category: boolean }): C
   return 'general'
 }
 
+/** Screen labels only — the DB columns/variables keep their names. ส่วนตัว is the
+ *  default almost every category has, so it is the one role we DON'T badge in the
+ *  list (badging it everywhere would just bring back the clutter we're removing). */
 const ROLE_LABEL: Record<CategoryRole, string> = {
-  general: 'ทั่วไป',
-  stock: 'เข้าสต็อก',
-  shop: 'ร้าน',
+  general: 'ส่วนตัว',
+  stock: 'เติมสต็อก',
+  shop: 'ของร้าน',
 }
 
-/** The difference that actually matters per role — not just a pretty name. The
- *  shop line's last clause is the ONLY thing that tells the user this option
- *  rewrites history, so it must never be dropped. */
+/** What each role means, in a person's words — shown under the picker in the
+ *  edit / create sheet, where the choice is actually being made. */
 const ROLE_DESC: Record<CategoryRole, string> = {
-  general: 'ใช้กรอกรายการปกติ นับในงบ',
-  stock: 'ใช้เฉพาะตอนรับของเข้าคลัง จะไม่โผล่ในหน้ากรอกรายการ',
-  shop: 'ค่าใช้จ่าย/รายรับของร้าน กรอกเองได้ปกติ แต่ไม่กินงบส่วนตัว · เปลี่ยนแล้วตัวเลขของเดือนก่อน ๆ จะขยับตาม',
+  general: 'รายจ่ายทั่วไป กินงบประจำเดือน',
+  stock: 'ซื้อของมาขาย ไม่นับเป็นรายจ่าย แต่เป็นการเอาเงินไปแลกเป็นของ',
+  shop: 'เงินที่จ่ายในหมวดนี้จะไม่กินงบส่วนตัว แต่ยังนับเป็นเงินที่จ่ายออกไป',
 }
 
-/** expense can be any of the three; income has no stock intake. */
+/** The extra warning shown ONLY when picking ของร้าน on a category that already
+ *  exists (the edit sheet) — moving an in-use category re-does past-month shop
+ *  profit. A brand-new category has nothing linked yet, so this never appears in
+ *  the create form. */
+const SHOP_EDIT_WARNING = 'ถ้าย้ายทีหลัง กำไรร้านของเดือนก่อน ๆ จะคิดใหม่ตามด้วย'
+
+/** expense can be any of the three; income has no stock intake (buying stock is
+ *  always an expense). */
 const ROLES_BY_KIND: Record<CategoryKind, CategoryRole[]> = {
   expense: ['general', 'stock', 'shop'],
   income: ['general', 'shop'],
 }
 
-/** A single-choice segmented control — exclusivity is visible in the shape, so
- *  the user never has to infer it from a greyed-out sibling. */
-function SegmentedControl({
+/** The single role picker — used by BOTH the create form and the edit sheet, so
+ *  the two never drift. A radiogroup makes the exclusivity visible in the shape;
+ *  the description tracks the selected role, and the shop history-rewrite warning
+ *  is passed in (edit only) so it never shows on a brand-new category. */
+function RolePicker({
   options,
   value,
   onChange,
   disabled = false,
-  label,
+  showShopWarning = false,
 }: {
   options: CategoryRole[]
   value: CategoryRole
   onChange: (v: CategoryRole) => void
   disabled?: boolean
-  label?: string
+  showShopWarning?: boolean
 }) {
   return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className={`flex gap-1.5 ${disabled ? 'opacity-40' : ''}`}
-    >
-      {options.map((r) => {
-        const selected = r === value
-        return (
-          <button
-            key={r}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            disabled={disabled}
-            onClick={() => onChange(r)}
-            className={`min-h-[44px] flex-1 rounded-pill px-2 text-[12px] ${
-              selected
-                ? 'bg-brand-tint font-medium text-brand-ink'
-                : 'border-[0.5px] border-hairline text-muted'
-            }`}
-          >
-            {ROLE_LABEL[r]}
-          </button>
-        )
-      })}
+    <div>
+      <p className="mb-1.5 text-[11px] uppercase tracking-[0.5px] text-faint">บทบาท</p>
+      <div
+        role="radiogroup"
+        aria-label="บทบาทของหมวด"
+        className={`flex gap-1.5 ${disabled ? 'opacity-40' : ''}`}
+      >
+        {options.map((r) => {
+          const selected = r === value
+          return (
+            <button
+              key={r}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={disabled}
+              onClick={() => onChange(r)}
+              className={`min-h-[44px] flex-1 rounded-pill px-2 text-[12px] ${
+                selected
+                  ? 'bg-brand-tint font-medium text-brand-ink'
+                  : 'border-[0.5px] border-hairline text-muted'
+              }`}
+            >
+              {ROLE_LABEL[r]}
+            </button>
+          )
+        })}
+      </div>
+      <p className="mt-1.5 text-[11px] leading-relaxed text-faint">
+        {disabled ? 'หมวดของระบบ ปรับไม่ได้' : ROLE_DESC[value]}
+      </p>
+      {!disabled && showShopWarning && value === 'shop' && (
+        <p className="mt-1.5 text-[11px] leading-relaxed text-warn-ink">{SHOP_EDIT_WARNING}</p>
+      )}
     </div>
+  )
+}
+
+/** A one-glance marker in the list. System categories read as ระบบ; a category
+ *  the user has moved off the default shows its role — but ส่วนตัว (the default)
+ *  is left unbadged so the common case stays clean. */
+function RoleBadge({ category }: { category: Category }) {
+  const label = category.is_system ? 'ระบบ' : null
+  const role = roleOf(category)
+  const text = label ?? (role === 'general' ? null : ROLE_LABEL[role])
+  if (!text) return null
+  return (
+    <span className="shrink-0 rounded-pill bg-fill px-2 py-[3px] text-[10.5px] font-medium text-muted">
+      {text}
+    </span>
   )
 }
 
@@ -115,23 +151,28 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
   const setRole = useSetCategoryRole()
   const toast = useToast()
 
-  async function onRoleChange(c: Category, role: CategoryRole) {
+  const [form, setForm] = useState<FormState | null>(null)
+  const [confirming, setConfirming] = useState<Category | null>(null)
+
+  /** Apply a role to the open form. State always updates so the picker reflects
+   *  the choice; on an EXISTING category we also persist immediately through
+   *  useSetCategoryRole — both columns in one write, so a เติมสต็อก → ของร้าน
+   *  switch never leaves a (true, true) row that would trip the DB CHECK, and the
+   *  transactions cache is invalidated (a shop-flag change re-does past months). */
+  async function applyRole(f: FormState, role: CategoryRole) {
     const cols = ROLE_COLUMNS[role]
-    // Nothing to write if the role is unchanged (a re-tap on the current option).
-    if (cols.is_stock_category === c.is_stock_category && cols.is_shop_category === c.is_shop_category)
+    setForm({ ...f, ...cols })
+    if (!f.id) return
+    if (cols.is_stock_category === f.is_stock_category && cols.is_shop_category === f.is_shop_category)
       return
     try {
-      // Both columns in one write → the pair is never (true, true), even for an
-      // instant, so a เข้าสต็อก → ร้าน switch never trips the DB CHECK.
-      await setRole.mutateAsync({ id: c.id, ...cols })
+      await setRole.mutateAsync({ id: f.id, ...cols })
     } catch (e) {
-      // Should be unreachable — the control is disabled on system categories
+      // Should be unreachable — the picker is disabled on system categories
       // (mirrors the DB CHECK) — but rule 16: if 23514 fires anyway, tell the user.
       toast.error(translateError(e))
     }
   }
-  const [form, setForm] = useState<FormState | null>(null)
-  const [confirming, setConfirming] = useState<Category | null>(null)
 
   const list = categories ?? []
   // colour slots already taken by OTHER categories — marked in the picker so a
@@ -162,7 +203,15 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
         <button
           aria-label="เพิ่มหมวด"
           onClick={() =>
-            setForm({ name: '', kind: 'expense', is_stock_category: false, is_shop_category: false, icon: 'tag', colorIndex: null })
+            setForm({
+              name: '',
+              kind: 'expense',
+              is_stock_category: false,
+              is_shop_category: false,
+              is_system: false,
+              icon: 'tag',
+              colorIndex: null,
+            })
           }
         >
           <IconPlus size={20} className="text-brand-deep" />
@@ -182,7 +231,14 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
             {(['expense', 'income'] as const).map((k) => (
               <button
                 key={k}
-                onClick={() => setForm({ ...form, kind: k })}
+                onClick={() => {
+                  // Switching kind can strip a role the new kind doesn't offer
+                  // (เติมสต็อก is expense-only) — reset it to ส่วนตัว so the picker
+                  // never stays on a value it can no longer show as selected.
+                  const role = roleOf(form)
+                  const patch = ROLES_BY_KIND[k].includes(role) ? {} : ROLE_COLUMNS.general
+                  setForm({ ...form, kind: k, ...patch })
+                }}
                 className={`rounded-pill px-4 py-[5px] text-[12px] ${
                   form.kind === k
                     ? 'bg-brand-tint font-medium text-brand-ink'
@@ -192,6 +248,18 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                 {k === 'expense' ? 'รายจ่าย' : 'รายรับ'}
               </button>
             ))}
+          </div>
+
+          {/* Role — same picker for create and edit. The shop history warning is
+              edit-only (form.id present); a new category has nothing to re-do. */}
+          <div className="mb-3">
+            <RolePicker
+              options={ROLES_BY_KIND[form.kind]}
+              value={roleOf(form)}
+              disabled={form.is_system}
+              showShopWarning={!!form.id}
+              onChange={(r) => applyRole(form, r)}
+            />
           </div>
 
           {/* colour — 6 slots; a dot marks slots another category already uses */}
@@ -288,10 +356,8 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      <p className="mb-3 rounded-card bg-fill px-3.5 py-2.5 text-[11px] leading-relaxed text-muted">
-        ป้าย “ร้าน” ทำให้รายการในหมวดนั้นเป็นค่าดำเนินร้าน — นับในยอดจ่ายรวม แต่ไม่กินงบส่วนตัว ·
-        เปลี่ยนป้ายแล้วตัวเลขสรุปและกำไรของเดือนก่อน ๆ จะขยับตามด้วย · แนะนำให้สร้างหมวดใหม่สำหรับร้านโดยเฉพาะ
-        อย่าติดป้ายให้หมวดที่ใช้ปนกับเรื่องส่วนตัว
+      <p className="mb-3 text-[11px] leading-relaxed text-faint">
+        แตะดินสอเพื่อเปลี่ยนชื่อ ไอคอน หรือย้ายหมวดไปเป็นของร้าน
       </p>
 
       {groups.map((g) => {
@@ -304,64 +370,49 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
             </p>
             {rows.map((c) => {
               const Icon = categoryIcon(c.icon)
-              const role = roleOf(c)
               return (
                 <div
                   key={c.id}
-                  className="border-b-[0.5px] border-hairline py-2.5 last:border-b-0"
+                  className="flex items-center gap-3 border-b-[0.5px] border-hairline py-2.5 last:border-b-0"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] bg-fill">
-                      <Icon size={16} style={{ color: catColorVar(c.color_index) }} />
-                    </div>
-                    <span className="flex-1 truncate text-[13.5px]">{c.name}</span>
+                  <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] bg-fill">
+                    <Icon size={16} style={{ color: catColorVar(c.color_index) }} />
+                  </div>
+                  <span className="min-w-0 flex-1 truncate text-[13.5px]">{c.name}</span>
+                  <RoleBadge category={c} />
+                  <button
+                    aria-label="แก้ไข"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-fill"
+                    onClick={() =>
+                      setForm({
+                        id: c.id,
+                        name: c.name,
+                        kind: c.kind,
+                        is_stock_category: c.is_stock_category,
+                        is_shop_category: c.is_shop_category,
+                        is_system: c.is_system,
+                        icon: c.icon,
+                        colorIndex: c.color_index,
+                      })
+                    }
+                  >
+                    <IconPencil size={16} className="text-faint" />
+                  </button>
+                  {/* System categories can never be deleted (DB rejects with
+                      23001) — the user knows that up front, so a button that's
+                      guaranteed to fail just wastes space. Non-system deletes
+                      stay: the user can't know a category has transactions until
+                      they try. */}
+                  {!c.is_system && (
                     <button
-                      aria-label="แก้ไข"
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-fill"
-                      onClick={() =>
-                        setForm({
-                          id: c.id,
-                          name: c.name,
-                          kind: c.kind,
-                          is_stock_category: c.is_stock_category,
-                          is_shop_category: c.is_shop_category,
-                          icon: c.icon,
-                          colorIndex: c.color_index,
-                        })
-                      }
+                      aria-label="ลบ"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-expense-bg disabled:opacity-50"
+                      disabled={del.isPending}
+                      onClick={() => setConfirming(c)}
                     >
-                      <IconPencil size={16} className="text-faint" />
+                      <IconTrash size={16} className="text-faint" />
                     </button>
-                    {/* System categories can never be deleted (DB rejects with
-                        23001) — the user knows that up front, so a button that's
-                        guaranteed to fail just wastes space. Non-system deletes
-                        stay: the user can't know a category has transactions until
-                        they try. */}
-                    {!c.is_system && (
-                      <button
-                        aria-label="ลบ"
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-expense-bg disabled:opacity-50"
-                        disabled={del.isPending}
-                        onClick={() => setConfirming(c)}
-                      >
-                        <IconTrash size={16} className="text-faint" />
-                      </button>
-                    )}
-                  </div>
-                  {/* One control, not two look-alike switches — the role is
-                      single-choice, disabled wholesale on system categories. */}
-                  <div className="mt-2">
-                    <SegmentedControl
-                      options={ROLES_BY_KIND[c.kind]}
-                      value={role}
-                      disabled={c.is_system}
-                      onChange={(r) => onRoleChange(c, r)}
-                      label={`ประเภทหมวด ${c.name}`}
-                    />
-                    <p className="mt-1.5 text-[11px] leading-relaxed text-faint">
-                      {c.is_system ? 'หมวดของระบบ ปรับไม่ได้' : ROLE_DESC[role]}
-                    </p>
-                  </div>
+                  )}
                 </div>
               )
             })}
