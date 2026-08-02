@@ -624,11 +624,60 @@ export type Database = {
           },
         ]
       }
+      wallet_transfers: {
+        Row: {
+          amount: number
+          created_at: string
+          from_wallet_id: string
+          id: string
+          note: string | null
+          to_wallet_id: string
+          transfer_date: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          from_wallet_id: string
+          id?: string
+          note?: string | null
+          to_wallet_id: string
+          transfer_date?: string
+          user_id?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          from_wallet_id?: string
+          id?: string
+          note?: string | null
+          to_wallet_id?: string
+          transfer_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transfers_from_wallet_id_fkey"
+            columns: ["from_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transfers_to_wallet_id_fkey"
+            columns: ["to_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallets: {
         Row: {
           created_at: string
           id: string
           name: string
+          opening_balance: number
           type: Database["public"]["Enums"]["wallet_type"]
           updated_at: string
           user_id: string
@@ -637,6 +686,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          opening_balance?: number
           type?: Database["public"]["Enums"]["wallet_type"]
           updated_at?: string
           user_id?: string
@@ -645,6 +695,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          opening_balance?: number
           type?: Database["public"]["Enums"]["wallet_type"]
           updated_at?: string
           user_id?: string
@@ -1004,6 +1055,43 @@ export type Database = {
           stock_item_id: string
           type: Database["public"]["Enums"]["transaction_type"]
         }[]
+      }
+      wallet_balances: {
+        Args: never
+        Returns: {
+          balance: number
+          expense_total: number
+          income_total: number
+          opening_balance: number
+          transfer_in: number
+          transfer_out: number
+          wallet_id: string
+        }[]
+      }
+      wallet_transfer_create: {
+        Args: {
+          p_amount: number
+          p_date?: string
+          p_from: string
+          p_note?: string
+          p_to: string
+        }
+        Returns: {
+          amount: number
+          created_at: string
+          from_wallet_id: string
+          id: string
+          note: string | null
+          to_wallet_id: string
+          transfer_date: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wallet_transfers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {
