@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import type { CategoryKind, Wallet } from '@/lib/db'
+import type { CategoryKind, Wallet, WalletBalance } from '@/lib/db'
 
 /** Wallets for the current user. */
 export function useWallets() {
@@ -16,6 +16,31 @@ export function useWallets() {
         .order('created_at', { ascending: true })
       if (error) throw error
       return (data ?? []) as Wallet[]
+    },
+  })
+}
+
+/**
+ * Per-wallet balances for the current user, from the `wallet_balances()` RPC
+ * (0028). The balance is aggregated in SQL — the client MUST NOT re-derive it
+ * from transactions: the wallet-balance formula uses the RAW transaction `type`
+ * (a stock purchase leaves the wallet even though it isn't budget spending),
+ * which differs from every budget/donut predicate; two implementations would
+ * silently disagree. The RPC also returns the components (opening / income /
+ * expense / transfer in·out) so the UI can explain the number.
+ *
+ * Keyed under ['wallets', …] so invalidating ['wallets'] (on a wallet upsert,
+ * e.g. an opening-balance edit) also refreshes the balances.
+ */
+export function useWalletBalances() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['wallets', 'balances', user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<WalletBalance[]> => {
+      const { data, error } = await supabase.rpc('wallet_balances')
+      if (error) throw error
+      return data ?? []
     },
   })
 }
@@ -171,6 +196,11 @@ export interface WalletInput {
   id?: string
   name: string
   type: Wallet['type']
+  /** ยอดตั้งต้น — the money already in this wallet when the user started using the
+   *  app. A one-time constant (the running balance is always computed from the
+   *  ledger); editing it shifts the balance retroactively, on purpose (0028).
+   *  Blank in the UI means 0 — the column is NOT NULL DEFAULT 0. */
+  opening_balance: number
 }
 
 export function useUpsertWallet() {
@@ -182,16 +212,21 @@ export function useUpsertWallet() {
       if (input.id) {
         const { error } = await supabase
           .from('wallets')
-          .update({ name: input.name, type: input.type })
+          .update({ name: input.name, type: input.type, opening_balance: input.opening_balance })
           .eq('id', input.id)
         if (error) throw error
       } else {
-        const { error } = await supabase
-          .from('wallets')
-          .insert({ user_id: user.id, name: input.name, type: input.type })
+        const { error } = await supabase.from('wallets').insert({
+          user_id: user.id,
+          name: input.name,
+          type: input.type,
+          opening_balance: input.opening_balance,
+        })
         if (error) throw error
       }
     },
+    // Invalidating ['wallets'] also refreshes ['wallets','balances'] (an
+    // opening-balance edit moves the computed balance).
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
   })
 }

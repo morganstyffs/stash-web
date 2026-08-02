@@ -48,3 +48,9 @@ export type StockSaleResult = Fns['stock_sale_create']['Returns'][number]
 export type DebtCreateArgs = Fns['debt_create']['Args']
 export type DebtSettleResult = Fns['debt_settle']['Returns'][number]
 export type FriendDebtsSummary = Fns['friend_debts_summary']['Returns'][number]
+
+/** One wallet's balance + its components, straight from `wallet_balances()`
+ *  (0028). The RPC returns opening_balance / income_total / expense_total /
+ *  transfer_in / transfer_out alongside the net `balance`, so the UI can show
+ *  where the number came from without re-deriving it (which would drift). */
+export type WalletBalance = Fns['wallet_balances']['Returns'][number]
