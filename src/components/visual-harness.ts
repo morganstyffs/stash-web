@@ -48,10 +48,24 @@ function failOrSkip(ctx: SkippableCtx, name: string, reason: string): void {
  * Render `markup` inside a 390px stage with the production CSS, in real Chromium,
  * and run `assert(page)`. `headHtml` lets a guard add e.g. the Prompt font link.
  * Honours the skip/fail policy above; the caller's `assert` does the real checks.
+ *
+ * By default the markup mounts inside a padded, width-clamped `#stage` (what the
+ * touch-target / contrast guards want). Pass `fullBleed: true` to instead mount it
+ * inside a full-viewport `#root` — the real app's mount point, so the production
+ * `#root { height: … }` rule applies and a guard can measure whether the shell
+ * fills the screen. `extraCss` is injected AFTER the production CSS (so it wins),
+ * for a guard that needs to emulate a specific document condition.
  */
 export async function runVisualTest(
   ctx: SkippableCtx,
-  opts: { name: string; markup: string; headHtml?: string; viewport?: { width: number; height: number } },
+  opts: {
+    name: string
+    markup: string
+    headHtml?: string
+    viewport?: { width: number; height: number }
+    fullBleed?: boolean
+    extraCss?: string
+  },
   assert: (page: Page) => Promise<void>,
 ): Promise<void> {
   const css = findBuiltCss()
@@ -75,10 +89,19 @@ export async function runVisualTest(
 
   try {
     const page = await browser.newPage({ viewport: opts.viewport ?? { width: 390, height: 800 } })
+    // fullBleed: mount under the real `#root` id with no stage padding/width clamp,
+    // so the production `#root` height rule governs the fill. Otherwise: the padded
+    // 390px `#stage` the other guards rely on.
+    const stageCss = opts.fullBleed
+      ? `body{margin:0}${opts.extraCss ?? ''}`
+      : `body{margin:0}#stage{width:390px;padding:16px}${opts.extraCss ?? ''}`
+    const mount = opts.fullBleed
+      ? `<div id="root">${opts.markup}</div>`
+      : `<div id="stage">${opts.markup}</div>`
     const html =
       `<!doctype html><html lang="th"><head><meta charset="utf-8">${opts.headHtml ?? ''}` +
-      `<style>${css}</style><style>body{margin:0}#stage{width:390px;padding:16px}</style>` +
-      `</head><body><div id="stage">${opts.markup}</div></body></html>`
+      `<style>${css}</style><style>${stageCss}</style>` +
+      `</head><body>${mount}</body></html>`
     await page.setContent(html)
     await assert(page)
   } finally {
