@@ -156,6 +156,18 @@ describe('CategoriesManager — role picker in the edit sheet', () => {
     })
   })
 
+  it('clears both columns when selecting ส่วนตัว on a role-carrying category', () => {
+    categories = [cat({ id: 'sh1', name: 'ค่าโฆษณา', is_shop_category: true })]
+    render(<CategoriesManager onClose={() => {}} />)
+    openEdit()
+    fireEvent.click(rolePicker().getByRole('radio', { name: 'ส่วนตัว' }))
+    expect(setRoleMutate).toHaveBeenCalledWith({
+      id: 'sh1',
+      is_stock_category: false,
+      is_shop_category: false,
+    })
+  })
+
   it('switches เติมสต็อก → ของร้าน in one write — never (true, true)', () => {
     categories = [cat({ id: 's1', name: 'เสื้อเข้าร้าน', is_stock_category: true })]
     render(<CategoriesManager onClose={() => {}} />)
