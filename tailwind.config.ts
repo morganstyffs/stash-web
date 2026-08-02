@@ -60,6 +60,9 @@ export default {
         surface: 'rgb(var(--color-surface) / <alpha-value>)', // app background
         fill: 'rgb(var(--color-fill) / <alpha-value>)', // inset field / neutral chip bg
         chevron: 'rgb(var(--color-chevron) / <alpha-value>)',
+        // toast — always-dark snackbar/pill surface (white text + locked soft icons
+        // read on it in BOTH modes). Theme-independent by design; see --color-toast.
+        toast: 'rgb(var(--color-toast) / <alpha-value>)',
         // category palette — colorblind-checked. Now CSS variables (light + dark) so the DB stays
         // free of hex; values + the color_index→slot mapping live in index.css
         // and lib/catColor.ts. Do NOT reorder or add a 7th (see color_index 1–6).
