@@ -67,7 +67,6 @@ const item: StockItem = {
   size: null,
   condition: null,
   cost_per_unit: 100,
-  target_price: 500,
   photos: [],
   qty_remaining: 3,
   qty_total: 3,
@@ -82,8 +81,8 @@ const item: StockItem = {
 // Open the sell panel and confirm a sale of 1 @ ฿500.
 async function sellOne() {
   fireEvent.click(screen.getByRole('button', { name: /ขายสินค้า/ }))
-  // The sell price field is the first placeholder="0" input (before the edit
-  // ราคาตั้งขาย field further down).
+  // The sell price field is the only placeholder="0" input — it opens blank and
+  // auto-focused (0027; the old ราคาตั้งขาย edit field it sat above is gone).
   const price = screen.getAllByPlaceholderText('0')[0]
   fireEvent.change(price, { target: { value: '500' } })
   fireEvent.click(screen.getByRole('button', { name: 'ขาย' }))
@@ -98,6 +97,15 @@ beforeEach(() => {
   categoriesData = [cat({ id: 'ship' })]
 })
 afterEach(cleanup)
+
+describe('StockEditSheet — sell price opens blank (0027, never pre-filled)', () => {
+  it('the sell price field is empty when the panel opens', () => {
+    render(<StockEditSheet item={item} hasSales={false} onClose={onCloseMock} />)
+    fireEvent.click(screen.getByRole('button', { name: /ขายสินค้า/ }))
+    const price = screen.getAllByPlaceholderText('0')[0] as HTMLInputElement
+    expect(price.value).toBe('')
+  })
+})
 
 describe('StockEditSheet — post-sale shipping nudge', () => {
   it('shows the nudge after a successful sale when a shop income category exists', async () => {

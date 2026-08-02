@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   ageTier,
   computeCounts,
+  computeSunkCost,
   selectStockItems,
   emptyMessage,
   AGE_FRESH_MAX,
@@ -24,7 +25,6 @@ function item(over: Partial<StockItem> = {}): StockItem {
     color: null,
     condition: null,
     cost_per_unit: 100,
-    target_price: 200,
     size: null,
     qty_total: 1,
     qty_remaining: 1,
@@ -162,5 +162,46 @@ describe('emptyMessage — reason-specific empty copy', () => {
   it('sold-out under the in-stock filter has its own line', () => {
     const msg = emptyMessage({ isLoading: false, total: 3, query: '', filter: 'in_stock' })
     expect(msg).toContain('ขายหมด')
+  })
+})
+
+describe('computeSunkCost — cost stuck in stock older than the "ค้างนาน" cap', () => {
+  // 2026-05-30 → exactly 60 days before NOW (not stale); 2026-05-29 → 61 (stale).
+  const AT_60_DAYS = '2026-05-30T05:00:00+07:00'
+  const AT_61_DAYS = '2026-05-29T05:00:00+07:00'
+
+  it('sums cost × qty_remaining over every stale (in-stock, >60d) item', () => {
+    const items = [
+      item({ id: 'old1', cost_per_unit: 50, qty_remaining: 4, created_at: '2026-05-01T05:00:00+07:00' }), // ~89d
+      item({ id: 'old2', cost_per_unit: 200, qty_remaining: 3, created_at: '2026-04-15T05:00:00+07:00' }), // ~105d
+      item({ id: 'fresh', cost_per_unit: 999, qty_remaining: 9, created_at: '2026-07-20T05:00:00+07:00' }), // ~9d
+    ]
+    expect(computeSunkCost(items, NOW)).toBe(50 * 4 + 200 * 3) // 200 + 600 = 800; fresh excluded
+  })
+
+  it('never counts sold-out items, even when old', () => {
+    const items = [
+      item({ id: 'sold-old', cost_per_unit: 300, qty_remaining: 0, status: 'sold', created_at: '2026-03-01T05:00:00+07:00' }),
+    ]
+    expect(computeSunkCost(items, NOW)).toBe(0)
+  })
+
+  it('returns 0 when nothing is stale (the UI shows text, not ฿0)', () => {
+    const items = [item({ id: 'fresh', created_at: '2026-07-20T05:00:00+07:00' })]
+    expect(computeSunkCost(items, NOW)).toBe(0)
+    expect(computeSunkCost([], NOW)).toBe(0)
+  })
+
+  it('draws the 60/61-day boundary exactly where the "ค้างนาน" chip does', () => {
+    const at60 = item({ id: 'at60', cost_per_unit: 100, qty_remaining: 1, created_at: AT_60_DAYS })
+    const at61 = item({ id: 'at61', cost_per_unit: 100, qty_remaining: 1, created_at: AT_61_DAYS })
+
+    // 60 days exactly: not on the stale chip → contributes nothing to sunk cost.
+    expect(selectStockItems([at60], 'stale', '', NOW)).toEqual([])
+    expect(computeSunkCost([at60], NOW)).toBe(0)
+
+    // 61 days: on the stale chip → its full cost is sunk.
+    expect(selectStockItems([at61], 'stale', '', NOW).map((i) => i.id)).toEqual(['at61'])
+    expect(computeSunkCost([at61], NOW)).toBe(100)
   })
 })

@@ -404,7 +404,6 @@ export type Database = {
           sku: string
           source_transaction_id: string | null
           status: Database["public"]["Enums"]["stock_status"]
-          target_price: number | null
           updated_at: string
           user_id: string
         }
@@ -425,7 +424,6 @@ export type Database = {
           sku: string
           source_transaction_id?: string | null
           status?: Database["public"]["Enums"]["stock_status"]
-          target_price?: number | null
           updated_at?: string
           user_id?: string
         }
@@ -446,7 +444,6 @@ export type Database = {
           sku?: string
           source_transaction_id?: string | null
           status?: Database["public"]["Enums"]["stock_status"]
-          target_price?: number | null
           updated_at?: string
           user_id?: string
         }
@@ -928,7 +925,6 @@ export type Database = {
           p_photos?: string[]
           p_qty: number
           p_size?: string
-          p_target_price?: number
           p_wallet_id?: string
         }
         Returns: {

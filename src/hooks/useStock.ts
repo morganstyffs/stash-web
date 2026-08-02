@@ -75,20 +75,21 @@ export function useDeleteStockItem() {
 
 export interface StockHero {
   costValue: number
-  pendingProfit: number
 }
 
-/** Hero aggregates over items still in stock (in_stock / partial). */
+/**
+ * Hero aggregate over items still in stock (in_stock / partial): the total cost
+ * tied up on the rack. (The "รอขาย/กำไรคาดการณ์" figure it used to also compute
+ * was dropped in 0027 — it multiplied a hoped-for target_price, not real money.
+ * The sunk-cost figure that replaced it lives in StockPage.computeSunkCost,
+ * co-located with the age boundary it shares with the "ค้างนาน" chip.)
+ */
 export function computeStockHero(items: StockItem[]): StockHero {
   let costValue = 0
-  let pendingProfit = 0
   for (const it of items) {
     if (it.status === 'sold') continue
     const remaining = it.qty_remaining ?? 0
     costValue += (Number(it.cost_per_unit) || 0) * remaining
-    if (it.target_price != null) {
-      pendingProfit += (Number(it.target_price) - Number(it.cost_per_unit)) * remaining
-    }
   }
-  return { costValue, pendingProfit }
+  return { costValue }
 }

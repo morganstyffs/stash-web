@@ -72,6 +72,23 @@ export function isStale(it: Pick<StockItem, 'status' | 'created_at'>, now: Date)
 }
 
 /**
+ * ทุนจม — cost tied up in stock that's been sitting past the "ค้างนาน" cap
+ * (spec §ทุนจม): sum of cost × qty_remaining for every item `isStale` marks
+ * (in-stock AND older than AGE_OLD_MAX). Shares `isStale` with the "ค้างนาน"
+ * chip on purpose — one definition of the age boundary, so the number can never
+ * disagree with the chip about which items count. Real money that's stuck, not
+ * a hoped-for profit — it answers "where did the cash go" / "stop buying in".
+ */
+export function computeSunkCost(items: StockItem[], now: Date = new Date()): number {
+  let sunk = 0
+  for (const it of items) {
+    if (!isStale(it, now)) continue
+    sunk += (Number(it.cost_per_unit) || 0) * (it.qty_remaining ?? 0)
+  }
+  return sunk
+}
+
+/**
  * Per-chip counts over **all** items (never the already-filtered list) — the
  * badge on each chip is a running total, not "how many the current filter left".
  */
@@ -180,10 +197,6 @@ function ariaLabel(it: StockItem): string {
   return `${it.name} · SKU ${it.sku} · ${statusLabel(it)}`
 }
 
-function profitPerUnit(it: StockItem): number | null {
-  return it.target_price != null ? Number(it.target_price) - Number(it.cost_per_unit) : null
-}
-
 /** Age-tier accents. `spine` colours the list scan-rail; `pinText` the age pin. */
 const AGE_ACCENT: Record<AgeTier, { spine: string; pinText: string }> = {
   fresh: { spine: 'bg-chevron', pinText: 'text-muted' },
@@ -242,6 +255,7 @@ export function StockPage() {
   const items = data?.items ?? []
   const now = useMemo(() => new Date(), [])
   const hero = useMemo(() => computeStockHero(items), [items])
+  const sunkCost = useMemo(() => computeSunkCost(items, now), [items, now])
   const counts = useMemo(() => computeCounts(items, now), [items, now])
   const visible = useMemo(
     () => selectStockItems(items, filter, search, now),
@@ -327,12 +341,20 @@ export function StockPage() {
             </div>
             <div className="flex flex-col items-end justify-center text-right">
               <p className="text-[10px] font-medium uppercase tracking-[0.16em] opacity-80">
-                รอขาย
+                ทุนจม
               </p>
-              <p className="mt-1 text-[17px] font-semibold tabular-nums">
-                {hideBalance ? MASKED_BAHT : `+${formatBaht(hero.pendingProfit)}`}
-              </p>
-              <p className="mt-1.5 text-[11px] opacity-80">ถ้าขายได้ตามราคาตั้ง</p>
+              {sunkCost > 0 ? (
+                <>
+                  {/* real money — masked with the rest of the page under hideBalance */}
+                  <p className="mt-1 text-[17px] font-semibold tabular-nums">
+                    {money(sunkCost, hideBalance)}
+                  </p>
+                  <p className="mt-1.5 text-[11px] opacity-80">ค้างเกิน {AGE_OLD_MAX} วัน</p>
+                </>
+              ) : (
+                // ฿0 here is good news, not emptiness — say so instead of a number.
+                <p className="mt-1.5 text-[13px] opacity-80">ไม่มีของค้างนาน</p>
+              )}
             </div>
           </div>
         </div>
@@ -612,14 +634,10 @@ function RackCell({
           {item.name}
         </p>
         {meta && <p className="mt-0.5 truncate text-[11px] text-faint">{meta}</p>}
+        {/* ต้นทุน (masked) + จำนวนวันในคลัง (not money → never masked) · วันไม่ขึ้นเมื่อขายหมด */}
         <p className="mt-0.5 text-[11px] text-muted">
           {money(item.cost_per_unit, hideBalance)}
-          {' → '}
-          {item.target_price != null ? (
-            <span className="text-ink">{money(item.target_price, hideBalance)}</span>
-          ) : (
-            <span className="font-medium text-warn">ตั้งราคา</span>
-          )}
+          {!sold && ` · ${days} วัน`}
         </p>
       </button>
     </div>
@@ -646,7 +664,6 @@ function StockRow({
   const days = daysSince(item.created_at, now)
   const tier = ageTier(days)
   const meta = [item.brand, item.size, item.color].filter(Boolean).join(' · ')
-  const profitPer = profitPerUnit(item)
   // Sold rows carry no age meaning → neutral spine; live rows tint by tier.
   const spine = sold ? 'bg-hairline' : AGE_ACCENT[tier].spine
 
@@ -676,14 +693,10 @@ function StockRow({
           {item.name}
         </p>
         {meta && <p className="mt-0.5 truncate text-[11px] text-faint">{meta}</p>}
+        {/* ต้นทุน (masked) + จำนวนวันในคลัง (not money → never masked) · วันไม่ขึ้นเมื่อขายหมด */}
         <p className="mt-[3px] text-[11px] text-muted">
           {money(item.cost_per_unit, hideBalance)}
-          {' → '}
-          {item.target_price != null ? (
-            <span className="text-ink">{money(item.target_price, hideBalance)}</span>
-          ) : (
-            <span className="font-medium text-warn">ตั้งราคา</span>
-          )}
+          {!sold && ` · ${days} วัน`}
         </p>
 
         {/* flags — every one carries an icon AND text, never colour alone */}
@@ -711,11 +724,6 @@ function StockRow({
           <span className="rounded-pill bg-brand-tint px-[9px] py-[3px] text-[11px] font-medium text-brand-ink">
             เหลือ {item.qty_remaining}
           </span>
-        )}
-        {profitPer != null && !sold && (
-          <p className="mt-1.5 text-[12px] text-brand-deep">
-            {hideBalance ? MASKED_BAHT : `+${formatBaht(profitPer)}`}/ชิ้น
-          </p>
         )}
       </div>
     </button>
