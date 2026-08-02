@@ -1,17 +1,12 @@
 import { useState } from 'react'
 import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react'
-import { Overlay, Toggle } from '@/components/ui'
+import { Overlay } from '@/components/ui'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useToast } from '@/components/Toast'
 import { categoryIcon, ICON_NAMES } from '@/lib/icons'
 import { catColorVar } from '@/lib/catColor'
 import { useCategories } from '@/hooks/useLookups'
-import {
-  useDeleteCategory,
-  useToggleShopCategory,
-  useToggleStockCategory,
-  useUpsertCategory,
-} from '@/hooks/useSettings'
+import { useDeleteCategory, useSetCategoryRole, useUpsertCategory } from '@/hooks/useSettings'
 import { translateError } from '@/lib/errors'
 import type { Category, CategoryKind } from '@/lib/db'
 
@@ -28,19 +23,109 @@ interface FormState {
 
 const COLOR_SLOTS = [1, 2, 3, 4, 5, 6] as const
 
+/** One category plays exactly one of three roles. The two boolean columns are
+ *  mutually exclusive, so a single control reflects that truth better than two
+ *  look-alike switches the user has to reason about. */
+type CategoryRole = 'general' | 'stock' | 'shop'
+
+/** Which columns each role writes — the single source that keeps the (stock,
+ *  shop) pair from ever being (true, true). */
+const ROLE_COLUMNS: Record<CategoryRole, { is_stock_category: boolean; is_shop_category: boolean }> = {
+  general: { is_stock_category: false, is_shop_category: false },
+  stock: { is_stock_category: true, is_shop_category: false },
+  shop: { is_stock_category: false, is_shop_category: true },
+}
+
+function roleOf(c: { is_stock_category: boolean; is_shop_category: boolean }): CategoryRole {
+  if (c.is_stock_category) return 'stock'
+  if (c.is_shop_category) return 'shop'
+  return 'general'
+}
+
+const ROLE_LABEL: Record<CategoryRole, string> = {
+  general: 'ทั่วไป',
+  stock: 'เข้าสต็อก',
+  shop: 'ร้าน',
+}
+
+/** The difference that actually matters per role — not just a pretty name. The
+ *  shop line's last clause is the ONLY thing that tells the user this option
+ *  rewrites history, so it must never be dropped. */
+const ROLE_DESC: Record<CategoryRole, string> = {
+  general: 'ใช้กรอกรายการปกติ นับในงบ',
+  stock: 'ใช้เฉพาะตอนรับของเข้าคลัง จะไม่โผล่ในหน้ากรอกรายการ',
+  shop: 'ค่าใช้จ่าย/รายรับของร้าน กรอกเองได้ปกติ แต่ไม่กินงบส่วนตัว · เปลี่ยนแล้วตัวเลขของเดือนก่อน ๆ จะขยับตาม',
+}
+
+/** expense can be any of the three; income has no stock intake. */
+const ROLES_BY_KIND: Record<CategoryKind, CategoryRole[]> = {
+  expense: ['general', 'stock', 'shop'],
+  income: ['general', 'shop'],
+}
+
+/** A single-choice segmented control — exclusivity is visible in the shape, so
+ *  the user never has to infer it from a greyed-out sibling. */
+function SegmentedControl({
+  options,
+  value,
+  onChange,
+  disabled = false,
+  label,
+}: {
+  options: CategoryRole[]
+  value: CategoryRole
+  onChange: (v: CategoryRole) => void
+  disabled?: boolean
+  label?: string
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={`flex gap-1.5 ${disabled ? 'opacity-40' : ''}`}
+    >
+      {options.map((r) => {
+        const selected = r === value
+        return (
+          <button
+            key={r}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            disabled={disabled}
+            onClick={() => onChange(r)}
+            className={`min-h-[44px] flex-1 rounded-pill px-2 text-[12px] ${
+              selected
+                ? 'bg-brand-tint font-medium text-brand-ink'
+                : 'border-[0.5px] border-hairline text-muted'
+            }`}
+          >
+            {ROLE_LABEL[r]}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function CategoriesManager({ onClose }: { onClose: () => void }) {
   const { data: categories } = useCategories()
   const upsert = useUpsertCategory()
   const del = useDeleteCategory()
-  const toggle = useToggleStockCategory()
-  const shopToggle = useToggleShopCategory()
+  const setRole = useSetCategoryRole()
   const toast = useToast()
 
-  async function onShopToggle(c: Category, value: boolean) {
+  async function onRoleChange(c: Category, role: CategoryRole) {
+    const cols = ROLE_COLUMNS[role]
+    // Nothing to write if the role is unchanged (a re-tap on the current option).
+    if (cols.is_stock_category === c.is_stock_category && cols.is_shop_category === c.is_shop_category)
+      return
     try {
-      await shopToggle.mutateAsync({ id: c.id, value })
+      // Both columns in one write → the pair is never (true, true), even for an
+      // instant, so a เข้าสต็อก → ร้าน switch never trips the DB CHECK.
+      await setRole.mutateAsync({ id: c.id, ...cols })
     } catch (e) {
-      // Should be unreachable — the toggle is disabled on system/stock categories
+      // Should be unreachable — the control is disabled on system categories
       // (mirrors the DB CHECK) — but rule 16: if 23514 fires anyway, tell the user.
       toast.error(translateError(e))
     }
@@ -219,64 +304,64 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
             </p>
             {rows.map((c) => {
               const Icon = categoryIcon(c.icon)
+              const role = roleOf(c)
               return (
                 <div
                   key={c.id}
-                  className="flex items-center gap-3 border-b-[0.5px] border-hairline py-2.5 last:border-b-0"
+                  className="border-b-[0.5px] border-hairline py-2.5 last:border-b-0"
                 >
-                  <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] bg-fill">
-                    <Icon size={16} style={{ color: catColorVar(c.color_index) }} />
-                  </div>
-                  <span className="flex-1 truncate text-[13.5px]">{c.name}</span>
-                  {/* stock (expense only) + shop (both kinds) — mutually
-                      exclusive: each is disabled while the other is on, mirroring
-                      the DB CHECK. Shop is also disabled on system categories
-                      (they can never be a shop bucket). */}
-                  {c.kind === 'expense' && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-faint">สต็อก</span>
-                      <Toggle
-                        on={c.is_stock_category}
-                        disabled={c.is_shop_category}
-                        onChange={(v) => toggle.mutate({ id: c.id, value: v })}
-                        label={`ลงสต็อกอัตโนมัติ ${c.name}`}
-                      />
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] bg-fill">
+                      <Icon size={16} style={{ color: catColorVar(c.color_index) }} />
                     </div>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-faint">ร้าน</span>
-                    <Toggle
-                      on={c.is_shop_category}
-                      disabled={c.is_system || c.is_stock_category}
-                      onChange={(v) => onShopToggle(c, v)}
-                      label={`หมวดร้าน ${c.name}`}
-                    />
+                    <span className="flex-1 truncate text-[13.5px]">{c.name}</span>
+                    <button
+                      aria-label="แก้ไข"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-fill"
+                      onClick={() =>
+                        setForm({
+                          id: c.id,
+                          name: c.name,
+                          kind: c.kind,
+                          is_stock_category: c.is_stock_category,
+                          is_shop_category: c.is_shop_category,
+                          icon: c.icon,
+                          colorIndex: c.color_index,
+                        })
+                      }
+                    >
+                      <IconPencil size={16} className="text-faint" />
+                    </button>
+                    {/* System categories can never be deleted (DB rejects with
+                        23001) — the user knows that up front, so a button that's
+                        guaranteed to fail just wastes space. Non-system deletes
+                        stay: the user can't know a category has transactions until
+                        they try. */}
+                    {!c.is_system && (
+                      <button
+                        aria-label="ลบ"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-expense-bg disabled:opacity-50"
+                        disabled={del.isPending}
+                        onClick={() => setConfirming(c)}
+                      >
+                        <IconTrash size={16} className="text-faint" />
+                      </button>
+                    )}
                   </div>
-                  <button
-                    aria-label="แก้ไข"
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-fill"
-                    onClick={() =>
-                      setForm({
-                        id: c.id,
-                        name: c.name,
-                        kind: c.kind,
-                        is_stock_category: c.is_stock_category,
-                        is_shop_category: c.is_shop_category,
-                        icon: c.icon,
-                        colorIndex: c.color_index,
-                      })
-                    }
-                  >
-                    <IconPencil size={16} className="text-faint" />
-                  </button>
-                  <button
-                    aria-label="ลบ"
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-expense-bg disabled:opacity-50"
-                    disabled={del.isPending}
-                    onClick={() => setConfirming(c)}
-                  >
-                    <IconTrash size={16} className="text-faint" />
-                  </button>
+                  {/* One control, not two look-alike switches — the role is
+                      single-choice, disabled wholesale on system categories. */}
+                  <div className="mt-2">
+                    <SegmentedControl
+                      options={ROLES_BY_KIND[c.kind]}
+                      value={role}
+                      disabled={c.is_system}
+                      onChange={(r) => onRoleChange(c, r)}
+                      label={`ประเภทหมวด ${c.name}`}
+                    />
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-faint">
+                      {c.is_system ? 'หมวดของระบบ ปรับไม่ได้' : ROLE_DESC[role]}
+                    </p>
+                  </div>
                 </div>
               )
             })}
