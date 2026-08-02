@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import {
   WovenHero,
   budgetMini,
@@ -197,6 +197,54 @@ describe('WovenHero rendering — hideBalance masks the safe figure everywhere',
     expect(screen.getByText('••••')).toBeTruthy() // masked mini
     expect(screen.queryByText(formatBaht(9_000))).toBeNull() // real figure gone
     expect(screen.getByText('SAFE TO SPEND')).toBeTruthy() // title stays
+  })
+})
+
+describe('WovenHero — BUDGET label opens the budget screen', () => {
+  // Render the hero at "/" with a stand-in /budget route so a real navigation
+  // (not a mock) proves the arrow reaches the budget page.
+  function renderWithBudgetRoute(over: Partial<WovenHeroProps> = {}) {
+    const props: WovenHeroProps = {
+      safeToSpend: 9_000,
+      daysLeft: 10,
+      deltaPct: null,
+      budgetTotal: 10_000,
+      budgetSpending: 4_000,
+      stock: STOCK,
+      hideBalance: false,
+      onToggleHide: () => {},
+      income: 0,
+      expense: 0,
+      ...over,
+    }
+    return render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<WovenHero {...props} />} />
+          <Route path="/budget" element={<div>BUDGET SCREEN</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('shows the open-budget arrow only once BUDGET is the front label, and it navigates to /budget', () => {
+    renderWithBudgetRoute()
+    // SAFE is the face by default → no budget arrow yet.
+    expect(screen.queryByLabelText('เปิดหน้างบประมาณ')).toBeNull()
+
+    // Bring BUDGET forward (the fold-to-front tap), then use the arrow.
+    fireEvent.click(screen.getByLabelText('ป้ายงบประมาณ'))
+    fireEvent.click(screen.getByLabelText('เปิดหน้างบประมาณ'))
+    expect(screen.getByText('BUDGET SCREEN')).toBeTruthy()
+  })
+
+  it('does not hijack the fold-to-front tap: tapping the folded BUDGET label only brings it forward', () => {
+    renderWithBudgetRoute()
+    // Tapping the folded label switches it to the front — it must NOT navigate.
+    fireEvent.click(screen.getByLabelText('ป้ายงบประมาณ'))
+    expect(screen.queryByText('BUDGET SCREEN')).toBeNull()
+    // ...and now that BUDGET is expanded, the separate arrow affordance is present.
+    expect(screen.getByLabelText('เปิดหน้างบประมาณ')).toBeTruthy()
   })
 })
 

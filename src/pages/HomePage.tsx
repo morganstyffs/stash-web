@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { IconBell, IconClock } from '@tabler/icons-react'
+import { IconBell, IconClock, IconSettings } from '@tabler/icons-react'
 import { useCategories } from '@/hooks/useLookups'
 import { useAttentionSignals } from '@/hooks/useAttention'
 import { useDialogA11y } from '@/lib/useDialogA11y'
@@ -241,36 +241,50 @@ export function HomePage() {
           onPrev={() => goToMonth(addMonthsToKey(month, -1))}
           onNext={() => goToMonth(addMonthsToKey(month, 1))}
         />
-        <div className="relative">
+        {/* Top-right corner already carries the เรื่องที่รอดู bell (with its count
+            badge + dropdown); the settings gear sits beside it as its own ≥44px
+            target rather than crowding the bell — negative margins keep the 44px
+            hit area from growing the header row (same trick as MonthSwitcher). */}
+        <div className="flex items-center gap-0.5">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setPanelOpen((v) => !v)}
+              aria-label={
+                attention.data && attention.data.total > 0
+                  ? `เรื่องที่รอดู ${attention.data.total} รายการ`
+                  : 'เรื่องที่รอดู — ไม่มีตอนนี้'
+              }
+              aria-expanded={panelOpen}
+              className="relative flex h-11 w-11 items-center justify-center text-muted"
+            >
+              <IconBell size={20} />
+              {!!attention.data?.total && (
+                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-fabric-stock px-1 text-[9px] font-medium text-brand-thread">
+                  {attention.data.total > 9 ? '9+' : attention.data.total}
+                </span>
+              )}
+            </button>
+            {panelOpen && (
+              <AttentionPanel
+                needsDetails={attention.data?.needsDetails ?? 0}
+                stale={attention.data?.stale ?? 0}
+                onNavigate={(path, filter) => {
+                  setPanelOpen(false)
+                  navigate(path, filter ? { state: { filter } } : undefined)
+                }}
+                onClose={() => setPanelOpen(false)}
+              />
+            )}
+          </div>
           <button
             type="button"
-            onClick={() => setPanelOpen((v) => !v)}
-            aria-label={
-              attention.data && attention.data.total > 0
-                ? `เรื่องที่รอดู ${attention.data.total} รายการ`
-                : 'เรื่องที่รอดู — ไม่มีตอนนี้'
-            }
-            aria-expanded={panelOpen}
-            className="relative"
+            onClick={() => navigate('/settings')}
+            aria-label="ตั้งค่า"
+            className="-my-[7px] flex h-11 w-11 items-center justify-center text-muted active:text-ink"
           >
-            <IconBell size={20} className="text-muted" />
-            {!!attention.data?.total && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-fabric-stock px-1 text-[9px] font-medium text-brand-thread">
-                {attention.data.total > 9 ? '9+' : attention.data.total}
-              </span>
-            )}
+            <IconSettings size={20} />
           </button>
-          {panelOpen && (
-            <AttentionPanel
-              needsDetails={attention.data?.needsDetails ?? 0}
-              stale={attention.data?.stale ?? 0}
-              onNavigate={(path, filter) => {
-                setPanelOpen(false)
-                navigate(path, filter ? { state: { filter } } : undefined)
-              }}
-              onClose={() => setPanelOpen(false)}
-            />
-          )}
         </div>
       </div>
 
