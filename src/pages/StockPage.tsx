@@ -566,6 +566,23 @@ function RackGrid({
   )
 }
 
+/**
+ * "ขายแล้ว" band across the bottom of a sold item's photo. A translucent, always-
+ * dark scrim so the white label reads over ANY product image, in BOTH themes.
+ * Uses the theme-independent `scrim` token: it was previously `ink` at 70%
+ * opacity, but `ink` flips near-white in dark mode so the white text vanished
+ * there (same class of bug as the toast). Exported so the dark-mode contrast
+ * guard renders THIS real markup — see StockScrim.contrast.visual.test. Keep the
+ * opacity a valid step (a multiple of 5).
+ */
+export function SoldBand() {
+  return (
+    <span className="absolute inset-x-0 bottom-0 bg-scrim/70 py-1 text-center text-[10px] font-medium text-white">
+      ขายแล้ว
+    </span>
+  )
+}
+
 function RackCell({
   item,
   thumb,
@@ -623,11 +640,7 @@ function RackCell({
           )}
 
           {/* sold band across the bottom edge */}
-          {sold && (
-            <span className="absolute inset-x-0 bottom-0 bg-ink/70 py-1 text-center text-[10px] font-medium text-white">
-              ขายแล้ว
-            </span>
-          )}
+          {sold && <SoldBand />}
         </div>
 
         <p className={`mt-2 truncate text-[13px] font-medium ${sold ? 'text-muted' : ''}`}>

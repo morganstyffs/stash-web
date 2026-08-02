@@ -63,6 +63,11 @@ export default {
         // toast — always-dark snackbar/pill surface (white text + locked soft icons
         // read on it in BOTH modes). Theme-independent by design; see --color-toast.
         toast: 'rgb(var(--color-toast) / <alpha-value>)',
+        // scrim — always-dark ground for chrome laid over imagery (sold band on a
+        // product photo, photo-remove ✕ badge). White text/icons read on it in BOTH
+        // modes. Theme-independent by design; see --color-scrim. Replaces `bg-ink`
+        // on those spots, which flipped near-white in dark mode.
+        scrim: 'rgb(var(--color-scrim) / <alpha-value>)',
         // category palette — colorblind-checked. Now CSS variables (light + dark) so the DB stays
         // free of hex; values + the color_index→slot mapping live in index.css
         // and lib/catColor.ts. Do NOT reorder or add a 7th (see color_index 1–6).
