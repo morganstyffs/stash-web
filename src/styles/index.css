@@ -92,6 +92,23 @@
     height: 100%;
   }
 
+  /* #root is the single mount point the whole app renders into, so it is the one
+     place to anchor the shell's height. `height: 100%` above resolves against
+     html/body, whose percentage basis on a mobile browser is the *large*
+     (address-bar-retracted) viewport and does NOT track the address bar — so a
+     short screen could resolve to less than the visible viewport, leaving a strip
+     of the beige body/surface below the content (the mobile "bottom gap"; most
+     visible on /add, where the white page meets the beige shell). `100dvh` pins
+     #root to the *dynamic* viewport — a length that always equals what is on
+     screen in every toolbar state — so both the `min-h-full` tabbed shell and the
+     `h-full` full-screen flows (/add, stock intake/queue) fill exactly the visible
+     height. Desktop is unaffected: with no dynamic toolbar `dvh` == `vh` == the
+     old `100%`. The `height: 100%` line above stays as the fallback for engines
+     without `dvh`; this overrides it where supported. */
+  #root {
+    height: 100dvh;
+  }
+
   body {
     margin: 0;
     background: theme('colors.surface');
