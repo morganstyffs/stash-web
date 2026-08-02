@@ -63,7 +63,6 @@ export function StockIntakePage() {
   const [size, setSize] = useState('')
   const [color, setColor] = useState('')
   const [condition, setCondition] = useState<ItemCondition | ''>('')
-  const [target, setTarget] = useState('')
   const [photos, setPhotos] = useState<EditablePhoto[]>([])
   const [folder] = useState(() => crypto.randomUUID())
   const [uploading, setUploading] = useState(false)
@@ -86,9 +85,6 @@ export function StockIntakePage() {
 
   const costNum = Number(cost || '0')
   const qtyNum = Math.max(1, Math.floor(Number(qty || '1')))
-  const targetNum = target ? Number(target) : null
-  const profit = targetNum != null && costNum > 0 ? targetNum - costNum : null
-  const profitPct = profit != null && costNum > 0 ? Math.round((profit / costNum) * 100) : null
 
   // Live SKU preview from the DB (approximate — see useSkuPreview). The SKU no
   // longer encodes the brand (0025), so this doesn't depend on the brand field.
@@ -121,7 +117,6 @@ export function StockIntakePage() {
     setSize('')
     setColor('')
     setCondition('')
-    setTarget('')
     setPhotos([])
     setDetailsOpen(false)
   }
@@ -132,7 +127,6 @@ export function StockIntakePage() {
       size,
       color,
       condition,
-      target: targetNum,
       photoCount: photos.length,
     })
     try {
@@ -146,7 +140,6 @@ export function StockIntakePage() {
         p_size: size.trim() || undefined,
         p_color: color.trim() || undefined,
         p_condition: condition || undefined,
-        p_target_price: targetNum ?? undefined,
         p_photos: photos.map((p) => p.path),
         p_needs_details: needsDetails,
       })
@@ -306,7 +299,7 @@ export function StockIntakePage() {
         >
           <span className="text-[12.5px] text-muted">
             <IconPlus size={14} className="-mb-0.5 mr-0.5 inline" />
-            รายละเอียดเพิ่มเติม (ไซซ์ · สี · สภาพ · ราคาขาย)
+            รายละเอียดเพิ่มเติม (ไซซ์ · สี · สภาพ)
           </span>
           <IconChevronDown
             size={16}
@@ -339,26 +332,6 @@ export function StockIntakePage() {
             <div className="mb-3">
               <Label>สภาพ</Label>
               <ConditionChips value={condition} onChange={setCondition} />
-            </div>
-            <div className="mb-3">
-              <Label>ราคาตั้งขาย/ชิ้น</Label>
-              <div className="flex items-center justify-between rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px]">
-                <div className="flex items-center">
-                  <span className="mr-1 text-[13px] text-faint">฿</span>
-                  <input
-                    value={target}
-                    onChange={(e) => setTarget(e.target.value.replace(/[^0-9.]/g, ''))}
-                    inputMode="decimal"
-                    placeholder="0"
-                    className="w-24 bg-transparent text-[13px] outline-none placeholder:text-faint"
-                  />
-                </div>
-                {profit != null && profit >= 0 && (
-                  <span className="rounded-pill bg-brand-tint px-[10px] py-[3px] text-[11px] font-medium text-brand-ink">
-                    กำไร {formatBaht(profit)} · {profitPct}%
-                  </span>
-                )}
-              </div>
             </div>
           </div>
         )}

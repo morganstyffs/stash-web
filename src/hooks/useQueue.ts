@@ -31,17 +31,17 @@ export function useQueueItems() {
   })
 }
 
-/** Which required detail fields an item is still missing (for the queue chips). */
+/** Which required detail fields an item is still missing (for the queue chips).
+ *  ราคาขายไม่อยู่ในรายการนี้อีกต่อไป (0027) — ราคาขายกรอกตอนขายเท่านั้น ไม่ใช่
+ *  ข้อมูลที่ต้อง "เติมให้ครบ" ล่วงหน้า ไม่งั้นของจะค้างในคิวตลอดกาลโดยไม่มีอะไรให้เติม. */
 export function missingTags(it: {
   photos?: string[] | null
   size?: string | null
   color?: string | null
   condition?: ItemCondition | null
-  target_price?: number | null
 }): string[] {
   const tags: string[] = []
   if (!it.photos || it.photos.length === 0) tags.push('ขาดรูป')
-  if (it.target_price == null) tags.push('ขาดราคาขาย')
   if (!it.size) tags.push('ขาดไซซ์')
   if (!it.color) tags.push('ขาดสี')
   if (!it.condition) tags.push('ขาดสภาพ')
@@ -56,7 +56,6 @@ export interface StockItemUpdate {
   size: string | null
   color: string | null
   condition: ItemCondition | null
-  target_price: number | null
   photos: string[]
 }
 
@@ -70,7 +69,6 @@ export function useUpdateStockItem() {
           size: u.size,
           color: u.color,
           condition: u.condition,
-          target_price: u.target_price,
         }).length > 0
       const { error } = await supabase
         .from('stock_items')
@@ -81,7 +79,6 @@ export function useUpdateStockItem() {
           size: u.size,
           color: u.color,
           condition: u.condition,
-          target_price: u.target_price,
           photos: u.photos,
           needs_details: stillMissing,
         })

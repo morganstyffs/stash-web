@@ -118,15 +118,14 @@ export function PhotoEditor({
   )
 }
 
-/** True when any required detail is still missing (drives needs_details). */
+/** True when any required detail is still missing (drives needs_details).
+ *  ราคาขายไม่นับเป็น "รายละเอียดที่ต้องเติม" อีกต่อไป (0027) — ราคาขายกรอกตอนขาย
+ *  เท่านั้น · ตรงกับ missingTags ใน useQueue.ts (นิยาม "ยังขาดอะไร" ที่เดียว). */
 export function computeNeedsDetails(f: {
   size: string
   color: string
   condition: ItemCondition | ''
-  target: number | null
   photoCount: number
 }): boolean {
-  return (
-    !f.size.trim() || !f.color.trim() || !f.condition || f.target == null || f.photoCount === 0
-  )
+  return !f.size.trim() || !f.color.trim() || !f.condition || f.photoCount === 0
 }

@@ -18,7 +18,6 @@ function stockItem(over: Partial<StockItem>): StockItem {
     cost_per_unit: 100,
     qty_total: 1,
     qty_remaining: 1,
-    target_price: null,
     sku: 'STZ-TST-0001',
     status: 'in_stock',
     needs_details: false,
@@ -28,29 +27,23 @@ function stockItem(over: Partial<StockItem>): StockItem {
   }
 }
 
-describe('computeStockHero — inventory value & pending profit track qty_remaining', () => {
-  it('values remaining units at cost, and pending profit at (target − cost) × remaining', () => {
+// STOCK VALUE = cost tied up on the rack. The old "pending profit" figure
+// (target_price × remaining) was dropped in 0027 — it multiplied a hoped-for
+// price, not real money; the sunk-cost figure that replaced it is tested in
+// StockPage.test.ts (computeSunkCost), where the shared age boundary lives.
+describe('computeStockHero — inventory value tracks qty_remaining', () => {
+  it('values remaining units at cost', () => {
     const hero = computeStockHero([
-      stockItem({ cost_per_unit: 100, target_price: 150, qty_remaining: 3, status: 'in_stock' }),
+      stockItem({ cost_per_unit: 100, qty_remaining: 3, status: 'in_stock' }),
     ])
     expect(hero.costValue).toBe(300) // 100 × 3
-    expect(hero.pendingProfit).toBe(150) // (150 − 100) × 3
   })
 
   it('shrinks with qty_remaining as units sell off (partial)', () => {
     const hero = computeStockHero([
-      stockItem({ cost_per_unit: 100, target_price: 150, qty_remaining: 1, status: 'partial' }),
+      stockItem({ cost_per_unit: 100, qty_remaining: 1, status: 'partial' }),
     ])
     expect(hero.costValue).toBe(100) // 100 × 1
-    expect(hero.pendingProfit).toBe(50) // (150 − 100) × 1
-  })
-
-  it('counts cost but zero pending profit when no target price is set', () => {
-    const hero = computeStockHero([
-      stockItem({ cost_per_unit: 100, target_price: null, qty_remaining: 2 }),
-    ])
-    expect(hero.costValue).toBe(200)
-    expect(hero.pendingProfit).toBe(0)
   })
 })
 
@@ -58,19 +51,17 @@ describe('computeStockHero — sold items drop out of the hero', () => {
   it('contributes nothing once status = sold', () => {
     const hero = computeStockHero([
       // A defensive case: even if qty_remaining were non-zero, sold is skipped.
-      stockItem({ cost_per_unit: 100, target_price: 150, qty_remaining: 2, status: 'sold' }),
+      stockItem({ cost_per_unit: 100, qty_remaining: 2, status: 'sold' }),
     ])
     expect(hero.costValue).toBe(0)
-    expect(hero.pendingProfit).toBe(0)
   })
 
   it('sums only the still-in-stock items in a mixed list', () => {
     const hero = computeStockHero([
-      stockItem({ id: 'a', cost_per_unit: 50, target_price: 80, qty_remaining: 4, status: 'in_stock' }),
-      stockItem({ id: 'b', cost_per_unit: 200, target_price: 300, qty_remaining: 1, status: 'partial' }),
-      stockItem({ id: 'c', cost_per_unit: 999, target_price: 1500, qty_remaining: 0, status: 'sold' }),
+      stockItem({ id: 'a', cost_per_unit: 50, qty_remaining: 4, status: 'in_stock' }),
+      stockItem({ id: 'b', cost_per_unit: 200, qty_remaining: 1, status: 'partial' }),
+      stockItem({ id: 'c', cost_per_unit: 999, qty_remaining: 0, status: 'sold' }),
     ])
     expect(hero.costValue).toBe(50 * 4 + 200 * 1) // 400 — 'c' excluded
-    expect(hero.pendingProfit).toBe((80 - 50) * 4 + (300 - 200) * 1) // 120 + 100 = 220
   })
 })

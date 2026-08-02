@@ -58,7 +58,6 @@ export function StockEditSheet({
   const [size, setSize] = useState(item.size ?? '')
   const [color, setColor] = useState(item.color ?? '')
   const [condition, setCondition] = useState<ItemCondition | ''>(item.condition ?? '')
-  const [target, setTarget] = useState(item.target_price != null ? String(item.target_price) : '')
   const [photos, setPhotos] = useState<EditablePhoto[]>([])
   const [uploading, setUploading] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -67,7 +66,10 @@ export function StockEditSheet({
   const today = todayISO()
   const [sellOpen, setSellOpen] = useState(false)
   const [sellQty, setSellQty] = useState('1')
-  const [sellPrice, setSellPrice] = useState(item.target_price != null ? String(item.target_price) : '')
+  // Left blank on purpose (0027) — the sale price is typed at sell time, never
+  // pre-filled. A guessed number the user taps past becomes a wrong sale price
+  // that flows straight into profit (§11.4). The field is auto-focused instead.
+  const [sellPrice, setSellPrice] = useState('')
   const [sellDate, setSellDate] = useState(today)
   const [sellWallet, setSellWallet] = useState<string | null>(null)
   const [confirmingZero, setConfirmingZero] = useState(false)
@@ -118,7 +120,6 @@ export function StockEditSheet({
         size: size.trim() || null,
         color: color.trim() || null,
         condition: (condition || null) as ItemCondition | null,
-        target_price: target ? Number(target) : null,
         photos: photos.map((p) => p.path),
       })
       toast.success('บันทึกรายละเอียดแล้ว')
@@ -276,6 +277,7 @@ export function StockEditSheet({
                       <div className="flex items-center rounded-input border-[0.5px] border-hairline bg-white px-[11px] py-[9px]">
                         <span className="mr-1 text-[13px] text-faint">฿</span>
                         <input
+                          autoFocus
                           value={sellPrice}
                           onChange={(e) => {
                             setSellPrice(e.target.value.replace(/[^0-9.]/g, ''))
@@ -455,19 +457,6 @@ export function StockEditSheet({
           <div className="mb-3">
             <Label>สภาพ</Label>
             <ConditionChips value={condition} onChange={setCondition} />
-          </div>
-          <div className="mb-3">
-            <Label>ราคาตั้งขาย/ชิ้น</Label>
-            <div className="flex items-center rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px]">
-              <span className="mr-1 text-[13px] text-faint">฿</span>
-              <input
-                value={target}
-                onChange={(e) => setTarget(e.target.value.replace(/[^0-9.]/g, ''))}
-                inputMode="decimal"
-                placeholder="0"
-                className="w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
-              />
-            </div>
           </div>
 
           {/* save/delete failures now surface via toast (translateError) — see

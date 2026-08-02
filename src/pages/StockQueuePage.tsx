@@ -148,7 +148,6 @@ function QueueEditSheet({ item, onClose }: { item: StockItem; onClose: () => voi
   const [size, setSize] = useState(item.size ?? '')
   const [color, setColor] = useState(item.color ?? '')
   const [condition, setCondition] = useState<ItemCondition | ''>(item.condition ?? '')
-  const [target, setTarget] = useState(item.target_price != null ? String(item.target_price) : '')
   const [photos, setPhotos] = useState<EditablePhoto[]>([])
   const [uploading, setUploading] = useState(false)
 
@@ -192,7 +191,6 @@ function QueueEditSheet({ item, onClose }: { item: StockItem; onClose: () => voi
         size: size.trim() || null,
         color: color.trim() || null,
         condition: (condition || null) as ItemCondition | null,
-        target_price: target ? Number(target) : null,
         photos: photos.map((p) => p.path),
       })
       toast.success('บันทึกรายละเอียดแล้ว')
@@ -271,19 +269,6 @@ function QueueEditSheet({ item, onClose }: { item: StockItem; onClose: () => voi
           <div className="mb-3">
             <Label>สภาพ</Label>
             <ConditionChips value={condition} onChange={setCondition} />
-          </div>
-          <div className="mb-3">
-            <Label>ราคาตั้งขาย/ชิ้น</Label>
-            <div className="flex items-center rounded-input border-[0.5px] border-hairline bg-fill px-[11px] py-[10px]">
-              <span className="mr-1 text-[13px] text-faint">฿</span>
-              <input
-                value={target}
-                onChange={(e) => setTarget(e.target.value.replace(/[^0-9.]/g, ''))}
-                inputMode="decimal"
-                placeholder="0"
-                className="w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
-              />
-            </div>
           </div>
 
           {update.error && (
