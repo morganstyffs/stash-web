@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   IconAlertTriangle,
+  IconArrowsLeftRight,
   IconChevronDown,
   IconPencil,
   IconPlus,
@@ -10,16 +11,20 @@ import {
 import { Overlay } from '@/components/ui'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useToast } from '@/components/Toast'
+import { WalletTransferSheet } from '@/components/WalletTransferSheet'
 import {
   useDeleteWallet,
+  useDeleteWalletTransfer,
   useUpsertWallet,
   useWalletBalances,
   useWallets,
+  useWalletTransfers,
+  WALLET_TRANSFER_CAP,
 } from '@/hooks/useSettings'
 import { useHideBalance } from '@/hooks/useHideBalance'
 import { translateError } from '@/lib/errors'
-import { formatBaht, MASKED_BAHT } from '@/lib/format'
-import type { Wallet, WalletBalance, WalletType } from '@/lib/db'
+import { formatBaht, formatDueDate, MASKED_BAHT, sanitizeMoneyInput } from '@/lib/format'
+import type { Wallet, WalletBalance, WalletTransfer, WalletType } from '@/lib/db'
 
 const TYPES: { key: WalletType; label: string }[] = [
   { key: 'cash', label: 'เงินสด' },
@@ -39,15 +44,6 @@ interface FormState {
    *  so create opens blank and blank saves as 0. On EDIT this is seeded from the
    *  stored value (a real fact, not a guess) so saving name/type never wipes it. */
   openingBalance: string
-}
-
-/** Keep digits and at most one decimal point; drop everything else (letters, a
- *  second dot, a minus — an opening balance is money-on-hand, never negative). */
-function sanitizeMoney(s: string): string {
-  const cleaned = s.replace(/[^\d.]/g, '')
-  const dot = cleaned.indexOf('.')
-  if (dot === -1) return cleaned
-  return cleaned.slice(0, dot + 1) + cleaned.slice(dot + 1).replace(/\./g, '')
 }
 
 /** Masked while ซ่อนยอดเงิน is on, otherwise the figure — one helper so every
@@ -119,13 +115,19 @@ function BreakdownRow({
 export function WalletsManager({ onClose }: { onClose: () => void }) {
   const { data: wallets } = useWallets()
   const balancesQ = useWalletBalances()
+  const transfersQ = useWalletTransfers()
   const upsert = useUpsertWallet()
   const del = useDeleteWallet()
+  const delTransfer = useDeleteWalletTransfer()
   const toast = useToast()
   const { hideBalance } = useHideBalance()
   const [form, setForm] = useState<FormState | null>(null)
   const [confirming, setConfirming] = useState<Wallet | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [transferring, setTransferring] = useState(false)
+  const [deletingTransfer, setDeletingTransfer] = useState<WalletTransfer | null>(null)
+
+  const walletList = wallets ?? []
 
   // wallet_id -> its balance row, so a per-wallet lookup is O(1).
   const balanceById = useMemo(() => {
@@ -133,6 +135,16 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
     for (const b of balancesQ.data ?? []) m.set(b.wallet_id, b)
     return m
   }, [balancesQ.data])
+
+  // wallet_id -> name, to render "จาก → ไป" in the transfer history. The FK is
+  // ON DELETE RESTRICT, so a wallet referenced by a transfer always still exists;
+  // the fallback is defensive only.
+  const nameById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const w of walletList) m.set(w.id, w.name)
+    return m
+  }, [walletList])
+  const walletName = (id: string) => nameById.get(id) ?? '—'
 
   // The all-wallets total is the SUM OF AUTHORITATIVE per-wallet balances — it
   // adds up numbers the RPC already computed, it does not re-derive them from
@@ -151,6 +163,18 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
     } catch (e) {
       toast.error(translateError(e))
       setConfirming(null)
+    }
+  }
+
+  async function confirmDeleteTransfer() {
+    if (!deletingTransfer) return
+    try {
+      await delTransfer.mutateAsync(deletingTransfer.id)
+      toast.success('ลบการโอนแล้ว')
+      setDeletingTransfer(null)
+    } catch (e) {
+      toast.error(translateError(e))
+      setDeletingTransfer(null)
     }
   }
 
@@ -180,12 +204,20 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
       title="กระเป๋าเงิน"
       onClose={onClose}
       action={
-        <button
-          aria-label="เพิ่มกระเป๋า"
-          onClick={() => setForm({ name: '', type: 'cash', openingBalance: '' })}
-        >
-          <IconPlus size={20} className="text-brand-deep" />
-        </button>
+        <>
+          {/* โอนเงิน — needs at least two wallets to be meaningful. */}
+          {walletList.length >= 2 && (
+            <button aria-label="โอนเงินระหว่างกระเป๋า" onClick={() => setTransferring(true)}>
+              <IconArrowsLeftRight size={20} className="text-brand-deep" />
+            </button>
+          )}
+          <button
+            aria-label="เพิ่มกระเป๋า"
+            onClick={() => setForm({ name: '', type: 'cash', openingBalance: '' })}
+          >
+            <IconPlus size={20} className="text-brand-deep" />
+          </button>
+        </>
       }
     >
       {form && (
@@ -224,7 +256,7 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
               id="wallet-opening"
               value={form.openingBalance}
               onChange={(e) =>
-                setForm({ ...form, openingBalance: sanitizeMoney(e.target.value) })
+                setForm({ ...form, openingBalance: sanitizeMoneyInput(e.target.value) })
               }
               inputMode="decimal"
               placeholder="0"
@@ -258,7 +290,7 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
           already answers "how much can I spend"; this answers the different
           question "how much do I actually have", so the subtitle keeps them
           apart (§11.4-6). */}
-      {(wallets ?? []).length > 0 && (
+      {walletList.length > 0 && (
         <div className="mb-3 flex items-baseline justify-between gap-3 border-b-[0.5px] border-hairline pb-3">
           <div className="min-w-0">
             <p className="text-[13px] text-muted">เงินในกระเป๋าทั้งหมด</p>
@@ -283,7 +315,7 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
         </p>
       )}
 
-      {(wallets ?? []).map((w) => {
+      {walletList.map((w) => {
         const bal = balanceById.get(w.id)
         const expanded = expandedId === w.id
         return (
@@ -359,6 +391,58 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
         )
       })}
 
+      {/* ประวัติการโอน — the ONLY place a transfer is ever shown (by design it
+          never enters the ประวัติ ledger, 0028). Amounts here are masked under
+          ซ่อนยอดเงิน — this is a scan-at-a-glance list, unlike the transfer sheet
+          which always shows the figure it's asking you to commit to (§11.4-11). */}
+      {transfersQ.isError && (
+        <p className="mt-4 inline-flex items-start gap-1.5 rounded-[10px] bg-expense-bg px-3 py-2 text-[12px] text-expense">
+          <IconAlertTriangle size={14} aria-hidden className="mt-[1px] shrink-0" />
+          โหลดประวัติการโอนไม่สำเร็จ · {translateError(transfersQ.error)}
+        </p>
+      )}
+
+      {(transfersQ.data?.rows.length ?? 0) > 0 && (
+        <div className="mt-5">
+          <p className="mb-1.5 text-[12px] font-medium text-muted">ประวัติการโอน</p>
+          {transfersQ.data!.rows.map((t) => (
+            <div
+              key={t.id}
+              className="flex items-center gap-3 border-b-[0.5px] border-hairline py-2.5 last:border-b-0"
+            >
+              <div className="min-w-0 flex-1">
+                {/* "จาก → ไป" is one truncating line (single text run, reliable
+                    ellipsis); the amount sits on the subline so the money is
+                    never on the crowded row. */}
+                <p className="truncate text-[13px]">
+                  {walletName(t.from_wallet_id)}{' '}
+                  <span aria-hidden className="text-faint">→</span> {walletName(t.to_wallet_id)}
+                </p>
+                <p className="mt-0.5 truncate text-[11px] text-faint">
+                  <span className="tabular-nums">{money(t.amount, hideBalance)}</span>
+                  {' · '}
+                  {formatDueDate(t.transfer_date)}
+                  {t.note ? ` · ${t.note}` : ''}
+                </p>
+              </div>
+              <button
+                aria-label={`ลบการโอน ${walletName(t.from_wallet_id)} ไป ${walletName(t.to_wallet_id)}`}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-expense-bg disabled:opacity-50"
+                disabled={delTransfer.isPending}
+                onClick={() => setDeletingTransfer(t)}
+              >
+                <IconTrash size={16} className="text-faint" />
+              </button>
+            </div>
+          ))}
+          {transfersQ.data!.capped && (
+            <p className="mt-2 text-[11px] text-faint">
+              แสดง {WALLET_TRANSFER_CAP} รายการล่าสุด — มีการโอนเก่ากว่านี้อีก
+            </p>
+          )}
+        </div>
+      )}
+
       {confirming && (
         <ConfirmDialog
           title={`ลบกระเป๋า “${confirming.name}” ?`}
@@ -367,6 +451,22 @@ export function WalletsManager({ onClose }: { onClose: () => void }) {
           onCancel={() => setConfirming(null)}
           onConfirm={confirmRemove}
         />
+      )}
+
+      {deletingTransfer && (
+        <ConfirmDialog
+          title="ลบการโอนนี้ ?"
+          message={`${walletName(deletingTransfer.from_wallet_id)} → ${walletName(
+            deletingTransfer.to_wallet_id,
+          )} · ${formatBaht(deletingTransfer.amount)} — ลบแล้วคงเหลือจะคำนวณใหม่`}
+          busy={delTransfer.isPending}
+          onCancel={() => setDeletingTransfer(null)}
+          onConfirm={confirmDeleteTransfer}
+        />
+      )}
+
+      {transferring && (
+        <WalletTransferSheet wallets={walletList} onClose={() => setTransferring(false)} />
       )}
     </Overlay>
   )

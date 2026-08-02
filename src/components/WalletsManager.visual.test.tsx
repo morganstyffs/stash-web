@@ -52,8 +52,12 @@ const bal = (over: Partial<WalletBalance>): WalletBalance => ({
 vi.mock('@/hooks/useSettings', () => ({
   useWallets: () => ({ data: [wallet({})] }),
   useWalletBalances: () => ({ data: [bal({})], isError: false, error: null }),
+  useWalletTransfers: () => ({ data: { rows: [], capped: false }, isError: false, error: null }),
   useUpsertWallet: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteWallet: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteWalletTransfer: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCreateWalletTransfer: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  WALLET_TRANSFER_CAP: 100,
 }))
 vi.mock('@/hooks/useHideBalance', () => ({
   useHideBalance: () => ({ hideBalance: false, toggleHideBalance: () => {} }),
