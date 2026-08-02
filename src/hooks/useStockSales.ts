@@ -40,30 +40,39 @@ export interface SalesSummary {
   qty_sold: number
 }
 
+const EMPTY_SUMMARY: SalesSummary = { revenue: 0, cogs: 0, profit: 0, sale_count: 0, qty_sold: 0 }
+
 /**
- * Realised sales totals for the current month via the stock_sales_summary RPC
- * (aggregation is done in SQL — PostgREST can't sum sale_price*qty_sold). Feeds
- * the stock screen and the home WovenHero's STOCK PROFIT label.
+ * Realised sales totals for an explicit [from, to) date window via the
+ * stock_sales_summary RPC (aggregation is done in SQL — PostgREST can't sum
+ * sale_price*qty_sold). fromISO is inclusive, toISO exclusive, matching the RPC.
+ * The shop-profit card uses this for BOTH periods (this month + trailing 3 months)
+ * so there's one code path regardless of range.
  */
-export function useStockSalesSummary(month: string = monthKey()) {
+export function useStockSalesRange(fromISO: string, toISO: string) {
   const { user } = useAuth()
-  // The key defaults to the Asia/Bangkok current month, the same calendar the RPC
-  // compares sold_on against — so p_from/p_to never drift a day on a non-Bangkok
-  // device.
-  const b = monthBoundsFromKey(month)
   return useQuery({
-    queryKey: ['stock_sales', 'summary', user?.id, b.key],
+    queryKey: ['stock_sales', 'summary', user?.id, fromISO, toISO],
     enabled: !!user,
     queryFn: async (): Promise<SalesSummary> => {
       const { data, error } = await supabase.rpc('stock_sales_summary', {
-        p_from: b.start,
-        p_to: b.next,
+        p_from: fromISO,
+        p_to: toISO,
       })
       if (error) throw error
-      const row = (data as SalesSummary[])?.[0]
-      return (
-        row ?? { revenue: 0, cogs: 0, profit: 0, sale_count: 0, qty_sold: 0 }
-      )
+      return (data as SalesSummary[])?.[0] ?? EMPTY_SUMMARY
     },
   })
+}
+
+/**
+ * Realised sales totals for one calendar month. Thin wrapper over
+ * useStockSalesRange so the RPC call lives in one place (convention 10). Feeds the
+ * home WovenHero's STOCK PROFIT label. The bounds come from the Asia/Bangkok
+ * calendar, the same one the RPC compares sold_on against — so p_from/p_to never
+ * drift a day on a non-Bangkok device.
+ */
+export function useStockSalesSummary(month: string = monthKey()) {
+  const b = monthBoundsFromKey(month)
+  return useStockSalesRange(b.start, b.next)
 }
