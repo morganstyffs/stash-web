@@ -30,9 +30,15 @@ export function parseRgb(s: string): Rgb {
   return [Number(m[1]), Number(m[2]), Number(m[3])]
 }
 
-/** Alpha channel of a computed colour string (`rgba(...)` → a; `rgb(...)` → 1). */
+/**
+ * Alpha channel of a computed colour string (`rgba(...)` → a; opaque `rgb(...)` → 1).
+ * Must anchor to a FOURTH component: a 3-value `rgb(27, 26, 23)` is opaque, and an
+ * earlier lazy pattern read its blue channel (23) as the alpha — composite() then
+ * produced garbage. Only a colour that actually carries a 4th value has alpha.
+ * Handles both the legacy `rgba(r, g, b, a)` and modern `rgb(r g b / a)` forms.
+ */
 export function alphaOf(s: string): number {
-  const m = s.match(/rgba?\([^)]*?,\s*([0-9.]+)\s*\)/i)
+  const m = s.match(/rgba?\(\s*[\d.]+\s*[, ]\s*[\d.]+\s*[, ]\s*[\d.]+\s*[,/]\s*([\d.]+)\s*\)/i)
   return m ? Number(m[1]) : 1
 }
 

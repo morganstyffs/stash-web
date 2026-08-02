@@ -280,6 +280,10 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                   style={{ background: catColorVar(ci) }}
                 >
                   {usedColors.has(ci) && (
+                    // "in use" marker. `bg-ink` is CORRECT to keep theme-flipping
+                    // here (unlike the sold band / ✕ badge): it carries no text and
+                    // must stay max-contrast against `surface`, which also flips —
+                    // so the pair tracks together. Do NOT swap to `scrim`.
                     <span
                       aria-hidden
                       className="absolute -right-0.5 -top-0.5 h-[7px] w-[7px] rounded-full bg-ink ring-1 ring-surface"

@@ -107,7 +107,9 @@ export function PhotoEditor({
             onClick={() => onRemove(p.path)}
             className="absolute -right-1.5 -top-1.5 -m-1.5 flex h-8 w-8 items-center justify-center"
           >
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-white">
+            {/* always-dark badge over the photo → white ✕ reads in both themes.
+                `scrim`, not `bg-ink` (ink flips near-white in dark = ✕ vanishes). */}
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-scrim text-white">
               <IconX size={12} />
             </span>
           </button>

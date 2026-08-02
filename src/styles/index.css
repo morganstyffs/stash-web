@@ -30,6 +30,15 @@
        a dark-mode toast would go white-on-white. This constant keeps the ground
        dark in every theme. Value = the light-mode ink (27 26 23). */
     --color-toast: 27 26 23;
+    /* scrim — the dark ground for chrome laid *over imagery*: the "ขายแล้ว" band
+       across a sold product photo (StockPage) and the photo-remove ✕ badge
+       (StockFields). Both carry white text/icons, so the ground must stay dark in
+       EVERY theme. Deliberately theme-INDEPENDENT — defined here in :root and NOT
+       overridden under html.dark (do NOT add a dark variant; it is not forgotten).
+       These used `bg-ink`, but `ink` flips near-WHITE in dark mode (--color-ink
+       below), so a dark-mode band/badge went white-text-on-near-white. Same trap
+       the toast hit; same fix. Value = the light-mode ink (27 26 23). */
+    --color-scrim: 27 26 23;
     /* mint — logo shell of the หน้าปัดตู้เซฟ brand mark (BrandMark.tsx via
        `text-mint`). INTENTIONAL REVERSAL of PR-C (which removed mint for indigo):
        logo v2 wraps a mint shell around the indigo dial, so mint is deliberately
