@@ -17,6 +17,9 @@ export interface MonthRow {
   is_stock_purchase: boolean
   is_stock_cogs: boolean
   is_debt_settlement: boolean
+  /** shop operating cost/income (ถังที่ 2) — DB-derived (0026). Feeds
+   *  isBudgetSpendingRow so shop costs don't eat the personal budget. */
+  is_shop_operating: boolean
 }
 
 /** A recent transaction joined with its category (for the ledger rows). */
@@ -44,7 +47,7 @@ export function useMonthTransactions(month: string = monthKey()) {
     queryFn: async (): Promise<MonthRow[]> => {
       const { data, error } = await supabase
         .from('transactions')
-        .select('amount, type, date, category_id, is_stock_purchase, is_stock_cogs, is_debt_settlement')
+        .select('amount, type, date, category_id, is_stock_purchase, is_stock_cogs, is_debt_settlement, is_shop_operating')
         .gte('date', b.prevStart)
         .lt('date', b.next)
       if (error) throw error

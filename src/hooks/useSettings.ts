@@ -41,6 +41,9 @@ export interface CategoryInput {
   name: string
   kind: CategoryKind
   is_stock_category: boolean
+  /** ป้ายร้าน (ถังที่ 2) — mutually exclusive with is_stock_category, DB CHECK
+   *  also forbids it on system categories (0026). */
+  is_shop_category: boolean
   icon: string
   /** chosen colour slot 1–6, or null to let the DB pick an unused one (create). */
   colorIndex: number | null
@@ -59,12 +62,14 @@ export function useUpsertCategory() {
           name: string
           kind: CategoryKind
           is_stock_category: boolean
+          is_shop_category: boolean
           icon: string
           color_index?: number
         } = {
           name: input.name,
           kind: input.kind,
           is_stock_category: input.is_stock_category,
+          is_shop_category: input.is_shop_category,
           icon: input.icon,
         }
         if (input.colorIndex != null) patch.color_index = input.colorIndex
@@ -78,6 +83,7 @@ export function useUpsertCategory() {
           name: string
           kind: CategoryKind
           is_stock_category: boolean
+          is_shop_category: boolean
           icon: string
           sort_order: number
           color_index?: number
@@ -86,6 +92,7 @@ export function useUpsertCategory() {
           name: input.name,
           kind: input.kind,
           is_stock_category: input.is_stock_category,
+          is_shop_category: input.is_shop_category,
           icon: input.icon,
           sort_order: 100,
         }
@@ -129,6 +136,31 @@ export function useToggleStockCategory() {
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+  })
+}
+
+/** Toggle a single category's is_shop_category flag (ป้ายร้าน — ถังที่ 2). The
+ *  DB CHECK forbids it on system/stock categories; the UI disables the toggle
+ *  there so this should never hit 23514, but the error still reaches the user if
+ *  it does. Flipping it fires a DB trigger that re-flags every past transaction
+ *  in this category (0026), which is why the toast wording warns about old
+ *  months moving. */
+export function useToggleShopCategory() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { id: string; value: boolean }) => {
+      const { error } = await supabase
+        .from('categories')
+        .update({ is_shop_category: input.value })
+        .eq('id', input.id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      // Both the categories list AND every money surface can shift (past-month
+      // budgets/summaries), so invalidate transactions too.
+      qc.invalidateQueries({ queryKey: ['categories'] })
+      qc.invalidateQueries({ queryKey: ['transactions'] })
+    },
   })
 }
 

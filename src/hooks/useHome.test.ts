@@ -21,6 +21,7 @@ function row(over: Partial<Rows[number]>): Rows[number] {
     is_stock_purchase: false,
     is_stock_cogs: false,
     is_debt_settlement: false,
+    is_shop_operating: false,
     ...over,
   }
 }
@@ -131,6 +132,16 @@ describe('computeHomeSummary — budgetSpending excludes COGS but expense keeps 
     const s = computeHomeSummary(rows, noCategories, julyKey, julyAnchor)
     expect(s.expense).toBe(1_200) // real money out — part of the headline (mirrors COGS)
     expect(s.budgetSpending).toBe(200) // …but repaying an owed debt is not budgeted spending
+  })
+
+  it('a shop operating cost counts toward expense but NOT toward budgetSpending', () => {
+    const rows: Rows = [
+      row({ type: 'expense', amount: 500, is_shop_operating: true }), // ค่าส่ง (ถังที่ 2)
+      row({ type: 'expense', amount: 200 }), // a normal budgeted expense
+    ]
+    const s = computeHomeSummary(rows, noCategories, julyKey, julyAnchor)
+    expect(s.expense).toBe(700) // running the shop is real money out — in the headline
+    expect(s.budgetSpending).toBe(200) // …but it doesn't eat the personal budget
   })
 })
 

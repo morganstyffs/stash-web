@@ -54,9 +54,11 @@ export function useMonthSpending(month: string = monthKey()) {
     queryKey: ['transactions', 'byCategory', user?.id, b.key],
     enabled: !!user,
     queryFn: async (): Promise<Record<string, number>> => {
-      // Budget spending = isBudgetSpendingRow: expense, not a stock purchase,
-      // NOT recognised COGS, and NOT a debt settlement (a resale's cost and
-      // paying back a debt you already owed are not budgeted spending).
+      // Budget spending = isBudgetSpendingRow (lib/ledger.ts), mirrored here in
+      // SQL: expense, not a stock purchase, NOT recognised COGS, NOT a debt
+      // settlement, and NOT a shop operating cost (ถังที่ 2 — running the shop is
+      // real money out but not personal budgeted spending). Keep these .eq()
+      // clauses in lockstep with isBudgetSpendingRow — one rule, two surfaces.
       const { data, error } = await supabase
         .from('transactions')
         .select('amount, category_id')
@@ -64,6 +66,7 @@ export function useMonthSpending(month: string = monthKey()) {
         .eq('is_stock_purchase', false)
         .eq('is_stock_cogs', false)
         .eq('is_debt_settlement', false)
+        .eq('is_shop_operating', false)
         .gte('date', b.start)
         .lt('date', b.next)
       if (error) throw error

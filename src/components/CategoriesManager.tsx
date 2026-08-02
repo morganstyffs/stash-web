@@ -8,6 +8,7 @@ import { catColorVar } from '@/lib/catColor'
 import { useCategories } from '@/hooks/useLookups'
 import {
   useDeleteCategory,
+  useToggleShopCategory,
   useToggleStockCategory,
   useUpsertCategory,
 } from '@/hooks/useSettings'
@@ -19,6 +20,7 @@ interface FormState {
   name: string
   kind: CategoryKind
   is_stock_category: boolean
+  is_shop_category: boolean
   icon: string
   /** chosen slot 1–6, or null (create only) = let the DB assign an unused one */
   colorIndex: number | null
@@ -31,7 +33,18 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
   const upsert = useUpsertCategory()
   const del = useDeleteCategory()
   const toggle = useToggleStockCategory()
+  const shopToggle = useToggleShopCategory()
   const toast = useToast()
+
+  async function onShopToggle(c: Category, value: boolean) {
+    try {
+      await shopToggle.mutateAsync({ id: c.id, value })
+    } catch (e) {
+      // Should be unreachable — the toggle is disabled on system/stock categories
+      // (mirrors the DB CHECK) — but rule 16: if 23514 fires anyway, tell the user.
+      toast.error(translateError(e))
+    }
+  }
   const [form, setForm] = useState<FormState | null>(null)
   const [confirming, setConfirming] = useState<Category | null>(null)
 
@@ -64,7 +77,7 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
         <button
           aria-label="เพิ่มหมวด"
           onClick={() =>
-            setForm({ name: '', kind: 'expense', is_stock_category: false, icon: 'tag', colorIndex: null })
+            setForm({ name: '', kind: 'expense', is_stock_category: false, is_shop_category: false, icon: 'tag', colorIndex: null })
           }
         >
           <IconPlus size={20} className="text-brand-deep" />
@@ -172,6 +185,7 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                     name: form.name.trim(),
                     kind: form.kind,
                     is_stock_category: form.is_stock_category,
+                    is_shop_category: form.is_shop_category,
                     icon: form.icon,
                     colorIndex: form.colorIndex,
                   })
@@ -188,6 +202,12 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       )}
+
+      <p className="mb-3 rounded-card bg-fill px-3.5 py-2.5 text-[11px] leading-relaxed text-muted">
+        ป้าย “ร้าน” ทำให้รายการในหมวดนั้นเป็นค่าดำเนินร้าน — นับในยอดจ่ายรวม แต่ไม่กินงบส่วนตัว ·
+        เปลี่ยนป้ายแล้วตัวเลขสรุปและกำไรของเดือนก่อน ๆ จะขยับตามด้วย · แนะนำให้สร้างหมวดใหม่สำหรับร้านโดยเฉพาะ
+        อย่าติดป้ายให้หมวดที่ใช้ปนกับเรื่องส่วนตัว
+      </p>
 
       {groups.map((g) => {
         const rows = list.filter((c) => c.kind === g.kind)
@@ -208,16 +228,30 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                     <Icon size={16} style={{ color: catColorVar(c.color_index) }} />
                   </div>
                   <span className="flex-1 truncate text-[13.5px]">{c.name}</span>
+                  {/* stock (expense only) + shop (both kinds) — mutually
+                      exclusive: each is disabled while the other is on, mirroring
+                      the DB CHECK. Shop is also disabled on system categories
+                      (they can never be a shop bucket). */}
                   {c.kind === 'expense' && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <span className="text-[10px] text-faint">สต็อก</span>
                       <Toggle
                         on={c.is_stock_category}
+                        disabled={c.is_shop_category}
                         onChange={(v) => toggle.mutate({ id: c.id, value: v })}
                         label={`ลงสต็อกอัตโนมัติ ${c.name}`}
                       />
                     </div>
                   )}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-faint">ร้าน</span>
+                    <Toggle
+                      on={c.is_shop_category}
+                      disabled={c.is_system || c.is_stock_category}
+                      onChange={(v) => onShopToggle(c, v)}
+                      label={`หมวดร้าน ${c.name}`}
+                    />
+                  </div>
                   <button
                     aria-label="แก้ไข"
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-fill"
@@ -227,6 +261,7 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                         name: c.name,
                         kind: c.kind,
                         is_stock_category: c.is_stock_category,
+                        is_shop_category: c.is_shop_category,
                         icon: c.icon,
                         colorIndex: c.color_index,
                       })

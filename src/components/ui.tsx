@@ -7,20 +7,24 @@ export function Toggle({
   on,
   onChange,
   label,
+  disabled = false,
 }: {
   on: boolean
   onChange: (v: boolean) => void
   label?: string
+  /** greyed + non-interactive (e.g. a mutually-exclusive flag is already set). */
+  disabled?: boolean
 }) {
   return (
     <button
       role="switch"
       aria-checked={on}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!on)}
       className={`relative h-[22px] w-[38px] shrink-0 rounded-pill transition-colors ${
-        on ? 'bg-brand-deep' : 'bg-chevron'
-      }`}
+        disabled ? 'opacity-40' : ''
+      } ${on ? 'bg-brand-deep' : 'bg-chevron'}`}
     >
       <span
         className={`absolute top-[3px] h-4 w-4 rounded-full bg-white transition-all ${
