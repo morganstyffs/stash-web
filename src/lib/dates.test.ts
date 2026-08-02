@@ -13,6 +13,7 @@ import {
   daysLeftInMonthKey,
   currentMonthAnchor,
   toISODate,
+  trailingMonthsBounds,
   formatRecentDayLabel,
   formatUpcomingDayLabel,
   daysSince,
@@ -203,6 +204,34 @@ describe('dayOfMonthISO / currentMonthAnchor / toISODate', () => {
 
   it('toISODate stringifies a local calendar date', () => {
     expect(toISODate(new Date(2026, 7, 9))).toBe('2026-08-09')
+  })
+})
+
+describe('trailingMonthsBounds — [from, to) over the last N months', () => {
+  it('3 months mid-year: from = 1st of two months back, to = 1st of next month', () => {
+    // August → June/July/August; from 2026-06-01, to 2026-09-01
+    expect(trailingMonthsBounds('2026-08', 3)).toEqual({
+      from: '2026-06-01',
+      to: '2026-09-01',
+      key: '2026-08',
+    })
+  })
+
+  it('3 months crossing the year boundary reaches back into last year', () => {
+    // January → Nov/Dec (prev year) + Jan; from 2025-11-01, to 2026-02-01
+    expect(trailingMonthsBounds('2026-01', 3)).toEqual({
+      from: '2025-11-01',
+      to: '2026-02-01',
+      key: '2026-01',
+    })
+  })
+
+  it('n = 1 is just the single month (inclusive start, exclusive next)', () => {
+    expect(trailingMonthsBounds('2026-08', 1)).toEqual({
+      from: '2026-08-01',
+      to: '2026-09-01',
+      key: '2026-08',
+    })
   })
 })
 
