@@ -5,12 +5,15 @@ import {
   IconAlertCircle,
   IconAlertTriangle,
   IconChevronRight,
+  IconEye,
+  IconEyeOff,
   IconPlus,
   IconX,
 } from '@tabler/icons-react'
 import {
   computeBudgetSummary,
   computePace,
+  computePaceStatic,
   useBudgets,
   useDeleteBudget,
   useMonthSpending,
@@ -18,11 +21,14 @@ import {
   type BudgetRow,
 } from '@/hooks/useBudgets'
 import { useCategories } from '@/hooks/useLookups'
+import { useHideBalance } from '@/hooks/useHideBalance'
 import { useToast } from '@/components/Toast'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { MonthSwitcher } from '@/components/MonthSwitcher'
 import { addMonthsToKey, daysLeftInMonthKey, monthKey, parseMonthParam } from '@/lib/dates'
-import { formatBaht } from '@/lib/format'
+import { formatBaht, MASKED_BAHT } from '@/lib/format'
+import { isBudgetableCategory } from '@/lib/budgetable'
+import { overBudgetNote, paceNote } from '@/lib/budgetNote'
 import { translateError } from '@/lib/errors'
 import { useDialogA11y } from '@/lib/useDialogA11y'
 
@@ -58,12 +64,26 @@ export function BudgetPage() {
   const upsert = useUpsertBudget()
   const del = useDeleteBudget()
   const toast = useToast()
+  const { hideBalance, toggleHideBalance } = useHideBalance()
+  // One masking rule for the page (matches every other money screen): every baht
+  // figure — hero, off-budget strip, per-category row — hides together.
+  const money = (v: number) => (hideBalance ? MASKED_BAHT : formatBaht(v))
 
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
-  const budgets = budgetsQ.data ?? []
+  const allBudgets = budgetsQ.data ?? []
   const spending = spendingQ.data ?? {}
+
+  // Drop budget rows whose category is no longer budgetable (isBudgetableCategory
+  // — system/shop/stock). A stale row like ต้นทุนขายสต็อก ฿5,000 would otherwise
+  // sit at 0% forever AND eat into the total-budget quota; hiding it from the list
+  // AND excluding it from every total below keeps the numbers honest even before
+  // the row is deleted in the DB.
+  const budgets = useMemo(
+    () => allBudgets.filter((b) => b.category != null && isBudgetableCategory(b.category)),
+    [allBudgets],
+  )
 
   // B5: remaining now compares budgeted spend against the budget total (like with
   // like), and off-budget spend is surfaced on its own strip instead of dragging
@@ -88,13 +108,12 @@ export function BudgetPage() {
       : 0
   const overFrac = isOver ? (usedInBudgeted - totalBudget) / usedInBudgeted : 0
 
-  // expense categories eligible for a (new) budget
+  // categories eligible for a (new) budget — the ONE budgetability rule
+  // (isBudgetableCategory: expense, not system/shop/stock), minus any already set.
   const budgetedIds = new Set(budgets.map((x) => x.category_id))
   const addable = useMemo(
     () =>
-      (catsQ.data ?? []).filter(
-        (c) => c.kind === 'expense' && !c.is_stock_category && !budgetedIds.has(c.id),
-      ),
+      (catsQ.data ?? []).filter((c) => isBudgetableCategory(c) && !budgetedIds.has(c.id)),
     [catsQ.data, budgets],
   )
 
@@ -141,16 +160,31 @@ export function BudgetPage() {
         <span aria-hidden className="selvedge absolute inset-x-0 top-0 h-[7px]" />
         <span aria-hidden className="selvedge absolute inset-x-0 bottom-0 h-[7px]" />
         <div className="relative px-[18px] pb-[15px] pt-[15px]">
-          <p
-            className="text-[10px] font-medium uppercase opacity-[.86]"
-            style={{ letterSpacing: '0.17em' }}
-          >
-            BUDGET LEFT
-          </p>
+          <div className="flex items-start justify-between">
+            <p
+              className="text-[10px] font-medium uppercase opacity-[.86]"
+              style={{ letterSpacing: '0.17em' }}
+            >
+              BUDGET LEFT
+            </p>
+            {/* Only worth showing when there's money on the label to hide. Masks
+                the whole page in step (same pref as home/stock/debts). */}
+            {hasBudget && (
+              <button
+                type="button"
+                onClick={toggleHideBalance}
+                aria-label={hideBalance ? 'แสดงยอดเงิน' : 'ซ่อนยอดเงิน'}
+                aria-pressed={hideBalance}
+                className="-m-1.5 flex h-8 w-8 items-center justify-center rounded-full text-brand-thread/80"
+              >
+                {hideBalance ? <IconEyeOff size={17} /> : <IconEye size={17} />}
+              </button>
+            )}
+          </div>
           {hasBudget ? (
             <>
               <p className="mt-1 text-[34px] font-semibold leading-tight tabular-nums">
-                {formatBaht(remaining)}
+                {money(remaining)}
               </p>
               <div className="my-2.5 flex h-[7px] overflow-hidden rounded-pill bg-white/15">
                 <div
@@ -161,7 +195,7 @@ export function BudgetPage() {
               </div>
               <div className="flex justify-between text-[11px] opacity-[.84]">
                 <span>
-                  ใช้ไป {formatBaht(usedInBudgeted)} / {formatBaht(totalBudget)}
+                  ใช้ไป {money(usedInBudgeted)} / {money(totalBudget)}
                 </span>
                 {/* "days left" is a pace cue that only means something while the
                     month is running — a closed month has none, so hide it (§11.4-20). */}
@@ -170,7 +204,7 @@ export function BudgetPage() {
               {isOver && (
                 <span className="mt-2 inline-flex items-center gap-1 rounded-pill bg-white/[0.14] px-[9px] py-[3px] text-[11.5px] font-medium">
                   <IconAlertTriangle size={13} />
-                  เกินงบ {formatBaht(overAmount)}
+                  {overBudgetNote(overAmount, money)}
                 </span>
               )}
             </>
@@ -191,7 +225,7 @@ export function BudgetPage() {
           >
             <IconAlertTriangle size={18} className="shrink-0" />
             <span className="min-w-0 flex-1 text-[12.5px]">
-              นอกงบ {formatBaht(offBudget)} — มี {offBudgetCount} หมวดที่ใช้เงินแต่ยังไม่ได้ตั้งงบ
+              นอกงบ {money(offBudget)} — มี {offBudgetCount} หมวดที่ใช้เงินแต่ยังไม่ได้ตั้งงบ
             </span>
             <IconChevronRight size={18} className="shrink-0 opacity-60" />
           </button>
@@ -229,6 +263,7 @@ export function BudgetPage() {
               row={bud}
               used={spending[bud.category_id] ?? 0}
               editable={isCurrent}
+              money={money}
               onEdit={() =>
                 setEditor({
                   categoryId: bud.category_id,
@@ -304,29 +339,27 @@ function BudgetRowView({
   row,
   used,
   editable,
+  money,
   onEdit,
 }: {
   row: BudgetRow
   used: number
   /** current month → tap to edit + show pace; past month → static, no pace */
   editable: boolean
+  /** hideBalance-aware formatter, so the row's baht hide with the rest of the page */
+  money: (v: number) => string
   onEdit: () => void
 }) {
   const budget = Number(row.amount)
-  // Pace ("used faster than the elapsed days") is meaningless once the month is
-  // over — no days remain to be ahead or behind of. For a closed month we DON'T
-  // call computePace at all (§11.4-20) and show only used / budget / over-or-not.
-  const pace = editable ? computePace(used, budget) : null
-  const ratio = pace ? pace.ratio : budget > 0 ? used / budget : 0
-  const pct = pace ? pace.pct : Math.round(ratio * 100)
-  const isOver = pace ? pace.state === 'over' : used > budget && budget > 0
-  const isFast = pace?.state === 'fast'
+  // computePace is the SINGLE decider of the row's state. A closed month uses the
+  // static variant (no 'fast' — no days left to outrun · §11.4-20); the wording
+  // for every state lives in paceNote (lib/budgetNote), shared with the hero chip.
+  const pace = editable ? computePace(used, budget) : computePaceStatic(used, budget)
+  const { ratio, pct, state } = pace
+  const isOver = state === 'over'
+  const isFast = state === 'fast'
   const arc = Math.min(ratio, 1) * RING_C
-  const note = pace
-    ? pace.note
-    : isOver
-      ? `เกินงบ ${Math.round(used - budget).toLocaleString('th-TH')} ฿`
-      : 'อยู่ในงบ'
+  const note = paceNote(state, pace, money)
 
   const noteColor = isOver ? 'text-expense' : isFast ? 'text-warn' : 'text-faint'
   const pctColor = isOver ? 'text-expense' : isFast ? 'text-warn' : 'text-ink'
@@ -363,7 +396,7 @@ function BudgetRowView({
       <div className="shrink-0 text-right">
         <p className={`text-[12px] font-medium ${pctColor}`}>{pct}%</p>
         <p className="mt-px text-[11px] text-faint">
-          {formatBaht(used)}/{budget.toLocaleString('th-TH')}
+          {money(used)}/{money(budget)}
         </p>
       </div>
     </>

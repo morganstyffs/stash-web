@@ -10,6 +10,7 @@ import {
   IconTrendingUp,
 } from '@tabler/icons-react'
 import { formatBaht, MASKED_BAHT } from '@/lib/format'
+import { overBudgetNote } from '@/lib/budgetNote'
 import { computeSpendable, type SpendableView } from '@/lib/spendable'
 import type { SalesSummary } from '@/hooks/useStockSales'
 
@@ -98,10 +99,12 @@ export function budgetMini(budgetTotal: number, budgetSpending: number): string 
   return over != null ? `เกิน ${formatBaht(over)}` : formatBaht(budgetTotal)
 }
 
-/** Over-budget chip text, or null when there is no overshoot to warn about. */
+/** Over-budget chip text, or null when there is no overshoot to warn about. The
+ *  "เกินงบ ฿X" wording comes from the shared source (lib/budgetNote) so the hero
+ *  chip and the per-category budget note never phrase it two ways. */
 export function overBudgetChip(budgetTotal: number, budgetSpending: number): string | null {
   const over = budgetOverAmount(budgetTotal, budgetSpending)
-  return over != null ? `เกินงบ ${formatBaht(over)}` : null
+  return over != null ? overBudgetNote(over, formatBaht) : null
 }
 
 /**

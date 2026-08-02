@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeBudgetSummary, computePace } from '@/hooks/useBudgets'
+import { computeBudgetSummary, computePace, computePaceStatic } from '@/hooks/useBudgets'
 import { isBudgetSpendingRow, type LedgerRow } from '@/lib/ledger'
 
 describe('computePace — over budget', () => {
@@ -8,6 +8,51 @@ describe('computePace — over budget', () => {
     expect(p.state).toBe('over')
     expect(p.ratio).toBeCloseTo(1.2)
     expect(p.pct).toBe(120)
+  })
+
+  it('reports the real overshoot in `over`, never clamped to 0 (remaining goes negative)', () => {
+    const p = computePace(1_200, 1_000, new Date('2026-01-15T12:00:00+07:00'))
+    expect(p.over).toBe(200)
+    expect(p.remaining).toBe(-200) // budget − used, shown as-is
+  })
+})
+
+describe('computePace — nothing spent yet ("unused")', () => {
+  it('flags "unused" when used is 0 but a budget is set (whatever the date)', () => {
+    // Day 20 of Jan: elapsed is high, but with 0 spent this must NOT read "fast"
+    // or "on_track with a scary number" — just "ยังไม่ได้ใช้".
+    const p = computePace(0, 1_000, new Date('2026-01-20T12:00:00+07:00'))
+    expect(p.state).toBe('unused')
+    expect(p.remaining).toBe(1_000)
+    expect(p.over).toBe(0)
+    expect(p.pct).toBe(0)
+  })
+})
+
+describe('computePace — normal on_track carries the remaining figure', () => {
+  it('on_track exposes remaining = budget − used', () => {
+    const p = computePace(500, 10_000, new Date('2026-01-02T12:00:00+07:00'))
+    expect(p.state).toBe('on_track')
+    expect(p.remaining).toBe(9_500)
+    expect(p.over).toBe(0)
+  })
+})
+
+describe('computePaceStatic — closed month never flags "fast"', () => {
+  it('the same fast-looking numbers read on_track once the month is closed', () => {
+    // used 0.5 of budget early would be 'fast' live; a closed month has no days
+    // left to outrun, so it must be on_track with the remaining figure.
+    const live = computePace(500, 1_000, new Date('2026-01-10T12:00:00+07:00'))
+    expect(live.state).toBe('fast')
+    const closed = computePaceStatic(500, 1_000)
+    expect(closed.state).toBe('on_track')
+    expect(closed.remaining).toBe(500)
+  })
+
+  it('still flags over / unused (date-independent) for a closed month', () => {
+    expect(computePaceStatic(1_200, 1_000).state).toBe('over')
+    expect(computePaceStatic(1_200, 1_000).over).toBe(200)
+    expect(computePaceStatic(0, 1_000).state).toBe('unused')
   })
 })
 
