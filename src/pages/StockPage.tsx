@@ -4,6 +4,8 @@ import {
   IconChevronRight,
   IconClipboardList,
   IconClock,
+  IconEye,
+  IconEyeOff,
   IconHanger,
   IconLayoutList,
   IconPackageImport,
@@ -13,12 +15,18 @@ import {
   IconX,
 } from '@tabler/icons-react'
 import { computeStockHero, useStockItems } from '@/hooks/useStock'
-import { useStockSalesSummary } from '@/hooks/useStockSales'
+import { useHideBalance } from '@/hooks/useHideBalance'
 import { StockEditSheet } from '@/components/StockEditSheet'
-import { formatBaht } from '@/lib/format'
+import { ShopProfitCard } from '@/components/ShopProfitCard'
+import { formatBaht, MASKED_BAHT } from '@/lib/format'
 import { loadStockView, saveStockView, type StockView } from '@/lib/prefs'
 import { daysSince } from '@/lib/dates'
 import type { StockItem } from '@/lib/db'
+
+/** ราคาบนการ์ด/hero: masked while hide-balance is on (whole-page, §4.6). */
+function money(v: number, hide: boolean): string {
+  return hide ? MASKED_BAHT : formatBaht(v)
+}
 
 // ── stock-age thresholds — the single source of truth (spec §อายุสต็อก) ───────
 // Tune here and here only: ≤30 days = fresh (grey spine, no flag), 31–60 =
@@ -229,7 +237,7 @@ export function StockPage() {
   const [view, setView] = useState<StockView>(loadStockView)
   const [editing, setEditing] = useState<StockItem | null>(null)
   const { data, isLoading } = useStockItems()
-  const salesQ = useStockSalesSummary()
+  const { hideBalance, toggleHideBalance } = useHideBalance()
 
   const items = data?.items ?? []
   const now = useMemo(() => new Date(), [])
@@ -255,9 +263,23 @@ export function StockPage() {
       {/* header — filters moved to chips (B8 removed), search made permanent (B9) */}
       <div className="flex items-center justify-between px-[18px] pb-3 pt-[18px]">
         <p className="text-[17px] font-medium">คลังสินค้า</p>
-        <button aria-label="รับเข้าสต็อก" onClick={() => navigate('/stock/intake')}>
-          <IconPackageImport size={20} className="text-brand-deep" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            aria-label={hideBalance ? 'แสดงยอดเงิน' : 'ซ่อนยอดเงิน'}
+            aria-pressed={hideBalance}
+            onClick={toggleHideBalance}
+            className="-mr-1 flex h-11 w-11 items-center justify-center"
+          >
+            {hideBalance ? (
+              <IconEyeOff size={19} className="text-muted" />
+            ) : (
+              <IconEye size={19} className="text-muted" />
+            )}
+          </button>
+          <button aria-label="รับเข้าสต็อก" onClick={() => navigate('/stock/intake')}>
+            <IconPackageImport size={20} className="text-brand-deep" />
+          </button>
+        </div>
       </div>
 
       {/* permanent search field (44px) */}
@@ -297,7 +319,7 @@ export function StockPage() {
                 STOCK VALUE
               </p>
               <p className="mt-1 text-[28px] font-semibold leading-none tabular-nums">
-                {formatBaht(hero.costValue)}
+                {money(hero.costValue, hideBalance)}
               </p>
               <p className="mt-1.5 text-[11px] opacity-80">
                 {piecesInStock} ชิ้นในคลัง · ต้นทุนรวม
@@ -308,7 +330,7 @@ export function StockPage() {
                 รอขาย
               </p>
               <p className="mt-1 text-[17px] font-semibold tabular-nums">
-                +{formatBaht(hero.pendingProfit)}
+                {hideBalance ? MASKED_BAHT : `+${formatBaht(hero.pendingProfit)}`}
               </p>
               <p className="mt-1.5 text-[11px] opacity-80">ถ้าขายได้ตามราคาตั้ง</p>
             </div>
@@ -316,29 +338,9 @@ export function StockPage() {
         </div>
       </div>
 
-      {/* realised sales this month (unchanged, kept below the hero) */}
-      {(salesQ.data?.sale_count ?? 0) > 0 && (
-        <div className="mx-4 mb-3.5 flex items-center justify-between rounded-card border-[0.5px] border-hairline px-4 py-3">
-          <div>
-            <p className="text-[11px] text-muted">ขายเดือนนี้</p>
-            <p className="mt-[2px] text-[16px] font-medium">
-              {formatBaht(salesQ.data!.revenue)}
-              <span className="ml-1.5 text-[11px] text-faint">{salesQ.data!.qty_sold} ชิ้น</span>
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-[11px] text-muted">กำไรที่รับรู้แล้ว</p>
-            <p
-              className={`mt-[2px] text-[16px] font-medium ${
-                salesQ.data!.profit >= 0 ? 'text-brand-deep' : 'text-expense'
-              }`}
-            >
-              {salesQ.data!.profit >= 0 ? '+' : '-'}
-              {formatBaht(Math.abs(salesQ.data!.profit))}
-            </p>
-          </div>
-        </div>
-      )}
+      {/* shop P&L — gross (stock_sales) minus operating (is_shop_operating) = net.
+          Replaces the old "ขายเดือนนี้" card, which showed a subset of this. */}
+      <ShopProfitCard hideBalance={hideBalance} now={now} />
 
       {/* queue banner (unchanged) */}
       {queueCount > 0 && (
@@ -420,7 +422,7 @@ export function StockPage() {
             {emptyMessage({ isLoading, total: items.length, query: search, filter })}
           </p>
         ) : view === 'rack' ? (
-          <RackGrid items={visible} thumbFor={thumbFor} now={now} onOpen={setEditing} />
+          <RackGrid items={visible} thumbFor={thumbFor} now={now} hideBalance={hideBalance} onOpen={setEditing} />
         ) : (
           <div className="pt-1">
             {visible.map((it) => (
@@ -429,6 +431,7 @@ export function StockPage() {
                 item={it}
                 thumb={thumbFor(it)}
                 now={now}
+                hideBalance={hideBalance}
                 onOpen={() => setEditing(it)}
               />
             ))}
@@ -505,11 +508,13 @@ function RackGrid({
   items,
   thumbFor,
   now,
+  hideBalance,
   onOpen,
 }: {
   items: StockItem[]
   thumbFor: (it: StockItem) => string | undefined
   now: Date
+  hideBalance: boolean
   onOpen: (it: StockItem) => void
 }) {
   // Chunk into pairs — each pair sits under its own steel rail.
@@ -528,6 +533,7 @@ function RackGrid({
                 item={it}
                 thumb={thumbFor(it)}
                 now={now}
+                hideBalance={hideBalance}
                 onOpen={() => onOpen(it)}
               />
             ))}
@@ -542,11 +548,13 @@ function RackCell({
   item,
   thumb,
   now,
+  hideBalance,
   onOpen,
 }: {
   item: StockItem
   thumb?: string
   now: Date
+  hideBalance: boolean
   onOpen: () => void
 }) {
   const sold = !inStock(item)
@@ -605,10 +613,10 @@ function RackCell({
         </p>
         {meta && <p className="mt-0.5 truncate text-[11px] text-faint">{meta}</p>}
         <p className="mt-0.5 text-[11px] text-muted">
-          {formatBaht(item.cost_per_unit)}
+          {money(item.cost_per_unit, hideBalance)}
           {' → '}
           {item.target_price != null ? (
-            <span className="text-ink">{formatBaht(item.target_price)}</span>
+            <span className="text-ink">{money(item.target_price, hideBalance)}</span>
           ) : (
             <span className="font-medium text-warn">ตั้งราคา</span>
           )}
@@ -624,11 +632,13 @@ function StockRow({
   item,
   thumb,
   now,
+  hideBalance,
   onOpen,
 }: {
   item: StockItem
   thumb?: string
   now: Date
+  hideBalance: boolean
   onOpen: () => void
 }) {
   const sold = !inStock(item)
@@ -667,10 +677,10 @@ function StockRow({
         </p>
         {meta && <p className="mt-0.5 truncate text-[11px] text-faint">{meta}</p>}
         <p className="mt-[3px] text-[11px] text-muted">
-          {formatBaht(item.cost_per_unit)}
+          {money(item.cost_per_unit, hideBalance)}
           {' → '}
           {item.target_price != null ? (
-            <span className="text-ink">{formatBaht(item.target_price)}</span>
+            <span className="text-ink">{money(item.target_price, hideBalance)}</span>
           ) : (
             <span className="font-medium text-warn">ตั้งราคา</span>
           )}
@@ -703,7 +713,9 @@ function StockRow({
           </span>
         )}
         {profitPer != null && !sold && (
-          <p className="mt-1.5 text-[12px] text-brand-deep">+{formatBaht(profitPer)}/ชิ้น</p>
+          <p className="mt-1.5 text-[12px] text-brand-deep">
+            {hideBalance ? MASKED_BAHT : `+${formatBaht(profitPer)}`}/ชิ้น
+          </p>
         )}
       </div>
     </button>

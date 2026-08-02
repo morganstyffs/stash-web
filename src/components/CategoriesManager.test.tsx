@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { Category } from '@/lib/db'
 
 // CategoriesManager is an editor over a handful of hooks. Mock them so the test
-// asserts the shop-flag UI (toggle visible for both kinds, disabled on system /
-// stock categories to mirror the DB CHECK, and the mandatory "old months move"
-// warning) rather than the network.
-const shopMutate = vi.fn().mockResolvedValue(undefined)
+// asserts the role UI — a single segmented control (ทั่วไป / เข้าสต็อก / ร้าน)
+// that writes both columns in one call, disabled wholesale on system categories,
+// with the mandatory "old months move" warning — rather than the network.
+const setRoleMutate = vi.fn().mockResolvedValue(undefined)
 
 const cat = (over: Partial<Category>): Category =>
   ({
@@ -32,8 +32,7 @@ vi.mock('@/hooks/useLookups', () => ({ useCategories: () => ({ data: categories 
 vi.mock('@/hooks/useSettings', () => ({
   useUpsertCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useToggleStockCategory: () => ({ mutate: vi.fn() }),
-  useToggleShopCategory: () => ({ mutateAsync: shopMutate }),
+  useSetCategoryRole: () => ({ mutateAsync: setRoleMutate }),
 }))
 vi.mock('@/components/Toast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
@@ -41,27 +40,95 @@ vi.mock('@/components/Toast', () => ({
 
 import { CategoriesManager } from '@/components/CategoriesManager'
 
-const shopToggle = (name: string) =>
-  screen.getByRole('switch', { name: `หมวดร้าน ${name}` }) as HTMLButtonElement
+const roleGroup = (name: string) =>
+  within(screen.getByRole('radiogroup', { name: `ประเภทหมวด ${name}` }))
 
 afterEach(() => {
   cleanup()
-  shopMutate.mockClear()
+  setRoleMutate.mockClear()
   categories = []
 })
 
-describe('CategoriesManager — shop-category (ร้าน) flag', () => {
-  it('offers the ร้าน toggle for BOTH an expense and an income category', () => {
+describe('CategoriesManager — role segmented control', () => {
+  it('offers 3 roles for an expense category and 2 for an income category', () => {
     categories = [
       cat({ id: 'e1', name: 'อาหาร', kind: 'expense' }),
       cat({ id: 'i1', name: 'เงินเดือน', kind: 'income', icon: 'cash', color_index: 4 }),
     ]
     render(<CategoriesManager onClose={() => {}} />)
-    expect(shopToggle('อาหาร').disabled).toBe(false)
-    expect(shopToggle('เงินเดือน').disabled).toBe(false)
+
+    const expense = roleGroup('อาหาร')
+    expect(expense.getByRole('radio', { name: 'ทั่วไป' })).toBeTruthy()
+    expect(expense.getByRole('radio', { name: 'เข้าสต็อก' })).toBeTruthy()
+    expect(expense.getByRole('radio', { name: 'ร้าน' })).toBeTruthy()
+
+    const income = roleGroup('เงินเดือน')
+    expect(income.getByRole('radio', { name: 'ทั่วไป' })).toBeTruthy()
+    expect(income.getByRole('radio', { name: 'ร้าน' })).toBeTruthy()
+    expect(income.queryByRole('radio', { name: 'เข้าสต็อก' })).toBeNull()
   })
 
-  it('disables the ร้าน toggle on a system category (mirrors the DB CHECK)', () => {
+  it('marks the current role as checked', () => {
+    categories = [cat({ id: 's1', name: 'เสื้อเข้าร้าน', is_stock_category: true })]
+    render(<CategoriesManager onClose={() => {}} />)
+    const g = roleGroup('เสื้อเข้าร้าน')
+    expect(g.getByRole('radio', { name: 'เข้าสต็อก' }).getAttribute('aria-checked')).toBe('true')
+    expect(g.getByRole('radio', { name: 'ทั่วไป' }).getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('writes both columns when selecting เข้าสต็อก (stock on, shop off)', () => {
+    categories = [cat({ id: 'e1', name: 'อาหาร' })]
+    render(<CategoriesManager onClose={() => {}} />)
+    fireEvent.click(roleGroup('อาหาร').getByRole('radio', { name: 'เข้าสต็อก' }))
+    expect(setRoleMutate).toHaveBeenCalledWith({
+      id: 'e1',
+      is_stock_category: true,
+      is_shop_category: false,
+    })
+  })
+
+  it('writes both columns when selecting ร้าน (stock off, shop on)', () => {
+    categories = [cat({ id: 'e1', name: 'อาหาร' })]
+    render(<CategoriesManager onClose={() => {}} />)
+    fireEvent.click(roleGroup('อาหาร').getByRole('radio', { name: 'ร้าน' }))
+    expect(setRoleMutate).toHaveBeenCalledWith({
+      id: 'e1',
+      is_stock_category: false,
+      is_shop_category: true,
+    })
+  })
+
+  it('clears both columns when selecting ทั่วไป', () => {
+    categories = [cat({ id: 'sh1', name: 'ค่าโฆษณา', is_shop_category: true })]
+    render(<CategoriesManager onClose={() => {}} />)
+    fireEvent.click(roleGroup('ค่าโฆษณา').getByRole('radio', { name: 'ทั่วไป' }))
+    expect(setRoleMutate).toHaveBeenCalledWith({
+      id: 'sh1',
+      is_stock_category: false,
+      is_shop_category: false,
+    })
+  })
+
+  it('switches เข้าสต็อก → ร้าน in one write — never (true, true)', () => {
+    categories = [cat({ id: 's1', name: 'เสื้อเข้าร้าน', is_stock_category: true })]
+    render(<CategoriesManager onClose={() => {}} />)
+    fireEvent.click(roleGroup('เสื้อเข้าร้าน').getByRole('radio', { name: 'ร้าน' }))
+    expect(setRoleMutate).toHaveBeenCalledTimes(1)
+    expect(setRoleMutate).toHaveBeenCalledWith({
+      id: 's1',
+      is_stock_category: false,
+      is_shop_category: true,
+    })
+  })
+
+  it('does not write when re-tapping the current role', () => {
+    categories = [cat({ id: 'e1', name: 'อาหาร' })]
+    render(<CategoriesManager onClose={() => {}} />)
+    fireEvent.click(roleGroup('อาหาร').getByRole('radio', { name: 'ทั่วไป' }))
+    expect(setRoleMutate).not.toHaveBeenCalled()
+  })
+
+  it('disables the whole control AND hides the delete button on a system category', () => {
     categories = [
       cat({
         id: 'sys',
@@ -74,28 +141,24 @@ describe('CategoriesManager — shop-category (ร้าน) flag', () => {
       }),
     ]
     render(<CategoriesManager onClose={() => {}} />)
-    expect(shopToggle('ขายสต็อก').disabled).toBe(true)
+    const g = roleGroup('ขายสต็อก')
+    expect((g.getByRole('radio', { name: 'ทั่วไป' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((g.getByRole('radio', { name: 'ร้าน' }) as HTMLButtonElement).disabled).toBe(true)
+    // no delete button on a system category — edit stays
+    expect(screen.queryByRole('button', { name: 'ลบ' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'แก้ไข' })).toBeTruthy()
   })
 
-  it('disables the ร้าน toggle on a stock-intake category (mutually exclusive)', () => {
-    categories = [
-      cat({ id: 's1', name: 'เสื้อเข้าร้าน', kind: 'expense', is_stock_category: true, icon: 'shirt', color_index: 6 }),
-    ]
+  it('shows the "past months move" warning for the ร้าน role only', () => {
+    categories = [cat({ id: 'sh1', name: 'ค่าโฆษณา', is_shop_category: true })]
     render(<CategoriesManager onClose={() => {}} />)
-    expect(shopToggle('เสื้อเข้าร้าน').disabled).toBe(true)
+    // the mandatory phrase — the only thing telling the user this role rewrites history (§3.2)
+    expect(screen.getByText(/ตัวเลขของเดือนก่อน ๆ จะขยับตาม/)).toBeTruthy()
   })
 
-  it('shows the mandatory warning that changing the flag moves past-month figures', () => {
+  it('does not show the history-rewrite warning for a plain ทั่วไป category', () => {
     categories = [cat({ id: 'e1', name: 'อาหาร' })]
     render(<CategoriesManager onClose={() => {}} />)
-    // the eyebrow phrase that must never be dropped (§3.2)
-    expect(screen.getByText(/เดือนก่อน/)).toBeTruthy()
-  })
-
-  it('flips the flag through useToggleShopCategory when tapped', () => {
-    categories = [cat({ id: 'e1', name: 'อาหาร' })]
-    render(<CategoriesManager onClose={() => {}} />)
-    fireEvent.click(shopToggle('อาหาร'))
-    expect(shopMutate).toHaveBeenCalledWith({ id: 'e1', value: true })
+    expect(screen.queryByText(/ตัวเลขของเดือนก่อน ๆ จะขยับตาม/)).toBeNull()
   })
 })

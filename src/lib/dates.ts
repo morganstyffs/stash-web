@@ -303,3 +303,16 @@ export function monthBoundsFromKey(key: string): MonthBounds {
 export function monthBounds(now: Date = new Date()): MonthBounds {
   return monthBoundsFromKey(monthKey(now))
 }
+
+/**
+ * A [from, to) date window spanning the last `n` calendar months ending with (and
+ * including) `key`'s month. `from` is the 1st of the month (n−1) months earlier,
+ * `to` is the 1st of the month AFTER `key` (exclusive) — the same inclusive-start /
+ * exclusive-end shape stock_sales_summary and the transactions queries expect.
+ * Built on addMonthsToKey + monthBoundsFromKey so all the month arithmetic (incl.
+ * year rollovers) stays in the one tz-stable place (convention 10). n must be ≥ 1.
+ */
+export function trailingMonthsBounds(key: string, n: number): { from: string; to: string; key: string } {
+  const startKey = addMonthsToKey(key, -(n - 1))
+  return { from: monthBoundsFromKey(startKey).start, to: monthBoundsFromKey(key).next, key }
+}

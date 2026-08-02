@@ -124,40 +124,43 @@ export function useDeleteCategory() {
   })
 }
 
-/** Toggle a single category's is_stock_category flag. */
-export function useToggleStockCategory() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (input: { id: string; value: boolean }) => {
-      const { error } = await supabase
-        .from('categories')
-        .update({ is_stock_category: input.value })
-        .eq('id', input.id)
-      if (error) throw error
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
-  })
+/** The three mutually-exclusive roles a category can play. They map onto the two
+ *  boolean columns below — never both true at once (a DB CHECK enforces it). */
+export interface CategoryRoleInput {
+  id: string
+  /** ลงสต็อกอัตโนมัติ — hides the category from manual entry (expense only). */
+  is_stock_category: boolean
+  /** ป้ายร้าน (ถังที่ 2) — mutually exclusive with is_stock_category. */
+  is_shop_category: boolean
 }
 
-/** Toggle a single category's is_shop_category flag (ป้ายร้าน — ถังที่ 2). The
- *  DB CHECK forbids it on system/stock categories; the UI disables the toggle
- *  there so this should never hit 23514, but the error still reaches the user if
- *  it does. Flipping it fires a DB trigger that re-flags every past transaction
- *  in this category (0026), which is why the toast wording warns about old
- *  months moving. */
-export function useToggleShopCategory() {
+/** Write a category's role (ทั่วไป / เข้าสต็อก / ร้าน) in ONE update. The two
+ *  columns are mutually exclusive (DB CHECK forbids both true, and forbids either
+ *  on a system category), so switching straight from เข้าสต็อก to ร้าน MUST set
+ *  both in a single write — closing the old flag and opening the new one at once
+ *  never leaves a (true, true) row, even momentarily, that would trip the CHECK.
+ *  Flipping is_shop_category fires a DB trigger that re-flags every past
+ *  transaction in this category (0026), so the transactions cache is invalidated
+ *  too and the UI warns that past-month figures move. The UI disables the control
+ *  on system categories, so 23514 should be unreachable — but if it fires anyway
+ *  the caller surfaces it (rule 16). */
+export function useSetCategoryRole() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { id: string; value: boolean }) => {
+    mutationFn: async (input: CategoryRoleInput) => {
       const { error } = await supabase
         .from('categories')
-        .update({ is_shop_category: input.value })
+        .update({
+          is_stock_category: input.is_stock_category,
+          is_shop_category: input.is_shop_category,
+        })
         .eq('id', input.id)
       if (error) throw error
     },
     onSuccess: () => {
-      // Both the categories list AND every money surface can shift (past-month
-      // budgets/summaries), so invalidate transactions too.
+      // The categories list AND every money surface can shift (a shop-flag change
+      // re-flags past rows → past-month budgets/summaries move), so invalidate
+      // transactions too.
       qc.invalidateQueries({ queryKey: ['categories'] })
       qc.invalidateQueries({ queryKey: ['transactions'] })
     },
