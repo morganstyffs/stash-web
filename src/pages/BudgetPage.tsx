@@ -14,6 +14,7 @@ import {
   computeBudgetSummary,
   computePace,
   computePaceStatic,
+  budgetableRows,
   useBudgets,
   useDeleteBudget,
   useMonthSpending,
@@ -80,10 +81,7 @@ export function BudgetPage() {
   // sit at 0% forever AND eat into the total-budget quota; hiding it from the list
   // AND excluding it from every total below keeps the numbers honest even before
   // the row is deleted in the DB.
-  const budgets = useMemo(
-    () => allBudgets.filter((b) => b.category != null && isBudgetableCategory(b.category)),
-    [allBudgets],
-  )
+  const budgets = useMemo(() => budgetableRows(allBudgets), [allBudgets])
 
   // B5: remaining now compares budgeted spend against the budget total (like with
   // like), and off-budget spend is surfaced on its own strip instead of dragging

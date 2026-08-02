@@ -2,7 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { dayOfMonthISO, monthBounds, monthBoundsFromKey, monthKey, todayISO } from '@/lib/dates'
+import { isBudgetableCategory } from '@/lib/budgetable'
 import type { CategoryKind } from '@/lib/db'
+
+/** The one budgets↔category join both surfaces read — keep the two queries on the
+ *  same shape so the row flags are always there to filter on (budgetableRows). */
+const BUDGET_WITH_CATEGORY_SELECT =
+  'id, category_id, amount, category:categories(name, icon, color_index, kind, is_system, is_shop_category, is_stock_category)'
 
 export interface BudgetRow {
   id: string
@@ -32,9 +38,7 @@ export function useBudgets(month: string = monthKey()) {
     queryFn: async (): Promise<BudgetRow[]> => {
       const { data, error } = await supabase
         .from('budgets')
-        .select(
-          'id, category_id, amount, category:categories(name, icon, color_index, kind, is_system, is_shop_category, is_stock_category)',
-        )
+        .select(BUDGET_WITH_CATEGORY_SELECT)
         .eq('month', b.start)
       if (error) throw error
       return data ?? []
@@ -42,7 +46,25 @@ export function useBudgets(month: string = monthKey()) {
   })
 }
 
-/** Sum of this month's budgets — used by the home "งบที่ตั้งไว้" strip. */
+/**
+ * The budget rows whose category still qualifies to carry a budget
+ * (isBudgetableCategory · lib/budgetable) — the ONE filter both the home
+ * "งบที่ตั้งไว้" total and the budget page funnel through, so a category that
+ * became a shop/stock/system row (or was flipped after a budget was set) drops
+ * out of the list AND every total in lockstep. Same rule, one place (convention
+ * 3) — never re-inline the predicate on a second surface.
+ */
+export function budgetableRows(rows: BudgetRow[]): BudgetRow[] {
+  return rows.filter((r) => r.category != null && isBudgetableCategory(r.category))
+}
+
+/**
+ * Sum of this month's *budgetable* budgets — the home "งบที่ตั้งไว้" strip. Joins
+ * the category and runs it through budgetableRows so the strip's number equals the
+ * budget page's totalBudget for the same data: without the filter a budget left on
+ * a category later turned into a shop/stock/system row would inflate the home total
+ * while never showing on the budget page (the exact bug this fixes).
+ */
 export function useMonthBudgetTotal(month: string = monthKey()) {
   const { user } = useAuth()
   const b = monthBoundsFromKey(month)
@@ -52,10 +74,10 @@ export function useMonthBudgetTotal(month: string = monthKey()) {
     queryFn: async (): Promise<number> => {
       const { data, error } = await supabase
         .from('budgets')
-        .select('amount')
+        .select(BUDGET_WITH_CATEGORY_SELECT)
         .eq('month', b.start)
       if (error) throw error
-      return (data ?? []).reduce((s, r) => s + (Number(r.amount) || 0), 0)
+      return budgetableRows(data ?? []).reduce((s, r) => s + (Number(r.amount) || 0), 0)
     },
   })
 }
