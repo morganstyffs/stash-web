@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { Wallet, WalletBalance } from '@/lib/db'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import type { Wallet, WalletBalance, WalletTransfer } from '@/lib/db'
 
 // WalletsManager is an editor over a few hooks. Mock them so the tests assert the
 // UI contract — the balance shown is the RPC's own `balance` (never recomputed),
-// masking/negative/loading/error behaviour, and the opening-balance form — rather
-// than the network.
+// masking/negative/loading/error behaviour, the opening-balance form, and the
+// transfer history — rather than the network.
 const upsertMutate = vi.fn().mockResolvedValue(undefined)
 const deleteMutate = vi.fn().mockResolvedValue(undefined)
+const delTransferMutate = vi.fn().mockResolvedValue(undefined)
 
 const wallet = (over: Partial<Wallet>): Wallet =>
   ({
@@ -33,19 +34,41 @@ const bal = (over: Partial<WalletBalance>): WalletBalance => ({
   ...over,
 })
 
+const transfer = (over: Partial<WalletTransfer>): WalletTransfer =>
+  ({
+    id: 't',
+    user_id: 'u',
+    from_wallet_id: 'w1',
+    to_wallet_id: 'w2',
+    amount: 2000,
+    transfer_date: '2026-08-02',
+    note: null,
+    created_at: '',
+    ...over,
+  }) as WalletTransfer
+
 let wallets: Wallet[] = []
 let balancesReturn: { data: WalletBalance[] | undefined; isError: boolean; error: unknown } = {
   data: [],
   isError: false,
   error: null,
 }
+let transfersReturn: {
+  data: { rows: WalletTransfer[]; capped: boolean } | undefined
+  isError: boolean
+  error: unknown
+} = { data: { rows: [], capped: false }, isError: false, error: null }
 let hideBalance = false
 
 vi.mock('@/hooks/useSettings', () => ({
   useWallets: () => ({ data: wallets }),
   useWalletBalances: () => balancesReturn,
+  useWalletTransfers: () => transfersReturn,
   useUpsertWallet: () => ({ mutateAsync: upsertMutate, isPending: false }),
   useDeleteWallet: () => ({ mutateAsync: deleteMutate, isPending: false }),
+  useDeleteWalletTransfer: () => ({ mutateAsync: delTransferMutate, isPending: false }),
+  useCreateWalletTransfer: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  WALLET_TRANSFER_CAP: 100,
 }))
 vi.mock('@/hooks/useHideBalance', () => ({
   useHideBalance: () => ({ hideBalance, toggleHideBalance: () => {} }),
@@ -58,12 +81,16 @@ const openCreate = () => fireEvent.click(screen.getByRole('button', { name: 'เ
 const openEdit = () => fireEvent.click(screen.getByRole('button', { name: 'แก้ไข' }))
 const openingInput = () => screen.getByLabelText('เงินที่มีอยู่ในกระเป๋านี้ตอนเริ่มใช้แอป')
 
+const twoWallets = () => [wallet({ id: 'w1', name: 'ธนาคาร', type: 'bank' }), wallet({ id: 'w2', name: 'เงินสด' })]
+
 afterEach(() => {
   cleanup()
   upsertMutate.mockClear()
   deleteMutate.mockClear()
+  delTransferMutate.mockClear()
   wallets = []
   balancesReturn = { data: [], isError: false, error: null }
+  transfersReturn = { data: { rows: [], capped: false }, isError: false, error: null }
   hideBalance = false
 })
 
@@ -260,5 +287,105 @@ describe('WalletsManager — list', () => {
     wallets = []
     render(<WalletsManager onClose={() => {}} />)
     expect(screen.queryByText('เงินในกระเป๋าทั้งหมด')).toBeNull()
+  })
+})
+
+describe('WalletsManager — transfer entry point', () => {
+  it('shows the transfer button only with at least two wallets', () => {
+    wallets = [wallet({ id: 'w1', name: 'เงินสด' })]
+    balancesReturn = { data: [bal({ wallet_id: 'w1' })], isError: false, error: null }
+    const view = render(<WalletsManager onClose={() => {}} />)
+    expect(screen.queryByRole('button', { name: 'โอนเงินระหว่างกระเป๋า' })).toBeNull()
+    view.unmount()
+
+    wallets = twoWallets()
+    balancesReturn = { data: [bal({ wallet_id: 'w1' }), bal({ wallet_id: 'w2' })], isError: false, error: null }
+    render(<WalletsManager onClose={() => {}} />)
+    expect(screen.getByRole('button', { name: 'โอนเงินระหว่างกระเป๋า' })).toBeTruthy()
+  })
+
+  it('opens the transfer sheet when the button is tapped', () => {
+    wallets = twoWallets()
+    balancesReturn = { data: [bal({ wallet_id: 'w1' }), bal({ wallet_id: 'w2' })], isError: false, error: null }
+    render(<WalletsManager onClose={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'โอนเงินระหว่างกระเป๋า' }))
+    expect(screen.getByText('โอนเงินระหว่างกระเป๋า', { selector: 'p' })).toBeTruthy()
+    expect(screen.getByLabelText('จำนวนเงิน')).toBeTruthy()
+  })
+})
+
+describe('WalletsManager — transfer history', () => {
+  it('renders each transfer as "from → to" with its amount and date', () => {
+    wallets = twoWallets()
+    transfersReturn = {
+      data: {
+        rows: [transfer({ id: 't1', from_wallet_id: 'w1', to_wallet_id: 'w2', amount: 2000 })],
+        capped: false,
+      },
+      isError: false,
+      error: null,
+    }
+    render(<WalletsManager onClose={() => {}} />)
+    // scope to the history section — the wallet rows above also show these names.
+    // "จาก → ไป" is one text line (arrow inline), so assert on the section text.
+    const section = screen.getByText('ประวัติการโอน').parentElement as HTMLElement
+    expect(section.textContent).toContain('ธนาคาร') // from (w1)
+    expect(section.textContent).toContain('เงินสด') // to (w2)
+    expect(section.textContent).toContain('฿2,000')
+  })
+
+  it('masks the amount in the history list when ซ่อนยอดเงิน is on', () => {
+    hideBalance = true
+    wallets = twoWallets()
+    transfersReturn = {
+      data: { rows: [transfer({ id: 't1', amount: 2000 })], capped: false },
+      isError: false,
+      error: null,
+    }
+    render(<WalletsManager onClose={() => {}} />)
+    expect(screen.queryByText(/฿2,000/)).toBeNull()
+    expect(screen.getAllByText('฿ ••••').length).toBeGreaterThan(0)
+  })
+
+  it('confirms then deletes a transfer, passing its id', async () => {
+    wallets = twoWallets()
+    transfersReturn = {
+      data: { rows: [transfer({ id: 't1', from_wallet_id: 'w1', to_wallet_id: 'w2' })], capped: false },
+      isError: false,
+      error: null,
+    }
+    render(<WalletsManager onClose={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /ลบการโอน/ }))
+    // a confirmation appears before anything is deleted.
+    const dialog = screen.getByRole('dialog', { name: 'ลบการโอนนี้ ?' })
+    expect(delTransferMutate).not.toHaveBeenCalled()
+    // scope to the dialog — wallet rows also have "ลบ" buttons.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'ลบ' }))
+    expect(delTransferMutate).toHaveBeenCalledWith('t1')
+  })
+
+  it('warns when the transfer list hits the row cap', () => {
+    wallets = twoWallets()
+    transfersReturn = {
+      data: { rows: [transfer({ id: 't1' })], capped: true },
+      isError: false,
+      error: null,
+    }
+    render(<WalletsManager onClose={() => {}} />)
+    expect(screen.getByText(/แสดง 100 รายการล่าสุด/)).toBeTruthy()
+  })
+
+  it('surfaces a transfer-history load error to the user', () => {
+    wallets = twoWallets()
+    transfersReturn = { data: undefined, isError: true, error: { message: 'boom' } }
+    render(<WalletsManager onClose={() => {}} />)
+    expect(screen.getByText(/โหลดประวัติการโอนไม่สำเร็จ/)).toBeTruthy()
+  })
+
+  it('shows nothing transfer-related when there are no transfers', () => {
+    wallets = twoWallets()
+    transfersReturn = { data: { rows: [], capped: false }, isError: false, error: null }
+    render(<WalletsManager onClose={() => {}} />)
+    expect(screen.queryByText('ประวัติการโอน')).toBeNull()
   })
 })

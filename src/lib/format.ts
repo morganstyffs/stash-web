@@ -19,6 +19,18 @@ export function formatBaht(value: number): string {
   return `฿${baht.format(value)}`
 }
 
+/** Keep digits and at most one decimal point; drop everything else (letters, a
+ *  second dot, a minus). One source of truth for money-entry sanitising so the
+ *  wallet opening-balance field and the transfer-amount field behave identically
+ *  (convention 10). Money entered in the app is never negative — a balance goes
+ *  negative through spending, not through a typed minus. */
+export function sanitizeMoneyInput(s: string): string {
+  const cleaned = s.replace(/[^\d.]/g, '')
+  const dot = cleaned.indexOf('.')
+  if (dot === -1) return cleaned
+  return cleaned.slice(0, dot + 1) + cleaned.slice(dot + 1).replace(/\./g, '')
+}
+
 /** ฿1,234.00 — two decimals (keypad/amount entry). */
 export function formatBaht2(value: number): string {
   return `฿${baht2.format(value)}`

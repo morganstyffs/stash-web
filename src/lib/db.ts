@@ -19,6 +19,9 @@ export type StockStatus = Enums<'stock_status'>
 
 // ── Table rows ─────────────────────────────────────────────────────────────
 export type Wallet = Tables<'wallets'>
+/** One money move between two of a user's own wallets (0028). Not a transaction
+ *  — it lives in its own table so it never inflates income/expense headlines. */
+export type WalletTransfer = Tables<'wallet_transfers'>
 /** `system_key` resolves app-managed categories at runtime (e.g. 'stock_cogs'). */
 export type Category = Tables<'categories'>
 export type Transaction = Tables<'transactions'>

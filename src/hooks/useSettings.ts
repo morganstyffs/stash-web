@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import type { CategoryKind, Wallet, WalletBalance } from '@/lib/db'
+import type { CategoryKind, Wallet, WalletBalance, WalletTransfer } from '@/lib/db'
 
 /** Wallets for the current user. */
 export function useWallets() {
@@ -241,6 +241,98 @@ export function useDeleteWallet() {
           throw new Error('ลบไม่ได้ — กระเป๋านี้มีรายการอยู่')
         throw error
       }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
+  })
+}
+
+/**
+ * The PostgREST page ceiling the transfer list is capped at. We ask for exactly
+ * this many rows (newest first); if we get them all, there may be more, so the
+ * list flags `capped` and the UI says "showing the latest N" rather than
+ * silently hiding older transfers (mirrors SHOP_ROW_CAP — an incomplete read
+ * must reach the user, never pass as "that's all of them").
+ */
+export const WALLET_TRANSFER_CAP = 100
+
+export interface WalletTransferList {
+  rows: WalletTransfer[]
+  /** true when the cap was hit → older transfers exist beyond the list. */
+  capped: boolean
+}
+
+/** Recent wallet-to-wallet transfers, newest first. This is the ONLY place a
+ *  transfer is shown to the user: by design a transfer never appears in the
+ *  ประวัติ ledger (it isn't income or expense — 0028), so without this list the
+ *  user could never see what they recorded. Kept under ['wallets', …] so a
+ *  transfer create/delete (which invalidates ['wallets']) refreshes it too. */
+export function useWalletTransfers() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['wallets', 'transfers', user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<WalletTransferList> => {
+      const { data, error } = await supabase
+        .from('wallet_transfers')
+        .select('id, user_id, from_wallet_id, to_wallet_id, amount, transfer_date, note, created_at')
+        .order('transfer_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(WALLET_TRANSFER_CAP)
+      if (error) throw error
+      const rows = (data ?? []) as WalletTransfer[]
+      return { rows, capped: rows.length >= WALLET_TRANSFER_CAP }
+    },
+  })
+}
+
+export interface WalletTransferInput {
+  from: string
+  to: string
+  amount: number
+  /** YYYY-MM-DD (Asia/Bangkok). */
+  date: string
+  /** Optional; empty/blank is sent as omitted → SQL default null. */
+  note?: string
+}
+
+/** Record a transfer via the `wallet_transfer_create` RPC (0028). Every rule —
+ *  amount > 0, distinct wallets, both owned by the caller, non-future date — is
+ *  enforced in the RPC and raises a Thai message that errors.ts passes straight
+ *  through, so the UI's own guards are only a first layer; this is the real one.
+ *  On success it invalidates ['wallets'], which refreshes BOTH the per-wallet
+ *  balances and the transfer list at once. Deliberately NOT touching
+ *  ['transactions']: a transfer is not a transaction, so nothing on หน้าแรก /
+ *  งบ / donut / ประวัติ / กำไรร้าน may move. */
+export function useCreateWalletTransfer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: WalletTransferInput) => {
+      const note = input.note?.trim()
+      const { error } = await supabase.rpc('wallet_transfer_create', {
+        p_from: input.from,
+        p_to: input.to,
+        p_amount: input.amount,
+        p_date: input.date,
+        // omit when blank so the RPC applies its own default (null), and because
+        // the generated arg type is `string`, not `string | null`.
+        ...(note ? { p_note: note } : {}),
+      })
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
+  })
+}
+
+/** Delete a transfer. ใบ 6 chose a plain owner-only DELETE policy over an RPC
+ *  (the table is single-owner and unlinked from transactions), so this is a
+ *  direct row delete; RLS scopes it to the caller's own rows. Invalidates
+ *  ['wallets'] so balances + the list update immediately. */
+export function useDeleteWalletTransfer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('wallet_transfers').delete().eq('id', id)
+      if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wallets'] }),
   })
