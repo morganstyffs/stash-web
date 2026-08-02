@@ -348,6 +348,10 @@ Home `/` · History `/history` · **Debts `/debts`** · **FriendHistory `/debts/
 28. **กำไรสุทธิย้อนหลังไม่นิ่งโดยตั้งใจ** — ธง `is_shop_operating` ถูก trigger ไล่รีไรต์ทุกครั้งที่เปลี่ยนป้ายร้าน (0026 §11.4-25) ต่างจาก `stock_sales.profit` ที่ snapshot ตอนขาย · ดังนั้นตัวเลข "กำไรสุทธิ 3 เดือน" ขยับได้แม้ไม่ได้ขายอะไรเพิ่ม · เลือกแบบนี้เพื่อให้ทุกเดือนคิดด้วยกติกาเดียวกัน · **การ์ดต้องเขียนบอกบนจอ** (`REVALUATION_NOTE` ใน `ShopProfitCard.tsx`) ไม่ใช่แค่ในหน้าตั้งค่า — ไม่งั้นผู้ใช้เห็นเลขขยับแล้วนึกว่าบั๊ก
 29. **ค่าดำเนินร้านรวมฝั่ง client ไม่ทำ RPC** — ใบ T2 ตั้งใจไม่มี migration (merge รวดเดียว ไม่รอ types-drift) · แถวที่กรอง (`is_shop_operating=true`) เป็น subset เล็ก + **ไม่มี pagination** (ดึงทั้งช่วงมารวมทีเดียว ต่างจากบั๊ก `useHistoryTotals` §11.4-15) · **กับดัก:** PostgREST cap หน้า → `useShopOperating` `.limit(SHOP_ROW_CAP=1000)` แล้วถ้า `rows.length >= cap` ตั้ง `capped` → การ์ดขึ้นคำเตือน "ตัวเลขอาจไม่ครบ" (กฎ error ต้องถึงผู้ใช้ ห้ามแสดงยอดที่รู้ว่าไม่ครบเงียบ ๆ) · **ถ้าวันหนึ่งชนเพดานจริง ให้ย้ายไปเป็น RPC aggregate** (คอมเมนต์กำกับใน hook)
 
+**— ตัดสินใจรอบถามค่าส่งหลังปิดการขาย (T4 · ไม่มี migration) —**
+
+30. **ป๊อปอัพหลังปิดการขายถามเฉพาะ "ค่าส่งที่เก็บจากลูกค้า" (ขาเข้า) ไม่ถามขาจ่าย** — ปัญหา: ขายเสื้อ 2 ตัว (500+700) ค่าส่ง 100 → ลูกค้าโอน 1,300 แต่ระบบบันทึกให้แค่ 1,200 (ปิดการขายทีละตัว) อีก 100 ไม่มีใครบันทึก → กระเป๋าขาดทุกบิล · **ทำไมไม่ถามขาจ่ายด้วย:** ค่าส่งขาจ่ายเกิดตอนเย็นรอบเดียว (ส่งหลายบิลพร้อมกัน จ่ายขนส่งก้อนเดียว) ไม่ได้เกิดตอนขาย → ถามสองขาตอนขาย = รบกวนทุกครั้งโดยไม่ตรงพฤติกรรมจริง · ขาจ่ายกรอกเป็นรายจ่ายปกติในหมวดร้าน ไม่มีป๊อปอัพ · **หมวดร้านไม่มี `system_key`** (§11.4-25) จึง resolve ด้วยเงื่อนไขโครงสร้าง `kind === 'income' && is_shop_category` ที่ `lib/shopCategory.ts` (`pickShopIncomeCategory`/`hasShopIncomeCategory` — pure, เทสต์ได้) · เจอ 1 → preselect · เจอหลายตัว → ส่งแค่ `type: 'income'` ปล่อยให้เลือกเอง · เจอ 0 → ไม่แสดงป๊อปอัพเลย (กันปุ่มที่กดแล้วเจอหน้าว่าง) · **ห้าม match ชื่อไทยเด็ดขาด** (ผู้ใช้เปลี่ยนชื่อหมวดได้ §11.4-14) · **ไม่ prefill ยอด** — ระบบไม่รู้ค่าส่งเท่าไหร่ เดายอดให้แล้วผู้ใช้กดผ่าน = ตัวเลขผิดที่ดูเหมือนถูก (§3.5)
+
 ### 11.5 บั๊กจริงในโค้ด — B1–B14 แก้แล้วทั้งหมด (รอบ redesign)
 B1/B2 (hero base = `isBudgetSpendingRow`, ไม่ clamp) · B3 legend ตัด slice · B4 หัวแถวซ้ำ/เส้นแบ่งวัน · B5 `totalUsed` · B6 `daysLeft` นับวันนี้ · B7 แถบสองท่อน · B8–B10 หน้าคลัง · B11 `favoriteLabel()` · B12 favorites `wallet_id`+`note` (0014) · B13 ล้างยอดเดิม · B14 contrast ไอคอน error · `WalletHero` → `WovenHero`
 > รอบฟีเจอร์หลัง redesign มีบั๊กที่แก้เพิ่ม (ค้นหาแมตช์แค่ note · ยอดรวมประวัติยิง query ซ้ำ · dark-mode พื้นขาว · ป้าย "บันทึกแล้ว" โกหกเมื่อแก้ช่องที่หก) — บันทึกไว้ที่ §9/§11.4 ตามชนิด ไม่ต่อเลข B
@@ -373,6 +377,18 @@ B1/B2 (hero base = `isBudgetSpendingRow`, ไม่ clamp) · B3 legend ตั�
 **หน้าจอ:** `/debts` (`DebtsPage.tsx` — ภาพรวมทุกคน) · `/debts/friend/:friendId` (`FriendHistoryPage.tsx` — รายคน แยกบล็อกตกลงกันแล้ว/จดไว้เอง) · ชีต: `AddFriendSheet`/`DebtFormSheet`/`ConfirmDebtSheet`/`SettleSheet`/`ProfileManager`
 
 **username (0020):** พิมพ์เล็ก `^[a-z0-9_]{3,20}$` (CHECK ใน DB + `USERNAME_RE` ใน `lib/username.ts` mirror กัน · unique index) · **ตั้งครั้งเดียว** — trigger `profiles_username_setonce` (BEFORE UPDATE) บล็อกการแก้ค่าที่ไม่ null เมื่อ `auth.uid()` ไม่ null · **เจ้าของแก้ให้ได้** ผ่าน SQL Editor เพราะไม่มี JWT → `auth.uid()` null → ผ่าน guard (escape hatch ตั้งใจ) · `useSetUsername`/`useUpdateDisplayName` เขียน `profiles` ตรง (ไม่ผ่าน RPC) · `friend_code` ยังอยู่แต่เลิกใช้ (§10)
+
+### 11.7 flow หลังปิดการขาย — ถามค่าส่งที่เก็บจากลูกค้า (PR-T4)
+
+**เหตุผล + การ resolve หมวด:** ดู §11.4-30 (ถามเฉพาะขาเข้า · resolve ด้วย `kind + is_shop_category` · ห้ามชื่อไทย · ไม่ prefill ยอด)
+
+- `StockEditSheet.tsx` `doSell`: ปิดการขายสำเร็จ → ถ้า `hasShopIncomeCategory(categories)` แสดง `ConfirmDialog` (`destructive={false}`, ปุ่มยกเลิก = "ไม่มี" ผ่าน prop ใหม่ `cancelLabel`) ถามว่าลูกค้าจ่ายค่าส่งมาด้วยไหม · **ไม่มีหมวดร้านฝั่งรายรับ → ปิด sheet ตามเดิม** ไม่แสดงป๊อปอัพ
+  - **กด "ไม่มี"** → `onClose()` เหมือนเดิมทุกประการ
+  - **กด "บันทึกค่าส่ง"** → `navigate('/add', { state: { prefill: { type: 'income', categoryId? }, returnTo: '/stock' } })` · `categoryId` มาจาก `pickShopIncomeCategory` (เจอ 1 ตัวเท่านั้นถึงส่ง)
+- **`AddPage` รับ `prefill.categoryId` + `returnTo`** (sibling ของ `prefill` ใน state):
+  - `categoryId` — set ผ่าน effect ที่ยิงครั้งเดียว (ref guard) หลังหมวดโหลด **และเฉพาะเมื่อ id นั้นอยู่ในลิสต์ `categories` ที่เลือกได้จริง** (`isEntrySelectableCategory`) · id ที่ถูกลบไปแล้ว → ไม่ set (ไม่พังหน้า ไม่ได้ค่าที่เลือกไม่ติด)
+  - `returnTo` — ปุ่มย้อนกลับ **และ** หลังบันทึกสำเร็จ ไปที่นั่น · ไม่มี → พฤติกรรมเดิม (ย้อน = `/` · หลังบันทึก = อยู่หน้าเดิม เคลียร์ฟอร์ม) · รับเฉพาะ path ภายในแอปผ่าน `isInternalPath` (ขึ้นต้น `/` และไม่ใช่ `//` — กัน open redirect)
+- เทสต์: `lib/shopCategory.test.ts` · `components/StockEditSheet.test.tsx` (ป๊อปอัพ render-level ตัวแรกของ flow ขาย) · `pages/AddPage.render.test.tsx` + `AddPage.test.ts` (`isInternalPath`)
 
 ---
 

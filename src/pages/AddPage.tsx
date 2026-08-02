@@ -117,6 +117,19 @@ export function saveBlockedReason(amount: number, categoryId: string | null): st
   return null
 }
 
+/**
+ * Whether a `returnTo` value is a safe in-app path to navigate to. A caller
+ * (e.g. the post-sale shipping nudge) hands this page where to go after save /
+ * back; it must be an app-internal route only. Rejects anything that isn't a
+ * string starting with a single '/' — an absolute URL ('http://…'), a
+ * protocol-relative one ('//evil.example') or a bare word — so a crafted history
+ * state can't turn the back button into an open redirect. Pure, exported for the
+ * test.
+ */
+export function isInternalPath(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
+}
+
 /** Digits currently entered (the decimal point doesn't count toward the cap). */
 function digitCount(s: string): number {
   return s.replace('.', '').length
@@ -236,9 +249,15 @@ export function AddPage() {
   // Optional prefill (e.g. the ยอดค้าง "บันทึกรายการเงินของคุณ" nudge). Read once
   // on mount; the user still picks the category + wallet and can change anything.
   const location = useLocation()
-  const prefill = (
-    location.state as { prefill?: { type?: TransactionType; amount?: number; note?: string } } | null
-  )?.prefill
+  const navState = location.state as {
+    prefill?: { type?: TransactionType; amount?: number; note?: string; categoryId?: string }
+    returnTo?: string
+  } | null
+  const prefill = navState?.prefill
+  // Where "back" and a successful save should land, when a flow sent us here with
+  // one (e.g. ขาย → บันทึกค่าส่ง → /stock). Validated to an in-app path; anything
+  // else falls back to the default behaviour (§4.2).
+  const returnTo = isInternalPath(navState?.returnTo) ? navState.returnTo : null
   const [type, setType] = useState<TransactionType>(prefill?.type ?? 'expense')
   const [amountStr, setAmountStr] = useState(
     prefill?.amount != null && prefill.amount > 0 ? String(prefill.amount) : '',
@@ -295,6 +314,21 @@ export function AddPage() {
     () => (catsQ.data ?? []).filter((c) => isEntrySelectableCategory(c, type)),
     [catsQ.data, type],
   )
+
+  // Preselect a prefilled category once the categories load — but ONLY if it's
+  // actually selectable for this entry (in the filtered `categories` above, the
+  // same source the chips use). A stale id (the category was deleted between the
+  // nudge and here) is silently ignored rather than set to a value that wouldn't
+  // highlight any chip and couldn't be un-picked (§4.1). Applied once via the ref
+  // so it can't clobber a choice the user makes afterwards.
+  const prefillCategoryId = prefill?.categoryId ?? null
+  const prefillCatApplied = useRef(false)
+  useEffect(() => {
+    if (prefillCatApplied.current || prefillCategoryId == null) return
+    if (catsQ.data == null) return // wait for the categories to load
+    prefillCatApplied.current = true
+    if (categories.some((c) => c.id === prefillCategoryId)) setCategoryId(prefillCategoryId)
+  }, [catsQ.data, categories, prefillCategoryId])
 
   const hints = hintsQ.data ?? []
 
@@ -469,6 +503,16 @@ export function AddPage() {
       // is the one thing that tells a rapid batch of receipts apart — the tap
       // path (:418) already names its label, so the manual path should too.
       const savedMessage = `บันทึก ${formatBaht(amount)} แล้ว`
+      // Sent here by a flow that wants us back somewhere on save (ขาย → บันทึกค่าส่ง
+      // → /stock): go there instead of staying, so the user isn't left on the add
+      // screen unsure whether the flow finished (§4.2). No form-clearing needed —
+      // the page unmounts. Without returnTo, keep the batch-entry behaviour: stay,
+      // clear only amount + note.
+      if (returnTo) {
+        showSavedToast(savedMessage, row.id)
+        navigate(returnTo)
+        return
+      }
       setAmountStr('')
       setNote('')
       showSavedToast(savedMessage, row.id)
@@ -544,7 +588,7 @@ export function AddPage() {
     <div className="mx-auto flex h-full max-w-md flex-col bg-white">
       {/* header */}
       <div className="flex shrink-0 items-center justify-between px-[18px] pb-3 pt-4">
-        <button aria-label="ย้อนกลับ" onClick={() => navigate('/')}>
+        <button aria-label="ย้อนกลับ" onClick={() => navigate(returnTo ?? '/')}>
           <IconArrowLeft size={20} className="text-muted" />
         </button>
         <p className="text-[16px] font-medium">เพิ่มรายการ</p>

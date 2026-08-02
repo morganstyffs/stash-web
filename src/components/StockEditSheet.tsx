@@ -1,12 +1,16 @@
 import { useEffect, useId, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { IconArrowBackUp, IconTag, IconTrash, IconX } from '@tabler/icons-react'
 import { useDialogA11y } from '@/lib/useDialogA11y'
+import { hasShopIncomeCategory, pickShopIncomeCategory } from '@/lib/shopCategory'
 import { useAuth } from '@/hooks/useAuth'
+import { useCategories } from '@/hooks/useLookups'
 import { useUpdateStockItem } from '@/hooks/useQueue'
 import { useDeleteStockItem } from '@/hooks/useStock'
 import { useWallets } from '@/hooks/useSettings'
 import { useCreateStockSale, useReverseStockSale } from '@/hooks/useStockSale'
 import { useItemSales } from '@/hooks/useStockSales'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useToast } from '@/components/Toast'
 import { signStockPhotos, uploadStockPhotos } from '@/lib/storage'
 import { todayISO } from '@/lib/dates'
@@ -38,9 +42,11 @@ export function StockEditSheet({
   onClose: () => void
 }) {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const update = useUpdateStockItem()
   const del = useDeleteStockItem()
   const walletsQ = useWallets()
+  const catsQ = useCategories()
   const sell = useCreateStockSale()
   const reverse = useReverseStockSale()
   const salesQ = useItemSales(item.id)
@@ -66,6 +72,11 @@ export function StockEditSheet({
   const [sellWallet, setSellWallet] = useState<string | null>(null)
   const [confirmingZero, setConfirmingZero] = useState(false)
   const [reversingId, setReversingId] = useState<string | null>(null)
+  // After a sale lands, ask whether the buyer also paid a delivery fee, so the
+  // wallet total matches what actually got transferred (the collected fee has no
+  // other flow that records it — the sale RPC only books the goods). Shown only
+  // when there is a shop income category to book it into (§3.1).
+  const [askShipping, setAskShipping] = useState(false)
 
   // sign existing photos for preview
   useEffect(() => {
@@ -157,10 +168,33 @@ export function StockEditSheet({
         p_sale_date: sellDate || today,
       })
       toast.success('บันทึกการขายแล้ว')
-      onClose()
+      // Offer to log the collected shipping fee — but only when there's a shop
+      // income category to receive it. No such category → close as before, so an
+      // account that hasn't seeded its shop categories never meets a dead-end
+      // button (§3.1). The prompt itself is optional; the sale is already saved.
+      if (hasShopIncomeCategory(categories)) {
+        setAskShipping(true)
+      } else {
+        onClose()
+      }
     } catch (e) {
       toast.error(translateError(e))
     }
+  }
+
+  // "บันทึกค่าส่ง" → jump to the add-entry screen with the income side preselected
+  // (and the shop shipping category when it's unambiguous), coming back to the
+  // stock screen on save. No amount is prefilled — the system can't know the fee,
+  // and a guessed number the user taps past becomes a wrong figure that looks
+  // right (§3.5).
+  function goLogShipping() {
+    const categoryId = pickShopIncomeCategory(categories)
+    navigate('/add', {
+      state: {
+        prefill: { type: 'income', ...(categoryId ? { categoryId } : {}) },
+        returnTo: '/stock',
+      },
+    })
   }
 
   async function doReverse(saleId: string) {
@@ -175,10 +209,12 @@ export function StockEditSheet({
 
   const busy = update.isPending || del.isPending
   const sales = salesQ.data ?? []
+  const categories = catsQ.data ?? []
   const panelRef = useDialogA11y(onClose)
   const titleId = useId()
 
   return (
+    <>
     <div
       className="fixed inset-0 z-40 flex items-end justify-center bg-black/45 sm:items-center"
       onClick={onClose}
@@ -487,5 +523,22 @@ export function StockEditSheet({
         </div>
       </div>
     </div>
+
+      {/* Post-sale shipping nudge — asks whether the buyer also paid a delivery
+          fee (income only; the paid-out side is logged in the evening as a normal
+          shop expense, not here — §11.4). "ไม่มี" closes exactly as before; the
+          confirm button routes to the add-entry screen. */}
+      {askShipping && (
+        <ConfirmDialog
+          title="ลูกค้าจ่ายค่าส่งมาด้วยไหม?"
+          message="ถ้าเก็บค่าส่งจากลูกค้ามาด้วย บันทึกเป็นรายรับอีกรายการ เพื่อให้ยอดในกระเป๋าตรงกับที่ลูกค้าโอนมาจริง"
+          confirmLabel="บันทึกค่าส่ง"
+          cancelLabel="ไม่มี"
+          destructive={false}
+          onConfirm={goLogShipping}
+          onCancel={onClose}
+        />
+      )}
+    </>
   )
 }
