@@ -3,6 +3,7 @@ import {
   favoriteLabel,
   favoriteSignature,
   isEntrySelectableCategory,
+  isInternalPath,
   saveBlockedReason,
   pressKey,
   keypadActionFromKey,
@@ -56,6 +57,27 @@ describe('isEntrySelectableCategory — which categories a manual entry may pick
     expect(
       isEntrySelectableCategory(cat({ kind: 'income', system_key: 'stock_sale_income' }), 'income'),
     ).toBe(false)
+  })
+})
+
+describe('isInternalPath — returnTo must be an in-app path, never an open redirect', () => {
+  it('accepts a plain in-app path', () => {
+    expect(isInternalPath('/stock')).toBe(true)
+    expect(isInternalPath('/history?m=2026-08')).toBe(true)
+  })
+
+  it('rejects absolute and protocol-relative URLs', () => {
+    expect(isInternalPath('http://evil.example')).toBe(false)
+    expect(isInternalPath('https://evil.example/stock')).toBe(false)
+    expect(isInternalPath('//evil.example')).toBe(false)
+  })
+
+  it('rejects a bare word and non-strings', () => {
+    expect(isInternalPath('stock')).toBe(false)
+    expect(isInternalPath('')).toBe(false)
+    expect(isInternalPath(null)).toBe(false)
+    expect(isInternalPath(undefined)).toBe(false)
+    expect(isInternalPath(42)).toBe(false)
   })
 })
 

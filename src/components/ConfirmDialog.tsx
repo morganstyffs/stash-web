@@ -8,6 +8,7 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel = 'ลบ',
+  cancelLabel = 'ยกเลิก',
   busyLabel = 'กำลังลบ…',
   destructive = true,
   busy = false,
@@ -17,6 +18,7 @@ export function ConfirmDialog({
   title: string
   message?: string
   confirmLabel?: string
+  cancelLabel?: string
   busyLabel?: string
   destructive?: boolean
   busy?: boolean
@@ -45,7 +47,7 @@ export function ConfirmDialog({
             disabled={busy}
             className="flex-1 rounded-btn border-[0.5px] border-hairline py-3 text-[14px] font-medium disabled:opacity-40"
           >
-            ยกเลิก
+            {cancelLabel}
           </button>
           <button
             onClick={onConfirm}
