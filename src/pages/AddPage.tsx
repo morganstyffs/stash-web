@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   IconAlertCircle,
@@ -7,6 +7,8 @@ import {
   IconBackspace,
   IconCalendar,
   IconCheck,
+  IconChevronDown,
+  IconChevronUp,
   IconPlus,
   IconStar,
   IconWallet,
@@ -115,6 +117,28 @@ export function saveBlockedReason(amount: number, categoryId: string | null): st
   if (noAmount) return 'ใส่จำนวนเงิน'
   if (noCategory) return 'เลือกหมวด'
   return null
+}
+
+/**
+ * Order the category chips so the most-used (by history) float to the head of
+ * the ONE list, then the rest keep their existing order. §2.1: this REPLACES the
+ * separate "ใช้บ่อย" row that duplicated categories already in the list below
+ * (อาหาร appeared twice) — the very same topCategories() ranking now just sorts
+ * the single list, so no category is ever shown twice. `frequentIds` is that
+ * ranking, most-used first; ids not in it keep their original relative order
+ * (a stable sort). Pure + deterministic so a frozen snapshot (see the component)
+ * keeps chips from shuffling under the finger after every save.
+ */
+export function orderByFrequency<T extends { id: string }>(cats: T[], frequentIds: string[]): T[] {
+  const rank = new Map(frequentIds.map((id, i) => [id, i] as const))
+  return [...cats].sort((a, b) => {
+    const ra = rank.get(a.id)
+    const rb = rank.get(b.id)
+    if (ra != null && rb != null) return ra - rb
+    if (ra != null) return -1
+    if (rb != null) return 1
+    return 0 // both non-frequent → keep original order (Array.sort is stable)
+  })
 }
 
 /**
@@ -285,6 +309,22 @@ export function AddPage() {
   // button and the long-press quick-save) via showSavedToast below.
   const lastSaveToastId = useRef<number | null>(null)
 
+  // Keypad open/closed. Expanded on entry (this page is almost always opened to
+  // type a number first — opening collapsed would cost a tap every time). It
+  // collapses when the user taps anywhere OUTSIDE the amount (a category / wallet
+  // / note / fast-label — see the scroll area's onPointerDownCapture), and
+  // re-opens by tapping the amount or the header toggle.
+  const [keypadOpen, setKeypadOpen] = useState(true)
+
+  // The pinned bottom dock (reason + save + keypad) is position:absolute so its
+  // height changing never nudges the keypad. But absolute means it no longer
+  // reserves space in the scroll flow, so the scroll area would hide content
+  // beneath it. We MEASURE the dock's real height and feed it back as the scroll
+  // area's padding-bottom — never a hardcoded guess, and it tracks the keypad
+  // collapsing and the reason bar toggling automatically.
+  const dockRef = useRef<HTMLDivElement | null>(null)
+  const [dockHeight, setDockHeight] = useState(0)
+
   // Drop the checkmark timer if the page unmounts mid-flash.
   useEffect(() => {
     return () => {
@@ -332,26 +372,30 @@ export function AddPage() {
 
   const hints = hintsQ.data ?? []
 
-  // The "ใช้บ่อย" shortcut row: the most-used categories of this type, ranked by
-  // history and intersected with the visible chips above — a system category
-  // (stock_cogs / debt_repayment_*) that shows up in history must never surface
-  // here since it isn't pickable. topCategories ranks across the full history
-  // (limit = every category) so a filtered-out system category can't steal a
-  // slot from a real one ranked just below it; the visible ones are then capped
-  // at 4. This is a shortcut on top, NOT a reordering — the list below keeps its
-  // sort_order untouched so a category never moves out from under the eye (§11.4-2).
-  const frequentCategories = useMemo(() => {
-    const visible = new Map(categories.map((c) => [c.id, c]))
-    return topCategories(hints, type, catsQ.data?.length ?? 0)
-      .map((id) => visible.get(id))
-      .filter((c): c is Category => c != null)
-      .slice(0, 4)
-  }, [hints, type, categories, catsQ.data])
+  // §2.1: the most-used categories, by history, now sort the ONE list instead of
+  // living in a separate "ใช้บ่อย" row that duplicated them (อาหาร showed twice).
+  // topCategories() is the SAME ranking that row used (limit = the full list, so
+  // a filtered-out system category can't take a real one's slot); orderByFrequency
+  // floats those to the head and leaves the rest in sort_order.
+  //
+  // FROZEN per type for the session: `hints` refetches after every save (its key
+  // starts with 'transactions'), so ranking off the live data would let a chip
+  // jump position the instant you save one — moving the next tap out from under
+  // the finger. We snapshot the ranking the first time there's history for a type
+  // and reuse it; a fresh page visit (remount) picks up the newer habits.
+  const frozenFreqRef = useRef<Partial<Record<TransactionType, string[]>>>({})
+  const frequentIds = useMemo(() => {
+    const frozen = frozenFreqRef.current[type]
+    if (frozen) return frozen
+    const ids = topCategories(hints, type, catsQ.data?.length ?? 0)
+    if (ids.length > 0) frozenFreqRef.current[type] = ids // only freeze real history
+    return ids
+  }, [type, hints, catsQ.data])
 
-  // Hide the whole row unless it earns its space: at least 2 shortcuts, and only
-  // when the full list is long enough to be worth scanning past (> 4). A short
-  // list makes the shortcut just a duplicate that costs a row.
-  const showFrequentRow = frequentCategories.length >= 2 && categories.length > 4
+  const orderedCategories = useMemo(
+    () => orderByFrequency(categories, frequentIds),
+    [categories, frequentIds],
+  )
 
   const favorites = favQ.data ?? []
 
@@ -549,6 +593,22 @@ export function AddPage() {
   const zeroDisabled = amountStr === '' || amountStr === '0' || amountStr.includes('.')
   const clearDisabled = amountStr === ''
 
+  // Measure the dock so the scroll area reserves exactly its height (§ padding-
+  // bottom "วัดจากของจริง"). A ResizeObserver catches every height change — the
+  // keypad collapsing, the reason bar appearing/disappearing, the font loading,
+  // the safe-area inset resolving — with no hardcoded number. Re-run on keypadOpen
+  // so the fallback measure() also fires where ResizeObserver is absent (jsdom).
+  useLayoutEffect(() => {
+    const el = dockRef.current
+    if (!el) return
+    const measure = () => setDockHeight(el.offsetHeight)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [keypadOpen])
+
   // Hardware keyboard → the same keypad. On a wide (rail) layout the amount was
   // only reachable by clicking digits one at a time; this lets a physical
   // keyboard drive the existing pressKey() reducer instead. The guards below are
@@ -585,8 +645,8 @@ export function AddPage() {
   }, [managingCats, managingFavs, canSave, save, press])
 
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col bg-white">
-      {/* header */}
+    <div className="relative mx-auto flex h-full max-w-md flex-col overflow-hidden bg-white">
+      {/* header — pinned */}
       <div className="flex shrink-0 items-center justify-between px-[18px] pb-3 pt-4">
         <button aria-label="ย้อนกลับ" onClick={() => navigate(returnTo ?? '/')}>
           <IconArrowLeft size={20} className="text-muted" />
@@ -607,11 +667,103 @@ export function AddPage() {
         </label>
       </div>
 
-      {/* scrollzone — everything above the dock. Shrinks/scrolls on short screens
-          so the keypad + save button below stay pinned to the bottom. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {/* fast-labels (favorites) on top — the fastest path to a saved entry.
-            Hidden entirely until the user has some, so it never wastes space. */}
+      {/* amount + type — PINNED (shrink-0), so §3's "ยอด · จ่าย/รับ ห้ามถูกบัง":
+          they never scroll away and are never under the keypad. */}
+      <div className="shrink-0">
+        {/* จ่าย / รับ */}
+        <div className="flex justify-center gap-1.5 pb-1.5 pt-0.5">
+          {(['expense', 'income'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => switchType(t)}
+              aria-pressed={type === t}
+              className={`rounded-pill px-4 py-[5px] text-[12px] ${
+                type === t
+                  ? 'bg-brand-tint font-medium text-brand-ink'
+                  : 'border-[0.5px] border-hairline text-muted'
+              }`}
+            >
+              {t === 'expense' ? 'จ่าย' : 'รับ'}
+            </button>
+          ))}
+        </div>
+
+        {/* amount + 000 / ล้าง (stacked to the right, number stays centred).
+            The amount is a button: tapping it re-opens a collapsed keypad
+            (§ "แตะที่ตัวเลขยอดเพื่อกางกลับ"). */}
+        <div className="relative px-4 pb-2 pt-0.5 text-center">
+          {/* Amount for the EYE — the digit spans are aria-hidden (they read aloud
+              as gibberish, ฿ / int / dec); the button's aria-label names the
+              control and the sr-only live region below speaks the value. */}
+          <button
+            type="button"
+            onClick={() => setKeypadOpen(true)}
+            aria-label="ยอดเงิน — แตะเพื่อแสดงแป้นตัวเลข"
+            className="mx-auto block max-w-full"
+          >
+            <span aria-hidden="true" className="text-[40px] font-medium tracking-[-1px]">
+              <span className="text-[26px] text-muted">฿</span>
+              {intDisplay}
+              <span className="text-muted">{decSuffix}</span>
+            </span>
+          </button>
+          {/* Amount for the EAR — a real live region that reads as one money
+              value. Needed because typing from the keyboard (PR-29) focuses
+              nothing, so the screen reader stays silent without this. */}
+          <span className="sr-only" aria-live="polite" aria-atomic="true">
+            {`${ariaAmountFmt.format(amount)} บาท`}
+          </span>
+          <div className="absolute right-4 top-1/2 flex -translate-y-1/2 flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={() => press('000')}
+              disabled={zeroDisabled}
+              aria-label="เติมศูนย์สามตัว"
+              className="rounded-[9px] bg-fill px-2.5 py-1 text-[12px] font-medium text-muted disabled:opacity-40"
+            >
+              000
+            </button>
+            <button
+              type="button"
+              onClick={() => press('clear')}
+              disabled={clearDisabled}
+              aria-label="ล้างจำนวนเงิน"
+              className="rounded-[9px] bg-fill px-2.5 py-1 text-[12px] font-medium text-muted disabled:opacity-40"
+            >
+              ล้าง
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* scroll area — everything the keypad is NOT allowed to hide. padding-
+          bottom = the measured dock height so nothing ends up underneath it and
+          unreachable (§2). A pointer-down anywhere here (a category / wallet /
+          note / fast-label — i.e. OUTSIDE the amount) collapses the keypad. */}
+      <div
+        className="min-h-0 flex-1 overflow-y-auto"
+        style={{ paddingBottom: dockHeight }}
+        onPointerDownCapture={() => setKeypadOpen(false)}
+      >
+        {/* unusually-high-amount nudge — icon + text (never colour alone, B14),
+            same warn tone as the can't-save reason bar, role="status" so a
+            screen reader announces it. It only warns; save stays enabled. */}
+        {unusualBaseline != null && (
+          <div className="px-4 pb-2.5 pt-1">
+            <div
+              role="status"
+              className="flex items-center gap-1.5 rounded-input bg-warn-bg px-3 py-2 text-[12px] font-medium text-warn-ink"
+            >
+              <IconAlertTriangle size={15} className="shrink-0" />
+              <span>
+                หมวดนี้ปกติราว {formatBaht(unusualBaseline)} — ยอดนี้สูงกว่ามาก ตรวจสอบอีกครั้ง
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* fast-labels (favorites) — the fastest path to a saved entry. Hidden
+            entirely until the user has some, so it never wastes space. */}
         {favorites.length > 0 && (
           <div className="pt-1">
             <div className="flex items-center justify-between px-4 pb-[7px]">
@@ -641,113 +793,19 @@ export function AddPage() {
           </div>
         )}
 
-        {/* จ่าย / รับ */}
-        <div className="mb-1.5 flex justify-center gap-1.5">
-          {(['expense', 'income'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => switchType(t)}
-              aria-pressed={type === t}
-              className={`rounded-pill px-4 py-[5px] text-[12px] ${
-                type === t
-                  ? 'bg-brand-tint font-medium text-brand-ink'
-                  : 'border-[0.5px] border-hairline text-muted'
-              }`}
-            >
-              {t === 'expense' ? 'จ่าย' : 'รับ'}
-            </button>
-          ))}
-        </div>
-
-        {/* amount + 000 / ล้าง (stacked to the right, number stays centred) */}
-        <div className="relative px-4 pb-2.5 pt-0.5 text-center">
-          {/* Amount for the EYE — hidden from AT entirely, because it's split
-              into ฿ / integer / decimal spans that read aloud as gibberish. An
-              aria-label here would be ignored: ARIA prohibits name-from-author on
-              a <p>'s implicit "paragraph" role, so screen readers spoke the raw
-              spans anyway — the very thing this was meant to avoid. */}
-          <p
-            aria-hidden="true"
-            className="text-[40px] font-medium tracking-[-1px]"
-          >
-            <span className="text-[26px] text-muted">฿</span>
-            {intDisplay}
-            <span className="text-muted">{decSuffix}</span>
-          </p>
-          {/* Amount for the EAR — a real live region that reads as one money
-              value. Needed because typing from the keyboard (PR-29) focuses
-              nothing, so the screen reader stays silent without this. */}
-          <span className="sr-only" aria-live="polite" aria-atomic="true">
-            {`${ariaAmountFmt.format(amount)} บาท`}
-          </span>
-          <div className="absolute right-4 top-1/2 flex -translate-y-1/2 flex-col gap-1.5">
-            <button
-              type="button"
-              onClick={() => press('000')}
-              disabled={zeroDisabled}
-              aria-label="เติมศูนย์สามตัว"
-              className="rounded-[9px] bg-fill px-2.5 py-1 text-[12px] font-medium text-muted disabled:opacity-40"
-            >
-              000
-            </button>
-            <button
-              type="button"
-              onClick={() => press('clear')}
-              disabled={clearDisabled}
-              aria-label="ล้างจำนวนเงิน"
-              className="rounded-[9px] bg-fill px-2.5 py-1 text-[12px] font-medium text-muted disabled:opacity-40"
-            >
-              ล้าง
-            </button>
-          </div>
-        </div>
-
-        {/* unusually-high-amount nudge — sits right under the amount, where the
-            eye already is when a stray zero gets keyed, and above the category
-            row. Icon + text (never colour alone, B14), same warn tone as the
-            can't-save reason bar, and role="status" so a screen reader announces
-            it. It only warns: the save button stays fully enabled (§2 of PR-35).
-            Lives in the scrolling zone, so it never pushes the pinned keypad. */}
-        {unusualBaseline != null && (
-          <div className="px-4 pb-2.5">
-            <div
-              role="status"
-              className="flex items-center gap-1.5 rounded-input bg-warn-bg px-3 py-2 text-[12px] font-medium text-warn-ink"
-            >
-              <IconAlertTriangle size={15} className="shrink-0" />
-              <span>
-                หมวดนี้ปกติราว {formatBaht(unusualBaseline)} — ยอดนี้สูงกว่ามาก ตรวจสอบอีกครั้ง
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* ใช้บ่อย — a shortcut row of the most-used categories, ABOVE the full
-            list. It never reorders the list below; a tap here runs the same
-            pickCategory() as a tap below, so the wallet guess comes for free. */}
-        {showFrequentRow && (
-          <div className="px-4 pb-2.5">
-            <p className="mb-[7px] text-[11px] text-muted">ใช้บ่อย</p>
-            <div className="flex flex-wrap gap-[7px]">
-              {frequentCategories.map((c) => (
-                <CategoryChip
-                  key={c.id}
-                  cat={c}
-                  active={c.id === categoryId}
-                  onClick={() => pickCategory(c.id)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* category — wraps so every category is visible at once (no hidden overflow) */}
+        {/* category — ONE list (§2.1: the old duplicate "ใช้บ่อย" row is gone).
+            orderedCategories floats the most-used to the head; wraps so every
+            category is visible at once (no hidden overflow). */}
         <div className="px-4 pb-2.5">
           <p className="mb-[7px] text-[11px] text-muted">
             {type === 'expense' ? 'หมวดรายจ่าย' : 'หมวดรายรับ'}
           </p>
-          <div className="flex flex-wrap gap-[7px]">
-            {categories.map((c) => (
+          {/* gap-2 (8px), a touch more air than the old 7px: it buys back the
+              separation the smaller chips give up (§2.2 — these chips sit below
+              the 44px min the bottom-nav guard enforces, a deliberate call for a
+              dense secondary picker, compensated here by the gap). */}
+          <div className="flex flex-wrap gap-2">
+            {orderedCategories.map((c) => (
               <CategoryChip
                 key={c.id}
                 cat={c}
@@ -755,13 +813,16 @@ export function AddPage() {
                 onClick={() => pickCategory(c.id)}
               />
             ))}
+            {/* + เพิ่มหมวด — §2.3: NOT a category, so it's set apart with a dashed
+                outline and left at the very end, instead of hiding among the real
+                filled chips where the eye had to read past it every time. */}
             <button
               type="button"
               onClick={() => setManagingCats(true)}
-              className="flex min-h-[44px] shrink-0 items-center"
+              className="flex min-h-[40px] shrink-0 items-center"
             >
-              <span className="flex items-center gap-1 rounded-pill bg-fill px-[13px] py-[7px] text-[12px] text-faint">
-                <IconPlus size={14} />
+              <span className="flex items-center gap-1 rounded-pill border border-dashed border-chevron px-3 py-1.5 text-[11.5px] text-faint">
+                <IconPlus size={13} />
                 เพิ่มหมวด
               </span>
             </button>
@@ -840,25 +901,19 @@ export function AddPage() {
         )}
       </div>
 
-      {/* dock — keypad + reason + save. Always pinned to the bottom. */}
-      <div className="shrink-0">
-        <div className="grid grid-cols-3 px-3 pb-2 text-center">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((k) => (
-            <KeypadKey key={k} onClick={() => press(k)}>
-              {k}
-            </KeypadKey>
-          ))}
-          <KeypadKey onClick={() => press('.')} muted>
-            .
-          </KeypadKey>
-          <KeypadKey onClick={() => press('0')}>0</KeypadKey>
-          <KeypadKey onClick={() => press('back')} aria-label="ลบ">
-            <IconBackspace size={21} className="mx-auto text-muted" />
-          </KeypadKey>
-        </div>
-
-        {/* why-you-can't-save bar — icon + text (never colour alone); role=status
-            so a screen reader announces it as the reason changes */}
+      {/* dock — reason + save + keypad, pinned to the viewport bottom with
+          position:absolute. Because it is bottom-anchored, its height changing
+          (the reason bar toggling, the keypad collapsing) grows/shrinks it
+          UPWARD — the keypad and the save button never move a pixel (the old
+          bug: the reason bar sat between the keypad and save in a bottom-pinned
+          flex block, so losing it dragged the keypad DOWN 42px). Measured into
+          dockHeight → the scroll area's padding-bottom. */}
+      <div
+        ref={dockRef}
+        className="absolute inset-x-0 bottom-0 bg-white pb-[max(8px,env(safe-area-inset-bottom))]"
+      >
+        {/* why-you-can't-save bar — ABOVE the save button, icon + text (never
+            colour alone); role=status so a screen reader announces it. */}
         {reason && (
           <div
             role="status"
@@ -875,7 +930,8 @@ export function AddPage() {
           </p>
         )}
 
-        <div className="px-4 pb-[max(18px,env(safe-area-inset-bottom))] pt-1">
+        {/* save — always visible, ABOVE the keypad (never flows under it, §3) */}
+        <div className="px-4 pt-1">
           <button
             onClick={save}
             disabled={!canSave}
@@ -884,6 +940,43 @@ export function AddPage() {
             <IconCheck size={17} />
             {add.isPending ? 'กำลังบันทึก…' : 'บันทึก'}
           </button>
+        </div>
+
+        {/* keypad — collapsible. The header bar always shows and carries the
+            explicit collapse/expand toggle; only the grid comes and goes. When
+            collapsed the grid's height leaves the dock, so the measured padding-
+            bottom shrinks and the scroll area reclaims the room (§ "คืน padding
+            ให้ถูก"). */}
+        <div className="pt-2">
+          <div className="flex items-center justify-between px-4 pb-1">
+            <span className="text-[11px] text-muted">แป้นตัวเลข</span>
+            <button
+              type="button"
+              onClick={() => setKeypadOpen((v) => !v)}
+              aria-expanded={keypadOpen}
+              aria-label={keypadOpen ? 'ยุบแป้นตัวเลข' : 'แสดงแป้นตัวเลข'}
+              className="flex items-center gap-0.5 text-[11px] font-medium text-brand-deep"
+            >
+              {keypadOpen ? 'ยุบ' : 'แสดง'}
+              {keypadOpen ? <IconChevronDown size={15} /> : <IconChevronUp size={15} />}
+            </button>
+          </div>
+          {keypadOpen && (
+            <div className="grid grid-cols-3 px-3 pb-1 text-center">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((k) => (
+                <KeypadKey key={k} onClick={() => press(k)}>
+                  {k}
+                </KeypadKey>
+              ))}
+              <KeypadKey onClick={() => press('.')} muted>
+                .
+              </KeypadKey>
+              <KeypadKey onClick={() => press('0')}>0</KeypadKey>
+              <KeypadKey onClick={() => press('back')} aria-label="ลบ">
+                <IconBackspace size={21} className="mx-auto text-muted" />
+              </KeypadKey>
+            </div>
+          )}
         </div>
       </div>
 
@@ -964,14 +1057,21 @@ function CategoryChip({
   onClick: () => void
 }) {
   const Icon = categoryIcon(cat.icon)
+  // §2.2: shrunk from ~52px → ~40px — smaller icon (14→13), smaller text
+  // (12→11.5), tighter padding (py-7→py-1.5), and the 44px touch-target min
+  // dropped to 40. That 40 is BELOW the 44×44 the bottom-nav guard enforces —
+  // a deliberate trade for a dense secondary picker that can run to a dozen
+  // long Thai names ("ค่าส่งที่เก็บจากลูกค้า"), NOT applied silently: the row's
+  // gap-2 (up from 7px) restores finger separation, and the full name is kept
+  // (never truncated to an icon grid) so a chip stays recognisable.
   return (
-    <button onClick={onClick} aria-pressed={active} className="flex min-h-[44px] items-center">
+    <button onClick={onClick} aria-pressed={active} className="flex min-h-[40px] items-center">
       <span
-        className={`flex items-center gap-1 rounded-pill px-[13px] py-[7px] text-[12px] ${
+        className={`flex items-center gap-1 rounded-pill px-3 py-1.5 text-[11.5px] ${
           active ? 'bg-brand-tint font-medium text-brand-ink' : 'bg-fill text-muted'
         }`}
       >
-        <Icon size={14} />
+        <Icon size={13} />
         {cat.name}
       </span>
     </button>

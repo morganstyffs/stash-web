@@ -4,6 +4,7 @@ import {
   favoriteSignature,
   isEntrySelectableCategory,
   isInternalPath,
+  orderByFrequency,
   saveBlockedReason,
   pressKey,
   keypadActionFromKey,
@@ -57,6 +58,40 @@ describe('isEntrySelectableCategory — which categories a manual entry may pick
     expect(
       isEntrySelectableCategory(cat({ kind: 'income', system_key: 'stock_sale_income' }), 'income'),
     ).toBe(false)
+  })
+})
+
+describe('orderByFrequency — §2.1: most-used chips float to the head of ONE list', () => {
+  const cats = [
+    { id: 'a', name: 'อาหาร' },
+    { id: 'b', name: 'บิล' },
+    { id: 'c', name: 'ช้อปปิ้ง' },
+    { id: 'd', name: 'เดินทาง' },
+  ]
+
+  it('puts frequent ids first, in ranking order', () => {
+    expect(orderByFrequency(cats, ['d', 'b']).map((c) => c.id)).toEqual(['d', 'b', 'a', 'c'])
+  })
+
+  it('keeps the original relative order of non-frequent categories (stable)', () => {
+    // 'c' is the only frequent one → it leads; a, b, d keep their input order.
+    expect(orderByFrequency(cats, ['c']).map((c) => c.id)).toEqual(['c', 'a', 'b', 'd'])
+  })
+
+  it('returns the list unchanged when there is no ranking (empty history)', () => {
+    expect(orderByFrequency(cats, []).map((c) => c.id)).toEqual(['a', 'b', 'c', 'd'])
+  })
+
+  it('ignores ranking ids that are not in the list', () => {
+    // a category ranked in history but filtered out of the visible list (e.g. a
+    // system category, or the other kind) must not conjure a phantom chip.
+    expect(orderByFrequency(cats, ['zzz', 'b']).map((c) => c.id)).toEqual(['b', 'a', 'c', 'd'])
+  })
+
+  it('does not mutate the input array', () => {
+    const input = [...cats]
+    orderByFrequency(input, ['d'])
+    expect(input.map((c) => c.id)).toEqual(['a', 'b', 'c', 'd'])
   })
 })
 
