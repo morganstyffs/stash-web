@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconAlertTriangle,
+  IconArrowUpRight,
   IconEye,
   IconEyeOff,
   IconPlus,
@@ -321,6 +322,26 @@ export function WovenHero({
           ) : (
             <IconEye size={16} className="opacity-70" />
           )}
+        </button>
+      )}
+
+      {/* Budget "open the budget screen" arrow — a SIBLING of the labels, same as
+          the eye (never nested in a label <button>), and rendered only when BUDGET
+          is the front label. It reuses the tap that a front label leaves free (a
+          folded label's tap already switches it forward — that gesture is NOT
+          touched here), so งบ is reachable straight from the hero the eye lands on
+          instead of the deeper ตั้งค่า → งบ path. Sits on the front label's header
+          strip right edge (same 44px hit box + coordinates as the eye) so nothing
+          shifts on screen; z-10 keeps the tap on the arrow, not the label. */}
+      {selected === 'budget' && (
+        <button
+          type="button"
+          onClick={() => navigate('/budget')}
+          aria-label="เปิดหน้างบประมาณ"
+          className="absolute z-10 flex h-11 w-11 items-center justify-center text-brand-thread"
+          style={{ top: 98, right: 8 }}
+        >
+          <IconArrowUpRight size={16} className="opacity-70" />
         </button>
       )}
     </div>
