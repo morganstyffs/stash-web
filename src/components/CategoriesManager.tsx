@@ -378,7 +378,12 @@ export function CategoriesManager({ onClose }: { onClose: () => void }) {
                   <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] bg-fill">
                     <Icon size={16} style={{ color: catColorVar(c.color_index) }} />
                   </div>
-                  <span className="min-w-0 flex-1 truncate text-[13.5px]">{c.name}</span>
+                  {/* title = full name on hover / long-press — the cheapest
+                      recovery for the ~9px truncation the longest seeded name
+                      (ค่าส่งที่เก็บจากลูกค้า) takes at 360px (see the visual guard). */}
+                  <span title={c.name} className="min-w-0 flex-1 truncate text-[13.5px]">
+                    {c.name}
+                  </span>
                   <RoleBadge category={c} />
                   <button
                     aria-label="แก้ไข"
