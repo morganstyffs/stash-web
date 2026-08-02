@@ -58,6 +58,7 @@ export type Database = {
           created_at: string
           icon: string
           id: string
+          is_shop_category: boolean
           is_stock_category: boolean
           is_system: boolean
           kind: Database["public"]["Enums"]["category_kind"]
@@ -72,6 +73,7 @@ export type Database = {
           created_at?: string
           icon?: string
           id?: string
+          is_shop_category?: boolean
           is_stock_category?: boolean
           is_system?: boolean
           kind?: Database["public"]["Enums"]["category_kind"]
@@ -86,6 +88,7 @@ export type Database = {
           created_at?: string
           icon?: string
           id?: string
+          is_shop_category?: boolean
           is_stock_category?: boolean
           is_system?: boolean
           kind?: Database["public"]["Enums"]["category_kind"]
@@ -556,6 +559,7 @@ export type Database = {
           date: string
           id: string
           is_debt_settlement: boolean
+          is_shop_operating: boolean
           is_stock_cogs: boolean
           is_stock_purchase: boolean
           note: string | null
@@ -572,6 +576,7 @@ export type Database = {
           date?: string
           id?: string
           is_debt_settlement?: boolean
+          is_shop_operating?: boolean
           is_stock_cogs?: boolean
           is_stock_purchase?: boolean
           note?: string | null
@@ -588,6 +593,7 @@ export type Database = {
           date?: string
           id?: string
           is_debt_settlement?: boolean
+          is_shop_operating?: boolean
           is_stock_cogs?: boolean
           is_stock_purchase?: boolean
           note?: string | null
