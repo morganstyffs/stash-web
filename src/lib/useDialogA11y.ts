@@ -29,6 +29,18 @@ export function useDialogA11y(onClose: () => void, active = true) {
   const panelRef = useRef<HTMLDivElement>(null)
   const idRef = useRef(Symbol())
 
+  // Keep the latest onClose in a ref so the focus effect below need NOT list it as
+  // a dependency. Callers pass an inline `() => setX(null)`, a fresh identity every
+  // render. If the effect depended on onClose, any parent re-render would tear the
+  // effect down and re-run it — restoring focus to the trigger, then re-focusing
+  // the panel's first element (its ✕ button), yanking the caret out of whatever the
+  // user was typing. That's the "budget field drops after one keystroke" bug: the
+  // budget amount lives in the *page's* state, so every keystroke re-renders the
+  // page → new onClose → focus stolen → mobile keyboard closes. The mount/restore
+  // logic must fire only on real open/close, so onClose rides a ref instead (§11.4-17).
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
   useEffect(() => {
     if (!active) return
     const id = idRef.current
@@ -47,7 +59,7 @@ export function useDialogA11y(onClose: () => void, active = true) {
       if (openStack[openStack.length - 1] !== id) return // not the topmost dialog — ignore
       if (e.key === 'Escape') {
         e.stopPropagation()
-        onClose()
+        onCloseRef.current()
         return
       }
       if (e.key !== 'Tab') return
@@ -70,7 +82,9 @@ export function useDialogA11y(onClose: () => void, active = true) {
       openStack = openStack.filter((x) => x !== id)
       previouslyFocused?.focus()
     }
-  }, [active, onClose])
+    // onClose intentionally omitted — it rides onCloseRef (see above) so an unstable
+    // inline callback can't re-run this open/close focus effect on every keystroke.
+  }, [active])
 
   return panelRef
 }

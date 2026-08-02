@@ -382,7 +382,7 @@ function BudgetRowView({
   )
 }
 
-function BudgetEditor({
+export function BudgetEditor({
   state,
   categoryName,
   addable,
