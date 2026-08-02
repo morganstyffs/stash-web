@@ -7,6 +7,7 @@ import { AuthProvider } from '@/hooks/useAuth'
 import { ToastProvider } from '@/components/Toast'
 import { AppLayout } from '@/components/AppLayout'
 import { runVisualTest } from '@/components/visual-harness'
+import { luminance, contrast, parseRgb } from '@/components/visual-contrast'
 
 /**
  * Dark-mode legibility guard for the app page background (real browser).
@@ -23,32 +24,9 @@ import { runVisualTest } from '@/components/visual-harness'
  * The contrast assertion is the load-bearing one — it measures what the user
  * actually experiences (can I read this?), not merely "did the colour change".
  *
- * Browser resolution + skip/fail policy live in visual-harness.ts.
+ * WCAG colour maths live in visual-contrast.ts; browser resolution + skip/fail
+ * policy live in visual-harness.ts.
  */
-
-/** Relative luminance (WCAG 2.x) of an sRGB colour given as 0–255 channels. */
-function luminance(r: number, g: number, b: number): number {
-  const lin = (c: number) => {
-    const s = c / 255
-    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
-  }
-  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
-}
-
-/** WCAG contrast ratio between two sRGB colours. */
-function contrast(a: [number, number, number], b: [number, number, number]): number {
-  const la = luminance(...a)
-  const lb = luminance(...b)
-  const [hi, lo] = la >= lb ? [la, lb] : [lb, la]
-  return (hi + 0.05) / (lo + 0.05)
-}
-
-/** Parse a computed `rgb(r, g, b)` / `rgba(r, g, b, a)` string into channels. */
-function parseRgb(s: string): [number, number, number] {
-  const m = s.match(/rgba?\(\s*([0-9.]+)[,\s]+([0-9.]+)[,\s]+([0-9.]+)/i)
-  if (!m) throw new Error(`unparseable colour: ${s}`)
-  return [Number(m[1]), Number(m[2]), Number(m[3])]
-}
 
 interface Sample {
   bg: string

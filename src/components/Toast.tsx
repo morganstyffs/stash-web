@@ -81,29 +81,55 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-50 flex flex-col items-center gap-2 px-4 sm:bottom-6">
         {items.map((t) => (
-          <div
-            key={t.id}
-            role="status"
-            className="pointer-events-auto flex max-w-md items-center gap-2 rounded-pill bg-ink/92 px-4 py-2.5 text-[13px] font-medium text-white shadow-card"
-          >
-            <ToastIcon kind={t.kind} />
-            <span className="min-w-0">{t.message}</span>
-            {t.action && (
-              <button
-                type="button"
-                onClick={() => {
-                  t.action!.onClick()
-                  dismiss(t.id)
-                }}
-                className="ml-1 shrink-0 rounded-pill bg-white/20 px-3 py-1 text-[12px] font-medium"
-              >
-                {t.action.label}
-              </button>
-            )}
-          </div>
+          <ToastPill key={t.id} item={t} onDismiss={dismiss} />
         ))}
       </div>
     </ToastContext.Provider>
+  )
+}
+
+/**
+ * The visible capsule for one toast. Extracted so its markup lives in one place —
+ * both the provider above and the Toast.contrast.visual guard render THIS, so the
+ * guard measures the real component's colours.
+ *
+ * It fixes TWO compounding bugs behind the invisible "บันทึกแล้ว" message:
+ *   1. the capsule was `bg-ink/92`, but a bare `/92` is NOT a valid opacity step in
+ *      this Tailwind build (only scale steps like /90,/95 or arbitrary /[0.92] emit
+ *      a rule) — so NO background compiled and the pill was transparent: white text
+ *      on the light page = a blank white capsule.
+ *   2. even once a background applies, `ink` flips near-white in dark mode, which
+ *      would then hide the white text there instead.
+ * So the surface is the always-dark, theme-independent `toast` token at an explicit
+ * /[0.92]. Do not point it back at `ink`, and keep the opacity a valid step.
+ */
+export function ToastPill({
+  item,
+  onDismiss,
+}: {
+  item: ToastItem
+  onDismiss?: (id: number) => void
+}) {
+  return (
+    <div
+      role="status"
+      className="pointer-events-auto flex max-w-md items-center gap-2 rounded-pill bg-toast/[0.92] px-4 py-2.5 text-[13px] font-medium text-white shadow-card"
+    >
+      <ToastIcon kind={item.kind} />
+      <span className="min-w-0">{item.message}</span>
+      {item.action && (
+        <button
+          type="button"
+          onClick={() => {
+            item.action!.onClick()
+            onDismiss?.(item.id)
+          }}
+          className="ml-1 shrink-0 rounded-pill bg-white/20 px-3 py-1 text-[12px] font-medium"
+        >
+          {item.action.label}
+        </button>
+      )}
+    </div>
   )
 }
 

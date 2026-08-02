@@ -22,6 +22,14 @@
     --color-surface: 246 243 236;
     --color-fill: 237 233 222;
     --color-chevron: 200 194 180;
+    /* toast — the snackbar/pill surface. Deliberately theme-INDEPENDENT (defined
+       here in :root and NOT overridden under html.dark): the toast is an always-
+       dark capsule whose white text and locked soft-colour icons (income-soft /
+       expense-soft, see Toast.tsx) are designed to read on a dark ground in BOTH
+       modes. The capsule used `bg-ink/92`; `ink` flips near-white in dark mode, so
+       a dark-mode toast would go white-on-white. This constant keeps the ground
+       dark in every theme. Value = the light-mode ink (27 26 23). */
+    --color-toast: 27 26 23;
     /* mint — logo shell of the หน้าปัดตู้เซฟ brand mark (BrandMark.tsx via
        `text-mint`). INTENTIONAL REVERSAL of PR-C (which removed mint for indigo):
        logo v2 wraps a mint shell around the indigo dial, so mint is deliberately
