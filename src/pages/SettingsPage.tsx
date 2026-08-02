@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  IconBox,
   IconCategory,
   IconChevronRight,
   IconCurrencyBaht,
@@ -76,15 +75,6 @@ export function SettingsPage() {
     }
   }
 
-  const stockCatNames = useMemo(
-    () =>
-      (categories ?? [])
-        .filter((c) => c.is_stock_category)
-        .map((c) => c.name)
-        .join(', '),
-    [categories],
-  )
-
   return (
     <div className="flex min-h-full flex-col">
       <div className="px-[18px] pb-3.5 pt-[18px]">
@@ -147,17 +137,10 @@ export function SettingsPage() {
           label="งบประมาณ"
           onClick={() => navigate('/budget')}
         />
-        <Row icon={IconCurrencyBaht} label="สกุลเงิน" value="บาท (฿)" last />
-      </Group>
-
-      <Group title="สต็อก">
-        <Row
-          icon={IconBox}
-          iconTint
-          label="หมวดที่ลงสต็อกอัตโนมัติ"
-          sub={stockCatNames || 'ยังไม่ได้ตั้ง'}
-          onClick={() => setManager('categories')}
-        />
+        <Row icon={IconCurrencyBaht} label="สกุลเงิน" value="บาท (฿)" />
+        {/* รูปแบบ SKU เคยอยู่กลุ่ม "สต็อก" คู่กับ "หมวดที่ลงสต็อกอัตโนมัติ" ซึ่งเป็น
+            แค่ทางลัดซ้ำไปหน้าจัดการหมวดเดียวกัน — ตัดทางลัดนั้นออก เหลือแถวเดียว
+            จึงยุบหัวข้อกลุ่มมารวมกับ "ทั่วไป" */}
         <Row
           icon={IconTag}
           label="รูปแบบ SKU"
