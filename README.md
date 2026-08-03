@@ -1,6 +1,6 @@
 # Stash
 
-PWA บันทึกรายรับ-รายจ่ายส่วนตัว + **กึ่งระบบสต็อกสินค้า** (เสื้อผ้า/ของมือสอง ขายต่อ) + **ระบบยอดค้างกับเพื่อน** — mobile/tablet-first, UI ภาษาไทย, สกุลเงิน THB, เขตเวลา Asia/Bangkok
+PWA บันทึกรายรับ-รายจ่ายส่วนตัว + **กึ่งระบบสต็อกสินค้า** (เสื้อผ้า/ของมือสอง ขายต่อ) + **ระบบยอดค้างกับเพื่อน** + **กระเป๋าเงินหลายใบ** (ยอดตั้งต้น/คงเหลือ/โอน) — mobile/tablet-first, UI ภาษาไทย, สกุลเงิน THB, เขตเวลา Asia/Bangkok
 
 - **ผู้ใช้:** เจ้าของ + เพื่อนไม่กี่คน · **ต่างคนต่างขายของตัวเอง ไม่แชร์คลัง** · "ยอดค้าง" เป็นฟีเจอร์ cross-user ตัวเดียวในแอป (ไม่ใช่แอปผู้ใช้คนเดียว)
 - ซื้อของเข้าสต็อกหนึ่งครั้ง = บันทึกเป็นการแปลงสินทรัพย์ (ไม่ใช่รายจ่าย) **และ** สร้างสินค้าในสต็อกพร้อมกัน · ขายออก = ตัดสต็อก + คำนวณกำไรอัตโนมัติ (บันทึกสองแถว income/COGS)
@@ -74,14 +74,14 @@ src/
   worker/      Cloudflare Worker: index.ts (fetch + ASSETS + security headers) · ai.ts (AI proxy stub)
   styles/      index.css — แหล่งความจริงของ CSS variable (สี light/dark)
 supabase/
-  migrations/  0001–0027 (raw SQL, additive-only, รันมือใน SQL Editor)
+  migrations/  0001–0028 (raw SQL, additive-only, รันมือใน SQL Editor)
 docs/
   STASH_CONTEXT.md   บริบทถาวร — อ่านก่อนแก้โค้ด
   design/            handoff bundle จาก Claude Design
 tailwind.config.ts + src/styles/index.css   แหล่งความจริงของสี (hex/geometry อยู่ที่นี่ที่เดียว)
 ```
 
-ตัวเลขที่นับจริงในรอบนี้ (`ls supabase/migrations/*.sql | wc -l` ฯลฯ): **migration 27 ใบ** (ล่าสุด `0027`) · **13 หน้า** (`*Page.tsx`) · **14 route** ใน `router.tsx` (13 หน้า + catch-all) · **bottom nav มือถือ = 4 แท็บ + FAB กลาง (5 ช่อง)** — ตั้งค่าเข้าจากไอคอนเฟืองมุมขวาบนหน้าแรก ไม่อยู่ในแถบล่าง (nav rail เดสก์ท็อปยังครบทุกหน้า)
+ตัวเลขที่นับจริงในรอบนี้ (`ls supabase/migrations/*.sql | wc -l` ฯลฯ): **migration 28 ใบ** (ล่าสุด `0028` กระเป๋าเงิน) · **13 หน้า** (`*Page.tsx`) · **14 route** ใน `router.tsx` (13 หน้า + catch-all) · **bottom nav มือถือ = 4 แท็บ + FAB กลาง (5 ช่อง)** — ตั้งค่าเข้าจากไอคอนเฟืองมุมขวาบนหน้าแรก ไม่อยู่ในแถบล่าง (nav rail เดสก์ท็อปยังครบทุกหน้า) · กระเป๋าเงินเป็นชีตในหน้าตั้งค่า ไม่ใช่หน้าใหม่
 
 > `src/worker/` build โดย wrangler (ผ่าน `main` ใน `wrangler.jsonc`) ไม่ใช่ Vite → ถูก exclude จาก `tsconfig.app.json` และตรวจชนิดด้วย `tsconfig.worker.json`
 > **ค่าสี hex และเลขเรขาคณิตของฮีโร่ไม่ได้เขียนไว้ในเอกสารนี้** — แหล่งความจริงคือ `tailwind.config.ts` + `src/styles/index.css` (มีคอมเมนต์กำกับ locked/role)
@@ -95,12 +95,12 @@ tailwind.config.ts + src/styles/index.css   แหล่งความจริ
 | `ci.yml` | ทุก push→`main` + ทุก PR: `npm ci` → `npm run build` → ติดตั้ง Chromium → `npm test` · **ไม่ deploy** · ขั้น Chromium มีเพื่อให้ guard เบราว์เซอร์จริงรันได้ใน CI |
 | `types-drift.yml` | cron รายวัน: generate types จาก DB จริงเทียบกับ `src/lib/database.types.ts` · ต่างเมื่อไรเปิด PR อัตโนมัติ (branch `automation/database-types-drift`) · ไม่แตะ `main` ตรง ๆ |
 
-- **เทสต์:** `npm test` รันทั้งชุดด้วย Vitest · **52 ไฟล์เทสต์ · 8 เป็น visual guard เบราว์เซอร์จริง** (Playwright + Chromium) ที่ **`ctx.skip()` นอก CI** (Chromium ไม่พร้อมในเครื่อง) แต่ **`throw` เมื่อ `process.env.CI` ถูกตั้ง** → รันในเครื่องจะเห็น skipped ส่วนนี้ พิสูจน์ได้จริงเฉพาะใน CI · ผลรอบล่าสุด: `Tests 433 passed | 9 skipped (442)` (9 skipped = visual guard ทั้งหมด)
+- **เทสต์:** `npm test` รันทั้งชุดด้วย Vitest · **62 ไฟล์เทสต์ · 13 เป็น visual guard เบราว์เซอร์จริง** (Playwright + Chromium) ที่ **`ctx.skip()` นอก CI** (Chromium ไม่พร้อมในเครื่อง) แต่ **`throw` เมื่อ `process.env.CI` ถูกตั้ง** → รันในเครื่องจะเห็น skipped ส่วนนี้ พิสูจน์ได้จริงเฉพาะใน CI · ผลรอบล่าสุด: **`495 passed | 0 skipped (495)` ใน CI (มี Chromium)** / **`481 passed | 14 skipped (495)`** เครื่องเปล่า (14 skipped = visual guard ทั้งหมด)
 - **Deploy:** อัตโนมัติผ่าน **Cloudflare Workers Git integration** — Build command `npm run build` · Deploy `npx wrangler deploy` (build สร้าง `./dist` ที่ wrangler อัปโหลดเป็น assets) · Build variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` · Runtime secret: `ANTHROPIC_API_KEY`
 
 ## สถานะ
 
-**ทำแล้ว (ยืนยันได้จากโค้ด):** บันทึกรายรับ-รายจ่าย + กระเป๋า · ระบบสต็อก/ขายครบวงจร + SKU (prefix แก้ได้) · บัญชีร้านสองถัง + การ์ดกำไร (`ShopProfitCard`) + ป๊อปอัพค่าส่งขาเข้า · ทุนจม/วันในคลัง · **ระบบยอดค้างกับเพื่อน** cross-user ครบวงจร (เพิ่มเพื่อน/บันทึก/ยืนยัน/เคลียร์/ย้อน) · ค้นหาประวัติ + ตัวกรองเดือน · หน้างบ (เลื่อนดูเดือน, ตัวเลขแทนคำตัดสิน, กันตั้งงบหมวดที่ไม่นับในงบ) · dark mode + guard เบราว์เซอร์จริง · schema types generate จาก DB จริง (workflow)
+**ทำแล้ว (ยืนยันได้จากโค้ด):** บันทึกรายรับ-รายจ่าย · **กระเป๋าเงินหลายใบครบวงจร** (ยอดตั้งต้น + คงเหลือคำนวณสด + โอนระหว่างกระเป๋า + ประวัติการโอน) · ระบบสต็อก/ขายครบวงจร + SKU (prefix แก้ได้) · บัญชีร้านสองถัง + การ์ดกำไร (`ShopProfitCard`) + ป๊อปอัพค่าส่งขาเข้า · ทุนจม/วันในคลัง · **ระบบยอดค้างกับเพื่อน** cross-user ครบวงจร (เพิ่มเพื่อน/บันทึก/ยืนยัน/เคลียร์/ย้อน) · ค้นหาประวัติ + ตัวกรองเดือน · หน้างบ (เลื่อนดูเดือน, ตัวเลขแทนคำตัดสิน, กันตั้งงบหมวดที่ไม่นับในงบ) · dark mode + guard เบราว์เซอร์จริง · schema types generate จาก DB จริง (workflow)
 
 **ยังไม่ได้ทำ:** ฟีเจอร์ AI (โครงเปล่า — `worker/ai.ts` เป็น stub) · offline-first เต็มรูปแบบ (`offlineQueue.ts` ยังไม่ต่อ) · ถังขยะ/สำรองข้อมูล · ยังไม่มี ESLint · **หนี้เทคนิคที่รู้ตัวอื่น ๆ อยู่ใน [`docs/STASH_CONTEXT.md`](docs/STASH_CONTEXT.md) §10**
 
