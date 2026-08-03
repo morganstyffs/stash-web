@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { daysLeftInMonthKey, monthBoundsFromKey, monthKey } from '@/lib/dates'
-import { isBudgetSpendingRow, isIncomeRow, isSpendingRow } from '@/lib/ledger'
-import type { Category, TransactionType } from '@/lib/db'
+import { monthBoundsFromKey, monthKey } from '@/lib/dates'
+import type { TransactionType } from '@/lib/db'
 
 /** The recent list is capped here (also the cache-warm slice in useAddTransaction). */
 export const RECENT_LIMIT = 8
@@ -83,117 +82,5 @@ export function useRecentTransactions() {
   })
 }
 
-export interface DonutSlice {
-  categoryId: string
-  name: string
-  /** category colour slot 1–6, or null for the uncategorised bucket (→ neutral) */
-  colorIndex: number | null
-  total: number
-}
-
-export interface HomeSummary {
-  income: number
-  expense: number
-  /** safe-to-spend = income − expense (stock purchases excluded as inventory) */
-  safeToSpend: number
-  /** spending that counts against budgets — isBudgetSpendingRow basis (COGS excluded) */
-  budgetSpending: number
-  /** days remaining in the month, including today (Asia/Bangkok calendar) */
-  daysLeft: number
-  /** safeToSpend / daysLeft, or 0 when safeToSpend <= 0 */
-  dailyAllowance: number
-  /** % change of safe-to-spend vs last month, or null when last month is empty */
-  deltaPct: number | null
-  /** number of income transactions this month */
-  incomeCount: number
-  /** number of (non-stock) expense transactions this month */
-  expenseCount: number
-  /** expense grouped by category, largest first */
-  donut: DonutSlice[]
-}
-
-/**
- * Pure aggregation of the month rows into everything the home screen renders.
- * Stock purchases are treated as inventory and excluded from spending figures
- * (design spec §3, accounting model).
- */
-export function computeHomeSummary(
-  rows: MonthRow[],
-  categories: Category[],
-  month: string = monthKey(),
-  now: Date = new Date(),
-): HomeSummary {
-  // `month` ("which month") is split from `now` ("what day is it"): they agree
-  // for the current month but diverge for a past one, where daysLeft must read 0
-  // rather than a plausible-looking mid-month count. Both default to the present,
-  // so runtime behaviour is unchanged.
-  const b = monthBoundsFromKey(month)
-  const catById = new Map(categories.map((c) => [c.id, c]))
-
-  let income = 0
-  let expense = 0
-  let budgetSpending = 0
-  let incomeCount = 0
-  let expenseCount = 0
-  let prevSafe = 0
-  let prevIncome = 0
-  let prevExpense = 0
-  const byCat = new Map<string, number>()
-
-  for (const r of rows) {
-    const inThisMonth = r.date >= b.start && r.date < b.next
-    const amount = Number(r.amount) || 0
-    if (inThisMonth) {
-      if (isIncomeRow(r)) {
-        income += amount
-        incomeCount += 1
-      } else if (isSpendingRow(r)) {
-        expense += amount
-        expenseCount += 1
-        const key = r.category_id ?? 'none'
-        byCat.set(key, (byCat.get(key) ?? 0) + amount)
-      }
-      if (isBudgetSpendingRow(r)) budgetSpending += amount
-    } else {
-      // previous month
-      if (isIncomeRow(r)) prevIncome += amount
-      else if (isSpendingRow(r)) prevExpense += amount
-    }
-  }
-  prevSafe = prevIncome - prevExpense
-
-  const safeToSpend = income - expense
-  const deltaPct =
-    prevSafe > 0 ? Math.round(((safeToSpend - prevSafe) / prevSafe) * 100) : null
-
-  // Days remaining in the month, today included — the shared helper so this and
-  // the budget page never disagree about "เหลือกี่วัน" (convention 10). Keyed on
-  // `month`: a past month is over → 0, so dailyAllowance can't show a stale figure.
-  const daysLeft = daysLeftInMonthKey(month, now)
-  const dailyAllowance = daysLeft > 0 && safeToSpend > 0 ? safeToSpend / daysLeft : 0
-
-  const donut: DonutSlice[] = [...byCat.entries()]
-    .map(([id, total]) => {
-      const cat = catById.get(id)
-      return {
-        categoryId: id,
-        name: cat?.name ?? 'อื่นๆ',
-        colorIndex: cat?.color_index ?? null,
-        total,
-      }
-    })
-    .sort((a, b2) => b2.total - a.total)
-
-  return {
-    income,
-    expense,
-    safeToSpend,
-    budgetSpending,
-    daysLeft,
-    dailyAllowance,
-    deltaPct,
-    incomeCount,
-    expenseCount,
-    donut,
-  }
-}
+// computeHomeSummary + its HomeSummary/DonutSlice shapes moved to
+// `src/lib/homeSummary.ts` so the AI worker (no React) can import them (PR-2a).

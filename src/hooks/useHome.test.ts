@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeHomeSummary } from '@/hooks/useHome'
+import { computeHomeSummary } from '@/lib/homeSummary'
 
 // Dates are pinned to fixed literals (never derived from monthBounds()), so the
 // test can't share a bug with the code under test — if monthBoundsFromKey()

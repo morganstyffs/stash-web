@@ -21,6 +21,7 @@ import { ShopProfitCard } from '@/components/ShopProfitCard'
 import { formatBaht, MASKED_BAHT } from '@/lib/format'
 import { loadStockView, saveStockView, type StockView } from '@/lib/prefs'
 import { daysSince } from '@/lib/dates'
+import { AGE_FRESH_MAX, AGE_OLD_MAX, computeSunkCost, inStock, isStale } from '@/lib/stockAge'
 import type { StockItem } from '@/lib/db'
 
 /** ราคาบนการ์ด/hero: masked while hide-balance is on (whole-page, §4.6). */
@@ -28,13 +29,9 @@ function money(v: number, hide: boolean): string {
   return hide ? MASKED_BAHT : formatBaht(v)
 }
 
-// ── stock-age thresholds — the single source of truth (spec §อายุสต็อก) ───────
-// Tune here and here only: ≤30 days = fresh (grey spine, no flag), 31–60 =
-// aging (amber, "ค้าง N วัน"), >60 = old (red, "ค้าง N วัน"). These are an
-// educated guess for second-hand clothing, not measured from real turnover —
-// if stock usually clears in ~2 weeks, drop them.
-export const AGE_FRESH_MAX = 30
-export const AGE_OLD_MAX = 60
+// stock-age thresholds (AGE_FRESH_MAX / AGE_OLD_MAX) + the "60 = educated guess"
+// note now live in src/lib/stockAge.ts, imported above so ageTier and the hero
+// caption stay on the single source of truth.
 
 export type AgeTier = 'fresh' | 'aging' | 'old'
 
@@ -59,34 +56,9 @@ export const FILTERS: { key: StockFilter; label: string }[] = [
 
 export type StockCounts = Record<StockFilter, number>
 
-/** True when an item is still on the rack (any non-sold status). */
-function inStock(it: Pick<StockItem, 'status'>): boolean {
-  return it.status !== 'sold'
-}
-
-/** "ค้างนาน" — in stock and older than the aging cap (spec: in-stock & >60 days).
- *  Exported: the header bell's attention counter reuses this exact predicate
- *  against a narrower row shape than the full Stock page query. */
-export function isStale(it: Pick<StockItem, 'status' | 'created_at'>, now: Date): boolean {
-  return inStock(it) && daysSince(it.created_at, now) > AGE_OLD_MAX
-}
-
-/**
- * ทุนจม — cost tied up in stock that's been sitting past the "ค้างนาน" cap
- * (spec §ทุนจม): sum of cost × qty_remaining for every item `isStale` marks
- * (in-stock AND older than AGE_OLD_MAX). Shares `isStale` with the "ค้างนาน"
- * chip on purpose — one definition of the age boundary, so the number can never
- * disagree with the chip about which items count. Real money that's stuck, not
- * a hoped-for profit — it answers "where did the cash go" / "stop buying in".
- */
-export function computeSunkCost(items: StockItem[], now: Date = new Date()): number {
-  let sunk = 0
-  for (const it of items) {
-    if (!isStale(it, now)) continue
-    sunk += (Number(it.cost_per_unit) || 0) * (it.qty_remaining ?? 0)
-  }
-  return sunk
-}
+// inStock + isStale + computeSunkCost moved to src/lib/stockAge.ts (imported
+// above) so the worker can reach the age boundary and the ทุนจม figure without
+// pulling this page — and "still in stock" stays one definition, not two.
 
 /**
  * Per-chip counts over **all** items (never the already-filtered list) — the

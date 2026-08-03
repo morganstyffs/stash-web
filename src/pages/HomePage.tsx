@@ -6,12 +6,11 @@ import { useAttentionSignals } from '@/hooks/useAttention'
 import { useDialogA11y } from '@/lib/useDialogA11y'
 import type { StockFilter } from '@/pages/StockPage'
 import {
-  computeHomeSummary,
   useMonthTransactions,
   useRecentTransactions,
-  type DonutSlice,
   type RecentRow,
 } from '@/hooks/useHome'
+import { computeHomeSummary, type DonutSlice } from '@/lib/homeSummary'
 import { useUpcomingBills, type PendingItem } from '@/hooks/useUpcomingBills'
 import { Donut } from '@/components/charts'
 import { WovenHero } from '@/components/WovenHero'
