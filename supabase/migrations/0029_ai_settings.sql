@@ -53,62 +53,86 @@
 --   select proname from pg_proc where proname = 'set_updated_at';   -- คาด: 1 แถว
 --
 -- ── SMOKE TEST (รันหลัง commit — พิสูจน์ว่า "ทำงาน" ไม่ใช่แค่ "มีอยู่") ──────────
---   ก้อนเดียว begin;…rollback; — ไม่มีแถวใดรอด · impersonate ผ่าน request.jwt.claims
---   แล้ว assert ผลจริง (SQL Editor รันในฐานะ owner ที่ BYPASS RLS — ถ้าไม่สลับ role
---   เป็น authenticated + ตั้ง sub ทุก assertion เรื่อง RLS จะผ่านหลอก ๆ) · เลือกผู้ใช้
---   จริง 2 คน · seed แถวของผู้ใช้ B "ตอนยังเป็น owner" เพื่อพิสูจน์ว่า A มองไม่เห็น
+--   ก้อนเดียว begin;…rollback; — ไม่มีแถวใดรอด · impersonate ผ่าน request.jwt.claims +
+--   สลับ role เป็น authenticated (SQL Editor รันในฐานะ owner ที่ BYPASS RLS — ถ้าไม่สลับ
+--   ทุก assertion เรื่อง RLS จะผ่านหลอก ๆ) · เทสต์เจ้าของ-เดี่ยว (1/3/4) รันได้ด้วยผู้ใช้
+--   1 คน · เทสต์ข้ามผู้ใช้ (2/5/6) ต้องมีผู้ใช้ ≥2 คน — ถ้ามีคนเดียวจะประกาศ 'NOT PROVEN'
+--   ไม่ใช่ผ่านเงียบ ๆ · **(6) ลบแถว B ทิ้งก่อน (สลับกลับเป็น owner ชั่วคราว) ให้ insert ล้ม
+--   จาก RLS with-check "ทางเดียว" ไม่ปนกับ PK ซ้ำ** · ท้ายบล็อกพิมพ์ 'PROVEN X/6' บรรทัดเดียว
 --   ถ้า assert ใดล้ม → หยุดรายงาน อย่า patch
 --
 --   begin;
 --   do $$
 --   declare
+--     v_owner   text := current_user;   -- role ที่รัน (bypass RLS) — จับไว้ก่อนสลับ เพื่อสลับกลับได้
 --     v_me uuid; v_other uuid;
 --     v_consent boolean; v_default boolean; v_cnt int; v_err boolean;
+--     v_proven  int := 0;               -- นับ assertion ที่ "พิสูจน์จริง" (ไม่ใช่ข้าม)
 --   begin
---     select id into v_me    from auth.users order by id limit 1;
+--     select id into v_me from auth.users order by id limit 1;
+--     if v_me is null then
+--       raise notice 'NOT PROVEN: ไม่มีผู้ใช้ในระบบ — พิสูจน์อะไรไม่ได้ (PROVEN 0/6)'; return;
+--     end if;
+--     -- คนที่สอง (อาจ null ถ้ามีผู้ใช้คนเดียว → เทสต์ข้ามผู้ใช้จะถูกประกาศว่า NOT PROVEN)
 --     select id into v_other from auth.users where id <> v_me order by id limit 1;
---     if v_me is null or v_other is null then
---       raise notice 'skip: ต้องมีผู้ใช้ >= 2 คน'; return;
+--
+--     -- seed แถวของ B ตอนยังเป็น owner (bypass RLS) เพื่อทดสอบว่า A มองไม่เห็น/แก้ไม่ได้
+--     if v_other is not null then
+--       insert into public.ai_settings (user_id, consent) values (v_other, true);
 --     end if;
 --
---     -- seed แถวของ B ตอนยังเป็น owner (bypass RLS) เพื่อทดสอบว่า A มองไม่เห็น
---     insert into public.ai_settings (user_id, consent) values (v_other, true);
---
---     -- สลับเป็นผู้ใช้ A (RLS มีผลตั้งแต่บรรทัดนี้ไป)
+--     -- ── สลับเป็นผู้ใช้ A (RLS มีผลตั้งแต่บรรทัดนี้ไป) ──
 --     perform set_config('request.jwt.claims', json_build_object('sub', v_me)::text, true);
 --     perform set_config('role', 'authenticated', true);
 --
---     -- (1) A ยังไม่มีแถว → query คืน 0 แถว ไม่ error (เคสที่ worker แปลเป็น "ไม่ยินยอม")
+--     -- ── เทสต์เจ้าของ-เดี่ยว (ต้องการแค่ผู้ใช้ A) ──
+--     -- (1) A ยังไม่มีแถว → 0 แถว ไม่ error (เคสที่ worker แปลเป็น "ไม่ยินยอม" = 403)
 --     select count(*) into v_cnt from public.ai_settings;
---     assert v_cnt = 0, '1: ผู้ใช้ที่ไม่มีแถวควรได้ 0 แถว (ไม่ error)';
+--     assert v_cnt = 0, '1: no-row ควรได้ 0 แถว (ไม่ error)';
+--     v_proven := v_proven + 1;
 --
---     -- (2) A มองไม่เห็นแถวของ B (RLS select)
---     select count(*) into v_cnt from public.ai_settings where user_id = v_other;
---     assert v_cnt = 0, '2: ผู้ใช้ A เห็นแถวของผู้ใช้ B ได้ (RLS select รั่ว)';
---
---     -- (3) ค่าเริ่มต้น consent = false เมื่อ insert โดยไม่ระบุ
---     insert into public.ai_settings (user_id) values (v_me);
+--     -- (3) default: insert โดยไม่ระบุอะไรเลย → user_id = auth.uid() (default), consent = false (default)
+--     insert into public.ai_settings default values;
 --     select consent into v_default from public.ai_settings where user_id = v_me;
---     assert v_default = false, '3: ค่าเริ่มต้น consent ต้องเป็น false';
+--     assert v_default = false, '3: default consent ต้องเป็น false (และ default auth.uid() ต้องเซ็ต user_id)';
+--     v_proven := v_proven + 1;
 --
 --     -- (4) A เขียน (update) + อ่านแถวตัวเองได้
 --     update public.ai_settings set consent = true where user_id = v_me;
 --     select consent into v_consent from public.ai_settings where user_id = v_me;
 --     assert v_consent = true, '4: ผู้ใช้เขียน/อ่านแถวตัวเองไม่ได้';
+--     v_proven := v_proven + 1;
 --
---     -- (5) A แก้แถวของ B ไม่ได้ (RLS using → 0 rows affected ไม่ใช่ error)
---     update public.ai_settings set consent = false where user_id = v_other;
---     get diagnostics v_cnt = row_count;
---     assert v_cnt = 0, '5: ผู้ใช้ A แก้แถวของผู้ใช้ B ได้ (RLS update รั่ว)';
+--     -- ── เทสต์ข้ามผู้ใช้ (ต้องมีผู้ใช้ B) ──
+--     if v_other is null then
+--       raise notice 'NOT PROVEN (ข้ามผู้ใช้): มีผู้ใช้คนเดียว — RLS select/update/insert ยังไม่ได้พิสูจน์';
+--     else
+--       -- (2) A มองไม่เห็นแถวของ B (RLS select)
+--       select count(*) into v_cnt from public.ai_settings where user_id = v_other;
+--       assert v_cnt = 0, '2: ผู้ใช้ A เห็นแถวของผู้ใช้ B (RLS select รั่ว)';
+--       v_proven := v_proven + 1;
 --
---     -- (6) A สร้างแถวให้ B ไม่ได้ (RLS insert with check → ต้อง raise)
---     v_err := false;
---     begin
---       insert into public.ai_settings (user_id, consent) values (v_other, true);
---     exception when others then v_err := true; end;
---     assert v_err, '6: ผู้ใช้ A สร้างแถวให้ผู้ใช้ B ได้ (RLS insert with check รั่ว)';
+--       -- (5) A แก้แถวของ B ไม่ได้ (RLS using → 0 rows affected ไม่ใช่ error)
+--       update public.ai_settings set consent = false where user_id = v_other;
+--       get diagnostics v_cnt = row_count;
+--       assert v_cnt = 0, '5: ผู้ใช้ A แก้แถวของผู้ใช้ B ได้ (RLS update รั่ว)';
+--       v_proven := v_proven + 1;
 --
---     raise notice 'SMOKE OK: no-row=0, RLS select/update/insert กันครบ, default=false, เขียน/อ่านตัวเองได้';
+--       -- (6) A สร้างแถวให้ B ไม่ได้ — raise ต้องมาจาก RLS with-check "ทางเดียว":
+--       --     ลบแถว B ทิ้งก่อน (สลับกลับเป็น owner ชั่วคราว) เพื่อตัดโอกาส raise เพราะ PK ซ้ำ
+--       --     (เทสต์ที่ผ่านด้วยเหตุผลผิด = ตระกูล debt_create ที่รอด verification เพราะไม่มีใครเรียกจริง)
+--       perform set_config('role', v_owner, true);          -- กลับเป็น owner (bypass RLS)
+--       delete from public.ai_settings where user_id = v_other;
+--       perform set_config('role', 'authenticated', true);  -- กลับเป็น A (claims ยังเป็น A)
+--       v_err := false;
+--       begin
+--         insert into public.ai_settings (user_id, consent) values (v_other, true);
+--       exception when others then v_err := true; end;
+--       assert v_err, '6: ผู้ใช้ A สร้างแถวให้ผู้ใช้ B ได้ (RLS insert with check รั่ว)';
+--       v_proven := v_proven + 1;
+--     end if;
+--
+--     raise notice 'SMOKE DONE — PROVEN %/6 assertion (ครบ 6/6 เมื่อมีผู้ใช้ ≥2 คน)', v_proven;
 --   end $$;
 --   rollback;
 -- ============================================================================
