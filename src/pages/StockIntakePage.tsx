@@ -169,16 +169,16 @@ export function StockIntakePage() {
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-tint">
             <IconAlertCircle size={26} className="text-brand-deep" />
           </div>
-          <p className="text-[15px] font-medium">ยังไม่มีหมวดสต็อก</p>
+          <p className="text-[15px] font-medium">ยังไม่มีหมวดเติมสต็อก</p>
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
-            ต้องมีอย่างน้อย 1 หมวดที่ตั้งเป็น “หมวดสต็อก” ก่อนถึงจะรับของเข้าคลังได้ — ไปที่หน้าตั้งค่า
-            สร้างหมวดใหม่ แล้วติ๊ก “หมวดสต็อก”
+            ต้องมีอย่างน้อย 1 หมวดที่ตั้งบทบาทเป็น “เติมสต็อก” ก่อนถึงจะรับของเข้าคลังได้ — ไปที่หน้าตั้งค่า
+            สร้างหมวดใหม่ แล้วเลือกบทบาท “เติมสต็อก”
           </p>
           <button
             onClick={() => navigate('/settings')}
             className="mt-5 rounded-btn bg-brand-deep px-6 py-3 text-[14px] font-medium text-white"
           >
-            ไปสร้างหมวดสต็อก
+            ไปสร้างหมวดเติมสต็อก
           </button>
         </div>
       </div>
