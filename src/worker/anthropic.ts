@@ -51,15 +51,27 @@ export const ANTHROPIC_MODEL = 'claude-sonnet-5'
 export const AI_MAX_TOKENS = 1024
 /** Max Anthropic calls per user request. Caps the tool-use loop so the model
  *  can never loop tools forever and burn money. Normal flow uses 2 (one to
- *  pick a tool, one to answer). */
-export const AI_MAX_MODEL_CALLS = 3
+ *  pick a tool, one to answer).
+ *
+ *  Raised 3 → 5: the incoming tool set adds budget / bills / outstanding-balance
+ *  tools, and a mixed question ("last two months, how much actually paid vs how
+ *  much counted in the budget") legitimately needs several tool rounds — one
+ *  tool per fact plus a final answer. At 3 (only 2 tool rounds) those questions
+ *  hit the cap and got the FALLBACK_REPLY, which reads like a broken system even
+ *  though the loop just ran out of room. 5 gives room for the new tools before
+ *  they land, not after the fallbacks show up.
+ *
+ *  This is STILL a hard cost ceiling: a single user request can fire Anthropic
+ *  at most 5 times, no more. Behaviour on hitting the cap is UNCHANGED — the
+ *  loop STOPS and returns the fallback; it never fires a 6th call. */
+export const AI_MAX_MODEL_CALLS = 5
 /** Per-call wall-clock ceiling. A hung upstream can't pin one call open. */
 export const AI_TIMEOUT_MS = 30_000
 /**
  * Total wall-clock ceiling for the WHOLE request (all calls combined). This is
  * NOT redundant with AI_TIMEOUT_MS: the per-call timeout bounds one call, but
  * AI_MAX_MODEL_CALLS of them back-to-back could still pin the user's request
- * open for ~AI_MAX_MODEL_CALLS × AI_TIMEOUT_MS (~90s) — far too long for
+ * open for ~AI_MAX_MODEL_CALLS × AI_TIMEOUT_MS (~150s) — far too long for
  * someone waiting on screen. This is the shared budget across all calls; do NOT
  * delete it as a duplicate of the per-call timeout, they bound different things.
  */

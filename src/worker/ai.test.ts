@@ -440,7 +440,24 @@ describe('handleAi — happy path + tool loop', () => {
     fetchState.queue = Array.from({ length: 10 }, (_, i) => anthropicToolUse(`tu_${i}`, 'wallet_balances'))
     const res = await handleAi(post({ token: 'tok' }), makeEnv())
     expect(res.status).toBe(200)
-    expect(fetchState.calls).toBe(3) // AI_MAX_MODEL_CALLS
+    expect(fetchState.calls).toBe(5) // AI_MAX_MODEL_CALLS
+  })
+
+  it('after 5 tool rounds it STOPS at the cap → fallback, never fires a 6th call', async () => {
+    state.rpcResults.wallet_balances = { data: [], error: null }
+    // Every one of the 5 allowed calls asks for a tool again (never answers), and
+    // one extra scripted response is queued to catch an over-run: if the loop
+    // ever fired a 6th call it would consume it and fetchState.calls would be 6.
+    fetchState.queue = Array.from({ length: 6 }, (_, i) => anthropicToolUse(`tu_${i}`, 'wallet_balances'))
+    const supabase = createClient<Database>('https://project.supabase.co', 'anon-key')
+    const reply = await runAssistant({
+      question: 'เงินเหลือเท่าไหร่',
+      apiKey: 'sk-test',
+      supabase,
+      now: () => fetchState.clockMs,
+    })
+    expect(reply).toBe('ยังตอบไม่ได้ในตอนนี้ ลองถามใหม่อีกครั้ง') // FALLBACK_REPLY
+    expect(fetchState.calls).toBe(5) // stopped at the cap; the 6th response was never consumed
   })
 })
 
