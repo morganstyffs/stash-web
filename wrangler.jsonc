@@ -19,5 +19,16 @@
   },
   "observability": {
     "enabled": true
-  }
+  },
+  // KV counter store for the per-user rate limit on /api/ai (see
+  // src/worker/rateLimit.ts). The owner created the namespace
+  // "stash-ai-ratelimit"; no preview_id because this project deploys straight
+  // from main (no preview environment). The Anthropic key stays a runtime
+  // secret (Env.ANTHROPIC_API_KEY) — it is NOT in this file.
+  "kv_namespaces": [
+    {
+      "binding": "AI_RATE_LIMIT",
+      "id": "94736f86f7be43b6a582eea6b3c4122d"
+    }
+  ]
 }
