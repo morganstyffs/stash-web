@@ -19,9 +19,11 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
+import { computePace } from '../lib/budgetPace'
 import { addMonthsToKey, daysSince, monthAnchorFromKey, monthBoundsFromKey, monthKey } from '../lib/dates'
 import { formatMonthLong } from '../lib/format'
 import { computeHomeSummary } from '../lib/homeSummary'
+import { isBudgetSpendingRow } from '../lib/ledger'
 import { computeSunkCost, inStock, isStale } from '../lib/stockAge'
 import { resolveCategory } from './categories'
 
@@ -86,6 +88,16 @@ export const AI_TOOLS = [
     name: 'stale_stock',
     description: 'ของค้างในสต็อก: ค้างนานสุดกี่วัน จำนวนที่ค้างนาน และทุนจม ไม่รับพารามิเตอร์',
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'budget_status',
+    description: 'งบต่อหมวดของเดือน (เพดานที่ผู้ใช้ตั้งเอง): งบ/ใช้ไป/เหลือ/เกิน/สถานะ',
+    input_schema: {
+      type: 'object',
+      properties: { offset: OFFSET_PROP },
+      required: ['offset'],
+      additionalProperties: false,
+    },
   },
 ] as const
 
@@ -160,6 +172,8 @@ export async function runTool(
       return stockIntake(input, ctx)
     case 'stale_stock':
       return staleStock(ctx)
+    case 'budget_status':
+      return budgetStatus(input, ctx)
     default:
       return fail(`ไม่รู้จักเครื่องมือ: ${name}`)
   }
@@ -353,5 +367,91 @@ async function staleStock(ctx: ToolContext): Promise<ToolOutcome> {
     oldest_in_stock_days: oldestInStockDays,
     stale_count: list.filter((it) => isStale(it, ctx.nowDate)).length,
     sunk_cost: computeSunkCost(list, ctx.nowDate),
+  })
+}
+
+/**
+ * Per-category budget status for a month — the ONLY tool that answers "งบเหลือ
+ * เท่าไหร่". A budget is the ceiling the user set per category (`budgets` table),
+ * NOT `budget_spending`/`safe_to_spend` from home_summary (those are spend / net,
+ * not budgets — the regression this tool exists to kill). Everything here is
+ * assembled from existing pieces; no money formula is re-derived (§4-14):
+ *   - `budgets.month` is a DATE = the first of the month, not a 'YYYY-MM' key, so
+ *     we match on monthBoundsFromKey(month).start.
+ *   - per-category spend uses the shared isBudgetSpendingRow predicate (lib/ledger)
+ *     on the raw rows — never a re-mirrored .eq() chain (that would be a third copy
+ *     of the rule, convention 11) — so COGS / debt settlements / stock purchases /
+ *     shop-operating costs are all left out of the budget spend.
+ *   - the verdict (remaining / over / state) comes straight from computePace
+ *     (lib/budgetPace), which deliberately does NOT clamp a negative remaining.
+ */
+async function budgetStatus(input: unknown, ctx: ToolContext): Promise<ToolOutcome> {
+  const offset = readOffset(input)
+  const month = addMonthsToKey(monthKey(ctx.nowDate), offset)
+  const b = monthBoundsFromKey(month) // start = first-of-month DATE the budgets row keys on
+
+  const { data: budgetRows, error: bErr } = await ctx.supabase
+    .from('budgets')
+    .select('category_id, amount')
+    .eq('month', b.start)
+  if (bErr) return fail('ดึงงบไม่สำเร็จ')
+
+  const budgets = budgetRows ?? []
+  // No budgets this month → say so explicitly. Answering "เหลือ ฿0" would read as
+  // "งบหมดแล้ว" when the truth is the user never set one.
+  if (budgets.length === 0) {
+    return ok({ month, month_label: monthLabel(month), has_budgets: false })
+  }
+
+  const { data: cats, error: cErr } = await ctx.supabase.from('categories').select('id, name')
+  if (cErr) return fail('ดึงหมวดไม่สำเร็จ')
+  const nameById = new Map((cats ?? []).map((c) => [c.id, c.name]))
+
+  const { data: txRows, error: tErr } = await ctx.supabase
+    .from('transactions')
+    .select('amount, type, category_id, is_stock_purchase, is_stock_cogs, is_debt_settlement, is_shop_operating')
+    .gte('date', b.start)
+    .lt('date', b.next)
+    .limit(RAW_ROW_MAX)
+  if (tErr) return fail('ดึงรายจ่ายไม่สำเร็จ')
+  if ((txRows ?? []).length >= RAW_ROW_MAX) {
+    // Would aggregate an incomplete set → refuse rather than under-report (§9).
+    return ok({ month, month_label: monthLabel(month), too_many_transactions: true })
+  }
+
+  // Budget spend per category, via the ONE predicate (isBudgetSpendingRow).
+  const usedById = new Map<string, number>()
+  for (const r of txRows ?? []) {
+    if (!isBudgetSpendingRow(r)) continue
+    const id = r.category_id ?? ''
+    usedById.set(id, (usedById.get(id) ?? 0) + (Number(r.amount) || 0))
+  }
+
+  let totalBudget = 0
+  let totalUsed = 0
+  const categories = budgets.map((row) => {
+    const budget = Number(row.amount) || 0
+    const used = usedById.get(row.category_id) ?? 0
+    const pace = computePace(used, budget, ctx.nowDate) // remaining/over NOT clamped (§4-13)
+    totalBudget += budget
+    totalUsed += used
+    return {
+      name: nameById.get(row.category_id) ?? null,
+      budget,
+      used,
+      remaining: pace.remaining, // budget − used, negative when over (never clamped)
+      over: pace.over, // used − budget when over, else 0
+      status: pace.state, // over / fast / unused / on_track from Pace
+    }
+  })
+
+  return ok({
+    month,
+    month_label: monthLabel(month), // human label the model shows; raw key stays too
+    has_budgets: true,
+    categories,
+    total_budget: totalBudget,
+    total_used: totalUsed, // spend that counts in the BUDGETED categories, not the whole month
+    total_remaining: totalBudget - totalUsed, // negative when over overall (never clamped)
   })
 }

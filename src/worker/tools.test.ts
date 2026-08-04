@@ -265,9 +265,104 @@ describe('month tools — carry a human month label AND keep the raw key', () =>
   })
 })
 
+describe('budget_status — the ceiling the user set per category, NOT budget_spending/safe_to_spend', () => {
+  // A month with two budgets: อาหาร ฿4,000 and เดินทาง ฿2,000.
+  function seedBudgets() {
+    state.tables.categories = {
+      data: [
+        { id: 'c-food', name: 'อาหาร' },
+        { id: 'c-trav', name: 'เดินทาง' },
+      ],
+      error: null,
+    }
+    state.tables.budgets = {
+      data: [
+        { category_id: 'c-food', amount: 4000 },
+        { category_id: 'c-trav', amount: 2000 },
+      ],
+      error: null,
+    }
+  }
+
+  // Plain expense row with every ledger flag off; override per case.
+  function tx(over: Record<string, unknown>) {
+    return {
+      amount: 0,
+      type: 'expense',
+      category_id: null,
+      is_stock_purchase: false,
+      is_stock_cogs: false,
+      is_debt_settlement: false,
+      is_shop_operating: false,
+      ...over,
+    }
+  }
+
+  it('over-budget category keeps a NEGATIVE remaining (never clamped); a funded one still has room', async () => {
+    seedBudgets()
+    state.tables.transactions = {
+      data: [
+        tx({ amount: 5000, category_id: 'c-food' }), // 5000 > 4000 → over
+        tx({ amount: 500, category_id: 'c-trav' }), // 500 < 2000 → room left
+      ],
+      error: null,
+    }
+    const out = await parse('budget_status', { offset: 0 })
+    expect(out.has_budgets).toBe(true)
+    const cats = out.categories as Array<Record<string, unknown>>
+    const food = cats.find((c) => c.name === 'อาหาร')!
+    expect(food.used).toBe(5000)
+    expect(food.remaining).toBe(-1000) // budget − used, NOT clamped to 0
+    expect(food.over).toBe(1000)
+    expect(food.status).toBe('over')
+    const trav = cats.find((c) => c.name === 'เดินทาง')!
+    expect(trav.used).toBe(500)
+    expect(trav.remaining).toBe(1500)
+    expect(trav.over).toBe(0)
+    expect(trav.status).not.toBe('over')
+    // totals span the budgeted categories only
+    expect(out.total_budget).toBe(6000)
+    expect(out.total_used).toBe(5500)
+    expect(out.total_remaining).toBe(500)
+  })
+
+  it('a month with no budgets set → has_budgets:false (never answer "เหลือ ฿0")', async () => {
+    state.tables.budgets = { data: [], error: null }
+    const out = await parse('budget_status', { offset: 0 })
+    expect(out.has_budgets).toBe(false)
+    expect(out).not.toHaveProperty('categories')
+  })
+
+  it('carries a Buddhist-era Thai month_label alongside the raw key', async () => {
+    seedBudgets()
+    const out = await parse('budget_status', { offset: 0 }) // NOW = 2026-01
+    expect(out.month).toBe('2026-01')
+    expect(out.month_label).toBe('มกราคม 2569')
+  })
+
+  it('COGS / debt settlement / stock purchase / shop-operating are NOT counted (proves isBudgetSpendingRow)', async () => {
+    seedBudgets()
+    state.tables.transactions = {
+      data: [
+        tx({ amount: 1000, category_id: 'c-food' }), // the ONLY real budget spend
+        tx({ amount: 9999, category_id: 'c-food', is_stock_cogs: true }), // ต้นทุนขาย
+        tx({ amount: 9999, category_id: 'c-food', is_debt_settlement: true }), // เคลียร์ยอดค้าง
+        tx({ amount: 9999, category_id: 'c-food', is_stock_purchase: true }), // ซื้อเข้าสต็อก
+        tx({ amount: 9999, category_id: 'c-food', is_shop_operating: true }), // ค่าดำเนินร้าน
+      ],
+      error: null,
+    }
+    const out = await parse('budget_status', { offset: 0 })
+    const food = (out.categories as Array<Record<string, unknown>>).find((c) => c.name === 'อาหาร')!
+    expect(food.used).toBe(1000) // the four excluded rows never touched the total
+    expect(food.remaining).toBe(3000)
+    expect(food.status).toBe('on_track')
+  })
+})
+
 describe('tool schemas — offset is an integer, never a date string', () => {
   it('month-based tools declare offset as integer and take no date field', () => {
-    for (const name of ['month_spending', 'home_summary', 'stock_sales', 'stock_intake']) {
+    for (const name of ['month_spending', 'home_summary', 'stock_sales', 'stock_intake', 'budget_status']) {
       const tool = AI_TOOLS.find((t) => t.name === name)
       expect(tool).toBeTruthy()
       const props = tool!.input_schema.properties as Record<string, { type?: string }>
