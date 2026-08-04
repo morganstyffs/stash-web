@@ -14,6 +14,8 @@ import {
   currentMonthAnchor,
   toISODate,
   trailingMonthsBounds,
+  allTimeBounds,
+  ALL_TIME_START,
   formatRecentDayLabel,
   formatUpcomingDayLabel,
   daysSince,
@@ -232,6 +234,39 @@ describe('trailingMonthsBounds — [from, to) over the last N months', () => {
       to: '2026-09-01',
       key: '2026-08',
     })
+  })
+})
+
+describe('allTimeBounds — [from, to) covering everything, upper bound = tomorrow', () => {
+  it('from is the fixed floor, to is TOMORROW (Bangkok) — not today', () => {
+    // today (Bangkok) = 2026-08-04 → to must be the 5th so today's rows fall
+    // inside the half-open window (a "today" entry is < to, never dropped).
+    expect(allTimeBounds(new Date('2026-08-04T10:00:00+07:00'))).toEqual({
+      from: ALL_TIME_START,
+      to: '2026-08-05',
+    })
+  })
+
+  it("a transaction dated today sits inside [from, to)", () => {
+    const now = new Date('2026-08-04T10:00:00+07:00')
+    const { from, to } = allTimeBounds(now)
+    const todayDate = todayISO(now) // '2026-08-04'
+    // half-open: today >= from and today < to (this is the bug the tomorrow
+    // upper bound prevents — an afternoon question dropping the day's own rows).
+    expect(from <= todayDate).toBe(true)
+    expect(todayDate < to).toBe(true)
+  })
+
+  it('the upper bound rolls to the next month/year at a month/year end', () => {
+    expect(allTimeBounds(new Date('2026-08-31T23:30:00+07:00')).to).toBe('2026-09-01')
+    expect(allTimeBounds(new Date('2026-12-31T23:30:00+07:00')).to).toBe('2027-01-01')
+  })
+
+  it('reckons the boundary in Asia/Bangkok, not the host/UTC day', () => {
+    // 2026-08-04T18:00Z is already 2026-08-05 01:00 in Bangkok → tomorrow is the
+    // 6th. A UTC-reckoned helper would say the 5th, silently dropping the 5th's
+    // rows. Same instant, Bangkok calendar → result is timezone-stable.
+    expect(allTimeBounds(new Date('2026-08-04T18:00:00Z')).to).toBe('2026-08-06')
   })
 })
 

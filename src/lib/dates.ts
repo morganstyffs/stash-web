@@ -316,3 +316,30 @@ export function trailingMonthsBounds(key: string, n: number): { from: string; to
   const startKey = addMonthsToKey(key, -(n - 1))
   return { from: monthBoundsFromKey(startKey).start, to: monthBoundsFromKey(key).next, key }
 }
+
+/**
+ * A fixed lower bound for an "all-time" window — a constant date guaranteed to be
+ * older than any row the app could hold. Deliberately NOT tied to the app's
+ * launch date: entries can be backdated freely, so a launch-date floor would
+ * silently drop anything a user logged with an earlier date. '2000-01-01'
+ * predates the app by decades and any realistic backdated personal-finance
+ * entry, so nothing is ever excluded at the low end — the high end is the only
+ * part that moves (see allTimeBounds). A YYYY-MM-DD constant, so it slots
+ * straight into the RPCs' date params with no Date construction.
+ */
+export const ALL_TIME_START = '2000-01-01'
+
+/**
+ * A [from, to) window that covers EVERYTHING — the range behind the assistant's
+ * period='all' ("total since I started selling"). `from` is the fixed
+ * ALL_TIME_START floor; `to` is TOMORROW in Asia/Bangkok, not today, because the
+ * upper bound is exclusive everywhere in this project ([from, to)). Using today
+ * would silently drop every entry dated today the moment someone asks in the
+ * afternoon — the row exists but falls outside the window. Built from
+ * todayISO + addDaysISO so the day arithmetic stays in one local frame and never
+ * routes a date-only string through new Date(str) (rule 17/18). Both edges are
+ * Asia/Bangkok-reckoned, so the result doesn't shift with the test/host timezone.
+ */
+export function allTimeBounds(now: Date = new Date()): { from: string; to: string } {
+  return { from: ALL_TIME_START, to: addDaysISO(todayISO(now), 1) }
+}
