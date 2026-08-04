@@ -166,6 +166,36 @@ describe('errors reach the user', () => {
       { role: 'assistant', text: 'เดือนที่แล้วจ่าย ฿2,000' },
     ])
   })
+
+  it('each history turn sent carries ONLY role + text (never extra fields)', async () => {
+    // ⚠️ DOCUMENTATION, NOT A SAFETY NET. While `ChatMessage` has exactly the two
+    // fields {role, text}, this assertion stays green whether AiPage maps
+    // field-by-field OR passes `messages` through — so it CANNOT catch a future
+    // regression on its own. The real guard is the `: ChatTurn[]` annotation in
+    // AiPage.send() (compile-time excess-property check). This test just records
+    // the wire contract: the Worker's parseHistory is an allowlist and rejects any
+    // turn with extra keys. (No `as any` to forge a fake field — convention 12.)
+    h.askAssistant.mockResolvedValueOnce('เดือนที่แล้วจ่าย ฿2,000')
+    h.askAssistant.mockResolvedValueOnce('ตอบสอง')
+    renderAt()
+
+    const box = screen.getByLabelText('พิมพ์คำถาม')
+    const btn = screen.getByLabelText('ส่งคำถาม')
+
+    fireEvent.change(box, { target: { value: 'q1' } })
+    fireEvent.click(btn)
+    expect(await screen.findByText('เดือนที่แล้วจ่าย ฿2,000')).toBeTruthy()
+
+    fireEvent.change(box, { target: { value: 'q2' } })
+    fireEvent.click(btn)
+    expect(await screen.findByText('ตอบสอง')).toBeTruthy()
+
+    const history = h.askAssistant.mock.calls[1][2] as Array<Record<string, unknown>>
+    expect(history.length).toBeGreaterThan(0)
+    for (const turn of history) {
+      expect(Object.keys(turn).sort()).toEqual(['role', 'text'])
+    }
+  })
 })
 
 describe('structural guarantees', () => {
