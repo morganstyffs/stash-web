@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_settings: {
+        Row: {
+          consent: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          consent?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          consent?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       budgets: {
         Row: {
           amount: number
