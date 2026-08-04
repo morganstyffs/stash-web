@@ -8,7 +8,7 @@
  * a schema drift shows up as a compile error instead of a silent mismatch
  * (see PROJECT_AUDIT F-12 / F-20).
  */
-import type { Database, Tables, Enums } from '@/lib/database.types'
+import type { Database, Tables, Enums } from './database.types'
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 export type TransactionType = Enums<'transaction_type'>

@@ -3,13 +3,20 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 // Worker tests for /api/ai. NOTHING here hits the network: @supabase/supabase-js
 // is mocked, KV is a stub, and global fetch (the Anthropic call) is a vi.fn().
 // The load-bearing assertions are that a rejected request (bad token / no
-// consent / rate-limited) NEVER reaches Anthropic — that's the money guard.
+// consent / rate-limited) NEVER reaches Anthropic — the money guard.
 //
 // State lives in vi.hoisted so the hoisted vi.mock factory can see it.
+interface MockResult {
+  data: unknown
+  error: unknown
+}
+
 const state = vi.hoisted(() => ({
   getUser: { data: { user: null as { id: string } | null }, error: null as { status?: number } | null },
   consent: { data: null as { consent?: boolean } | null, error: null as unknown },
-  rpc: { data: null as unknown, error: null as unknown },
+  // Per-table await() results and per-rpc results, keyed by name (default empty).
+  tables: {} as Record<string, MockResult>,
+  rpcResults: {} as Record<string, MockResult>,
   createClientCalls: 0,
   authHeader: undefined as string | undefined,
   eqColumn: undefined as string | undefined,
@@ -17,37 +24,59 @@ const state = vi.hoisted(() => ({
   rpcCalls: [] as string[],
 }))
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: (
-    _url: string,
-    _key: string,
-    opts: { global?: { headers?: Record<string, string> } },
-  ) => {
-    state.createClientCalls++
-    state.authHeader = opts?.global?.headers?.Authorization
-    return {
-      auth: { getUser: async () => state.getUser },
-      from: () => ({
-        select: () => ({
-          eq: (column: string, value: string) => {
-            state.eqColumn = column
-            state.eqValue = value
-            return { maybeSingle: async () => state.consent }
-          },
-        }),
-      }),
-      rpc: async (fn: string) => {
-        state.rpcCalls.push(fn)
-        return state.rpc
+// Flexible query-builder mock: chainable filters, awaitable → table result,
+// .maybeSingle() → consent (ai_settings). .rpc() → keyed result.
+vi.mock('@supabase/supabase-js', () => {
+  interface Q {
+    select: () => Q
+    eq: (col: string, val: unknown) => Q
+    gte: (col: string, val: unknown) => Q
+    lt: (col: string, val: unknown) => Q
+    limit: (n: number) => Q
+    maybeSingle: () => Promise<MockResult>
+    then: (onF: (v: MockResult) => unknown) => Promise<unknown>
+  }
+  const build = (table: string): Q => {
+    const result = (): MockResult => state.tables[table] ?? { data: [], error: null }
+    const q: Q = {
+      select: () => q,
+      eq: (col, val) => {
+        state.eqColumn = col
+        state.eqValue = String(val)
+        return q
       },
+      gte: () => q,
+      lt: () => q,
+      limit: () => q,
+      maybeSingle: async () => state.consent,
+      then: (onF) => Promise.resolve(result()).then(onF),
     }
-  },
-}))
+    return q
+  }
+  return {
+    createClient: (
+      _url: string,
+      _key: string,
+      opts: { global?: { headers?: Record<string, string> } },
+    ) => {
+      state.createClientCalls++
+      state.authHeader = opts?.global?.headers?.Authorization
+      return {
+        auth: { getUser: async () => state.getUser },
+        from: (table: string) => build(table),
+        rpc: async (fn: string) => {
+          state.rpcCalls.push(fn)
+          return state.rpcResults[fn] ?? { data: [], error: null }
+        },
+      }
+    },
+  }
+})
 
 import { createClient } from '@supabase/supabase-js'
+import type { Database } from '../lib/database.types'
 import { handleAi } from './ai'
 import { AnthropicError, runAssistant } from './anthropic'
-import type { Database } from '../lib/database.types'
 import type { Env } from './index'
 import { AI_TOOLS } from './tools'
 import { RL_PER_MINUTE, RL_PER_DAY, type RateLimitStore } from './rateLimit'
@@ -55,9 +84,7 @@ import { RL_PER_MINUTE, RL_PER_DAY, type RateLimitStore } from './rateLimit'
 const SESSION_EXPIRED = 'เซสชันหมดอายุ เข้าสู่ระบบใหม่'
 const NO_CONSENT = 'ยังไม่ได้เปิดใช้ผู้ช่วย AI — เปิดได้ในหน้าตั้งค่า'
 
-// ── Anthropic fetch mock ─────────────────────────────────────────────────────
-// A queue of scripted responses; each fetch() shifts the next one. Records how
-// many times Anthropic was called so tests can assert "never reached".
+// ── Anthropic fetch mock (scripted responses; counts calls for "never reached") ─
 const fetchState = vi.hoisted(() => ({
   calls: 0,
   queue: [] as Array<{ status?: number; body?: unknown; throwName?: string }>,
@@ -73,14 +100,18 @@ function anthropicText(text: string) {
 function anthropicToolUse(id: string, name: string) {
   return {
     status: 200,
-    body: { stop_reason: 'tool_use', content: [{ type: 'tool_use', id, name, input: {} }] },
+    body: {
+      stop_reason: 'tool_use',
+      content: [{ type: 'tool_use', id, name, input: { offset: 0 } }],
+    },
   }
 }
 
 beforeEach(() => {
   state.getUser = { data: { user: null }, error: null }
   state.consent = { data: null, error: null }
-  state.rpc = { data: [], error: null }
+  state.tables = {}
+  state.rpcResults = {}
   state.createClientCalls = 0
   state.authHeader = undefined
   state.eqColumn = undefined
@@ -156,7 +187,7 @@ async function bodyOf(res: Response): Promise<{ error?: string; reply?: string }
   return (await res.json()) as { error?: string; reply?: string }
 }
 
-/** A fully authorised, consenting user (so tests can focus on later gates). */
+/** A fully authorised, consenting user. */
 function authorise(uid = 'user-1') {
   state.getUser = { data: { user: { id: uid } }, error: null }
   state.consent = { data: { consent: true }, error: null }
@@ -264,7 +295,6 @@ describe('handleAi — request body', () => {
       makeEnv(),
     )
     expect(res.status).toBe(200)
-    // consent read was scoped to the token's uid, not the body value
     expect(state.eqColumn).toBe('user_id')
     expect(state.eqValue).toBe('verified-uid')
   })
@@ -280,53 +310,47 @@ describe('handleAi — happy path + tool loop', () => {
     expect(fetchState.calls).toBe(1)
   })
 
-  it('tool_use → runs wallet_balances under the user JWT → answers (2 calls)', async () => {
+  it('tool_use → runs a tool under the user JWT → answers (2 calls)', async () => {
     authorise()
-    state.rpc = { data: [{ wallet_id: 'w1', balance: 250 }], error: null }
-    fetchState.queue = [anthropicToolUse('tu_1', 'wallet_balances'), anthropicText('เหลือ ฿250')]
+    state.rpcResults.wallet_balances = { data: [{ wallet_id: 'w1', balance: 250 }], error: null }
+    state.tables.wallets = { data: [{ id: 'w1', name: 'เงินสด' }], error: null }
+    fetchState.queue = [anthropicToolUse('tu_1', 'wallet_balances'), anthropicText('เงินสด เหลือ ฿250')]
     const res = await handleAi(post({ token: 'tok' }), makeEnv())
     expect(res.status).toBe(200)
-    expect((await bodyOf(res)).reply).toBe('เหลือ ฿250')
-    expect(state.rpcCalls).toEqual(['wallet_balances'])
+    expect((await bodyOf(res)).reply).toBe('เงินสด เหลือ ฿250')
+    expect(state.rpcCalls).toContain('wallet_balances')
     expect(fetchState.calls).toBe(2)
   })
 
   it('model loops tools forever → capped at AI_MAX_MODEL_CALLS, then stops', async () => {
     authorise()
-    state.rpc = { data: [], error: null }
-    // Every call asks for a tool again; the loop must NOT run unbounded.
     fetchState.queue = Array.from({ length: 10 }, (_, i) => anthropicToolUse(`tu_${i}`, 'wallet_balances'))
     const res = await handleAi(post({ token: 'tok' }), makeEnv())
     expect(res.status).toBe(200)
-    // 3 = AI_MAX_MODEL_CALLS — the loop stopped rather than draining the queue.
-    expect(fetchState.calls).toBe(3)
+    expect(fetchState.calls).toBe(3) // AI_MAX_MODEL_CALLS
   })
 })
 
 describe('runAssistant — shared request deadline (total, not just per-call)', () => {
   it('stops before firing a doomed call once the budget is exhausted → timeout', async () => {
-    state.rpc = { data: [], error: null }
-    // First Anthropic call "takes" 44s, leaving < AI_MIN_CALL_BUDGET before the
-    // second. The loop must NOT fire that second call.
-    fetchState.advancePerCallMs = 44_000
+    state.rpcResults.wallet_balances = { data: [], error: null }
+    fetchState.advancePerCallMs = 44_000 // first call "takes" 44s → < min budget before the 2nd
     fetchState.queue = [anthropicToolUse('tu_1', 'wallet_balances'), anthropicText('should never run')]
-
-    // Mock client from the mocked createClient (typed, no cast).
     const supabase = createClient<Database>('https://project.supabase.co', 'anon-key')
-    const now = () => fetchState.clockMs
-
-    const err = await runAssistant({ question: 'เงินเหลือเท่าไหร่', apiKey: 'sk-test', supabase, now }).catch(
-      (e) => e,
-    )
+    const err = await runAssistant({
+      question: 'เงินเหลือเท่าไหร่',
+      apiKey: 'sk-test',
+      supabase,
+      now: () => fetchState.clockMs,
+    }).catch((e) => e)
     expect(err).toBeInstanceOf(AnthropicError)
-    expect(err.kind).toBe('timeout') // caller maps this to 504
-    // Only the first call fired; the second was skipped as un-affordable.
-    expect(fetchState.calls).toBe(1)
+    expect(err.kind).toBe('timeout')
+    expect(fetchState.calls).toBe(1) // second call skipped
   })
 
-  it('does not trip the deadline on a normal fast turn (calls complete instantly)', async () => {
-    state.rpc = { data: [], error: null }
-    fetchState.advancePerCallMs = 0 // instant calls
+  it('does not trip the deadline on a normal fast turn', async () => {
+    state.rpcResults.wallet_balances = { data: [], error: null }
+    fetchState.advancePerCallMs = 0
     fetchState.queue = [anthropicToolUse('tu_1', 'wallet_balances'), anthropicText('เหลือ ฿0')]
     const supabase = createClient<Database>('https://project.supabase.co', 'anon-key')
     const reply = await runAssistant({
@@ -358,11 +382,22 @@ describe('handleAi — upstream errors map to Thai 502/504 without leaking', () 
   })
 })
 
-describe('AI_TOOLS schema — no field can identify a user/wallet (design §3.4)', () => {
-  it('every tool takes zero parameters', () => {
+describe('AI_TOOLS registry — safe by construction (design §3.4 / §6)', () => {
+  const IDENTITY_KEY = /user_id|wallet_id|account|owner|uid/i
+  const FORBIDDEN_NAME = /debt|profile|friend/i
+
+  it('no tool schema exposes an identity field, and all lock additionalProperties', () => {
     for (const tool of AI_TOOLS) {
-      expect(Object.keys(tool.input_schema.properties)).toHaveLength(0)
       expect(tool.input_schema.additionalProperties).toBe(false)
+      for (const key of Object.keys(tool.input_schema.properties)) {
+        expect(key).not.toMatch(IDENTITY_KEY)
+      }
+    }
+  })
+
+  it('no registered tool touches debts / friends / profiles (v1 excludes cross-user)', () => {
+    for (const tool of AI_TOOLS) {
+      expect(tool.name).not.toMatch(FORBIDDEN_NAME)
     }
   })
 })

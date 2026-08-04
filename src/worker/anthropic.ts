@@ -19,7 +19,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
-import { AI_TOOLS, runTool } from './tools'
+import { AI_TOOLS, runTool, type ToolContext } from './tools'
 
 /**
  * Single source of truth for the model id.
@@ -55,21 +55,52 @@ export const AI_REQUEST_DEADLINE_MS = 45_000
  * a round-trip and delay the 504.
  */
 const AI_MIN_CALL_BUDGET_MS = 2_000
+/**
+ * Max itemised rows any list-returning tool may hand back (design §4.1). Chosen
+ * from the model's token budget, not a DB limit: 50 rows keeps the tool result
+ * small. On overflow the tool sets capped:true + the true count (from an
+ * aggregate) and the prompt makes the model tell the user it's partial.
+ */
+export const AI_ROW_CAP = 50
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const ANTHROPIC_VERSION = '2023-06-01'
 
-/** Minimal rules this ticket can enforce (full prompt = PR-2b). Thai only,
- *  numbers only from tools, cite the source, no guessing, no debts/friends,
- *  and none of the on-screen forbidden words (convention 19). */
+/**
+ * The behaviour rules, sent ONCE per call (unlike tool schemas, which re-ship
+ * every loop turn — so detail belongs here, not in the schemas). Every line is
+ * load-bearing; see the design doc §4 / §7.1 / §6 and STASH_CONTEXT §11.4-6.
+ */
 const SYSTEM_PROMPT = [
-  'คุณเป็นผู้ช่วยการเงินของแอป Stash ตอบเป็นภาษาไทย สั้น กระชับ',
-  'กติกาเด็ดขาด:',
-  '- ห้ามคำนวณยอดเงินหรือวันที่เอง ใช้เฉพาะตัวเลขที่ได้จากเครื่องมือ (tool) เท่านั้น',
-  '- บอกที่มาของตัวเลขเสมอ (เช่น "จากยอดคงเหลือกระเป๋า")',
-  '- ถ้าไม่มีเครื่องมือที่ตอบคำถามได้ ให้บอกว่ายังตอบไม่ได้ ห้ามเดา',
-  '- ห้ามพูดถึงยอดค้าง เพื่อน หนี้ เจ้าหนี้ ลูกหนี้ การทวง หรือการเรียกเก็บ',
-  'เครื่องมือที่ใช้ได้ตอนนี้: wallet_balances (ยอดคงเหลือแต่ละกระเป๋า)',
+  'คุณเป็น "ผู้ช่วยการเงิน" ของแอป Stash ตอบผู้ใช้เป็นภาษาไทย สั้น กระชับ ตรงคำถาม',
+  '',
+  'หลักการตอบ (เด็ดขาด):',
+  '- ห้ามคำนวณยอดเงินหรือวันที่เอง พูดได้เฉพาะตัวเลขที่ได้จากผลของเครื่องมือ (tool) เท่านั้น',
+  '- บอกที่มาของตัวเลขเสมอ เช่น "จากยอดคงเหลือกระเป๋า" หรือ "จากสรุปเดือน 2026-07"',
+  '- ถ้าไม่มีเครื่องมือที่ตอบคำถามนั้นได้ ให้บอกตรง ๆ ว่ายังตอบไม่ได้ ห้ามเดา ห้ามแต่งตัวเลข',
+  '- อ้างถึงได้เฉพาะสิ่งที่มีจริงในแอป ห้ามแต่งชื่อหน้าจอ/แท็บ/เมนู/ฟีเจอร์ที่ไม่รู้ว่ามีจริง',
+  '  (เช่น อย่าบอกว่า "ดูที่แท็บรายงาน" ถ้าไม่รู้ว่ามีจริง) ถ้าจะชี้ทางให้พูดกว้าง ๆ หรือไม่พูด',
+  '',
+  'เรื่องหมวด:',
+  '- ถ้าคำถามอ้างถึงหมวด ให้ส่งชื่อหมวดที่ผู้ใช้พูด (เช่น "ค่าอาหาร") ไปที่พารามิเตอร์ category ระบบจะหาหมวดให้เอง',
+  '- ถ้าผลของเครื่องมือมี needs_clarification (เจอหลายหมวดใกล้เคียง) ให้ถามผู้ใช้กลับว่าหมายถึงหมวดไหน ห้ามเดาเลือกเอง',
+  '- ถ้ามี category_not_found ให้บอกว่าไม่พบหมวดนั้น (จะเสนอดูยอดรวมทุกหมวดแทนก็ได้)',
+  '',
+  'เรื่องเดือน:',
+  '- ส่งเดือนเป็น offset จำนวนเต็มเท่านั้น: 0=เดือนนี้ -1=เดือนที่แล้ว -2=สองเดือนก่อน',
+  '  ห้ามส่งวันที่หรือชื่อเดือนเป็นข้อความ ระบบจะแปลงเป็นเดือนจริงให้เอง',
+  '',
+  'ความหมายของตัวเลข (อย่าปนกัน):',
+  '- "จ่าย" จาก month_spending = เงินสดออกรวมของเดือน (ยกเว้นซื้อเข้าสต็อก) เป็นยอด headline ไม่ใช่ "ยอดที่นับในงบ"',
+  '- budget_spending จาก home_summary = ยอดที่นับในงบจริง (ตัดต้นทุนขาย/เคลียร์ยอด/ค่าดำเนินร้านออก)',
+  '- safe_to_spend = รับ−จ่ายของเดือนนี้ ไม่ใช่ "เงินคงเหลือในกระเป๋าทั้งหมด" (คนละอย่าง)',
+  '- ยอดคงเหลือกระเป๋าดูจาก wallet_balances',
+  '',
+  'เมื่อรายการถูกจำกัด:',
+  '- ถ้าผลมี capped:true แปลว่าแสดงบางส่วน (สูงสุด 50) จากทั้งหมด count รายการ ต้องบอกผู้ใช้ว่าเป็นบางส่วน',
+  '  และแนะให้ระบุช่วง/หมวดให้แคบลงถ้าอยากเห็นครบ · ยอดรวม (total_income/total_expense) ถูกต้องเสมอแม้รายการไม่ครบ',
+  '',
+  'ห้ามเด็ดขาด: ห้ามพูดถึงยอดค้าง เพื่อน หรือใช้คำว่า หนี้ เจ้าหนี้ ลูกหนี้ ทวง เรียกเก็บ',
 ].join('\n')
 
 /** Thrown on any upstream problem; carries only a coarse kind (no raw detail). */
@@ -115,6 +146,9 @@ export async function runAssistant(opts: {
   // must finish before it (see AI_REQUEST_DEADLINE_MS above for why per-call
   // timeouts aren't enough).
   const deadlineAt = now() + AI_REQUEST_DEADLINE_MS
+  // "today" for month/offset/age logic, captured once (a request doesn't span a
+  // day boundary). Bangkok reckoning happens inside dates.ts.
+  const ctx: ToolContext = { supabase, nowDate: new Date(now()), rowCap: AI_ROW_CAP }
   const messages: Turn[] = [{ role: 'user', content: question }]
 
   for (let call = 0; call < AI_MAX_MODEL_CALLS; call++) {
@@ -131,7 +165,7 @@ export async function runAssistant(opts: {
     const toolResults = []
     for (const block of content) {
       if (block.type !== 'tool_use') continue
-      const outcome = await runTool(block.name ?? '', supabase)
+      const outcome = await runTool(block.name ?? '', block.input, ctx)
       toolResults.push({
         type: 'tool_result',
         tool_use_id: block.id,
