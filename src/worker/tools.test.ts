@@ -472,3 +472,91 @@ describe('period="all" — every-month / all-time span, not just one month', () 
     expect(state.rpcArgs.stock_sales_summary).toEqual({ p_from: from, p_to: to })
   })
 })
+
+describe('upcoming_bills — recurring expense bills still due THIS month (now-only, no offset)', () => {
+  // A row shaped like the tool's `recurring` select; override per case. NOW =
+  // 2026-01-15 → this-month window [2026-01-01, 2026-02-01).
+  function rule(over: Record<string, unknown>) {
+    return { id: 'r', label: 'บิล', amount: 0, schedule: 'monthly:1', next_run: null, ...over }
+  }
+
+  it('two monthly rules due this month → sorted items, correct total, has_rules true', async () => {
+    state.tables.recurring = {
+      data: [
+        rule({ id: 'r-net', label: 'ค่าเน็ต', amount: 400, schedule: 'monthly:5', next_run: '2026-01-05' }),
+        rule({ id: 'r-power', label: 'ค่าไฟ', amount: 800, schedule: 'monthly:10', next_run: '2026-01-10' }),
+      ],
+      error: null,
+    }
+    // A monthly rule fires once this month; the stepper's next date lands in Feb
+    // (>= bounds.next), so collectMonthOccurrences stops after the first occurrence.
+    state.rpcResults.recurring_next_date = { data: '2026-02-05', error: null }
+    const out = await parse('upcoming_bills', undefined)
+    expect(out.has_rules).toBe(true)
+    expect(out.total).toBe(1200)
+    expect(out.items).toEqual([
+      { date: '2026-01-05', label: 'ค่าเน็ต', amount: 400 },
+      { date: '2026-01-10', label: 'ค่าไฟ', amount: 800 },
+    ])
+    // screen-only fields (icon/color) are NOT part of what the model reasons over
+    const first = (out.items as Array<Record<string, unknown>>)[0]
+    expect(first).not.toHaveProperty('icon')
+    expect(first).not.toHaveProperty('colorIndex')
+  })
+
+  it('no active expense rule at all → has_rules:false (never set up), empty + total 0', async () => {
+    state.tables.recurring = { data: [], error: null }
+    const out = await parse('upcoming_bills', undefined)
+    expect(out.has_rules).toBe(false)
+    expect(out.items).toEqual([])
+    expect(out.total).toBe(0)
+  })
+
+  it('rule set up but next occurrence is a FUTURE month → has_rules:true, empty items', async () => {
+    // next_run in March: the [Jan1, Feb1) window never opens, so nothing is
+    // collected — "set up but nothing due this month", NOT "no rules". These two
+    // must stay distinguishable (has_rules).
+    state.tables.recurring = {
+      data: [rule({ label: 'ค่าเช่า', amount: 5000, schedule: 'monthly:5', next_run: '2026-03-05' })],
+      error: null,
+    }
+    const out = await parse('upcoming_bills', undefined)
+    expect(out.has_rules).toBe(true)
+    expect(out.items).toEqual([])
+    expect(out.total).toBe(0)
+  })
+
+  it('more rules than the read cap → too_many_rules (never a silent under-report, §9)', async () => {
+    state.tables.recurring = {
+      data: Array.from({ length: 100 }, (_, i) =>
+        rule({ id: `r-${i}`, amount: 100, schedule: 'monthly:1', next_run: '2026-01-01' }),
+      ),
+      error: null,
+    }
+    const out = await parse('upcoming_bills', undefined)
+    expect(out.too_many_rules).toBe(true)
+    expect(out).not.toHaveProperty('items')
+  })
+
+  it('a schedule the DB cannot step (next date null) → the current round is kept, no crash', async () => {
+    state.tables.recurring = {
+      data: [rule({ label: 'ค่าเน็ต', amount: 400, schedule: '???', next_run: '2026-01-05' })],
+      error: null,
+    }
+    state.rpcResults.recurring_next_date = { data: null, error: null }
+    const outcome = await runTool('upcoming_bills', undefined, ctx())
+    expect(outcome.isError).toBe(false)
+    const out = JSON.parse(outcome.content) as Record<string, unknown>
+    expect(out.items).toEqual([{ date: '2026-01-05', label: 'ค่าเน็ต', amount: 400 }])
+    expect(out.total).toBe(400)
+    // the schedule string was handed to the DB, never parsed here (§4-14)
+    expect((state.rpcArgs.recurring_next_date as { p_schedule: string }).p_schedule).toBe('???')
+  })
+
+  it('takes no parameters — empty input_schema, like wallet_balances / stale_stock', () => {
+    const tool = AI_TOOLS.find((t) => t.name === 'upcoming_bills')
+    expect(tool).toBeTruthy()
+    expect(tool!.input_schema.properties).toEqual({})
+    expect(tool!.input_schema).not.toHaveProperty('required')
+  })
+})
