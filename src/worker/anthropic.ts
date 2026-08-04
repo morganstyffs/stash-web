@@ -25,14 +25,28 @@ import { AI_TOOLS, runTool, type ToolContext } from './tools'
 /**
  * Single source of truth for the model id.
  *
- * ⚠️ OWNER MUST CONFIRM before enabling. `claude-haiku-4-5` is a real, current
- * Anthropic model (verified against the Anthropic model catalogue), chosen for
- * COST: a few users asking short Thai questions over a couple of read-only
- * tools. It is the cheapest current tier ($1/$5 per 1M input/output tokens).
- * Raise to a stronger model (e.g. `claude-sonnet-5`, `claude-opus-5`) if answer
- * quality is not good enough — that is the owner's call, not a silent default.
+ * ⚠️ OWNER MUST CONFIRM before enabling. `claude-sonnet-5` is a real, current
+ * Anthropic model (verified against the Anthropic model catalogue).
+ *
+ * WHY we moved off `claude-haiku-4-5` (the previous, cheapest tier): tested
+ * against the known-answer dataset (supabase/seeds/), Haiku kept BREAKING the
+ * SYSTEM_PROMPT's first rule ("พูดได้เฉพาะตัวเลขที่ได้จากผลของ tool") — it
+ * invented a lifetime-profit figure no tool returns, mis-explained why budget
+ * ≠ headline, and answered a category question by summing the month itself
+ * instead of using the tool's category filter (dangerous: it silently
+ * under-reports once a month exceeds AI_ROW_CAP). Those are "instruction not
+ * followed" failures, not "instruction not given" — so the fix is a more
+ * capable model, not a longer prompt. This is a single-variable change: only
+ * the model id moves, so any behaviour delta is attributable to it alone.
+ *
+ * COST, on purpose: Sonnet is several× Haiku PER TOKEN ($3/$15 vs $1/$5 per 1M
+ * input/output), and every turn now re-sends the whole history (PR AI-A), so
+ * cost per conversation grows on both axes. Accepted as the price of correct
+ * answers; if quality holds, drop back down — that is the owner's call, not a
+ * silent default. The spend ceilings (AI_MAX_TOKENS / AI_MAX_MODEL_CALLS /
+ * AI_MAX_HISTORY_* / the rate limit) are unchanged by this ticket.
  */
-export const ANTHROPIC_MODEL = 'claude-haiku-4-5'
+export const ANTHROPIC_MODEL = 'claude-sonnet-5'
 /** Max output tokens per call. Answers are short; this caps per-call cost. */
 export const AI_MAX_TOKENS = 1024
 /** Max Anthropic calls per user request. Caps the tool-use loop so the model
