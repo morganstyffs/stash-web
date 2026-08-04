@@ -2,23 +2,23 @@
 
 > บริบทถาวรของโปรเจกต์ ใช้แทนการอ่าน `docs/PROJECT_AUDIT.md` ฉบับเต็มในงานประจำวัน
 >
-> **ประกอบใหม่ทั้งฉบับ ไม่ใช่แพตช์ทีละจุด** — การแพตช์ทีละบรรทัดคือกลไกที่ทำให้เอกสารคลาดจากของจริงมาทุกรอบ (เคยค้างที่ migration `0021` ทั้งที่ถึง `0024` แล้ว → สเปกสั่งสร้าง `0022` ผิด · เคยค้างที่ 254 เทสต์ ทั้งที่ 300+) ทุกประโยคในไฟล์นี้มาจากการอ่านไฟล์จริงในรอบนี้ ไม่ได้คัดลอกจากฉบับเดิม
-> **กติกาการใช้:** ทุกข้อความควรชี้กลับไปที่ไฟล์จริงได้ จุดไหนยังไม่ได้ตรวจจะเขียนว่า "ยังไม่ได้ตรวจ" ตรง ๆ ไม่เดา · ค่าสี hex และเลขเรขาคณิตของฮีโร่ **ไม่คัดลอกมาไว้ที่นี่** — อ่านจากไฟล์แหล่งความจริง
+> **ประกอบใหม่ทั้งฉบับ ไม่ใช่แพตช์ทีละจุด** — การแพตช์ทีละบรรทัดคือกลไกที่ทำให้เอกสารคลาดจากของจริงมาทุกรอบ (เคยค้างที่ migration `0021` ทั้งที่ถึง `0024` แล้ว · เคยค้างที่ 254 เทสต์ ทั้งที่ 300+ · **รอบก่อนยังเขียนว่าฟีเจอร์ AI เป็น "โครงเปล่า `worker/ai.ts` stub" ทั้งที่ AI ใช้งานได้ครบวงจรแล้ว**) — ทุกประโยคในไฟล์นี้มาจากการอ่านไฟล์จริงในรอบนี้ ไม่ได้คัดลอกจากฉบับเดิม
+> **กติกาการใช้:** ทุกข้อความควรชี้กลับไปที่ไฟล์จริงได้ จุดไหนยังไม่ได้ตรวจจะเขียนว่า "ยังไม่ได้ตรวจ" ตรง ๆ ไม่เดา · **ค่าสี hex · เลขเรขาคณิตของฮีโร่ · ค่าเพดานของ AI ไม่คัดลอกมาไว้ที่นี่** — อ่านจากไฟล์แหล่งความจริง (เอกสารชี้ไปที่แหล่งความจริง ไม่กลายเป็นแหล่งที่สอง)
 > **ตัวเลขทุกตัวนับใหม่ในรอบนี้** จากคำสั่งที่รันจริง (ดู §12 ท้ายไฟล์)
-> **ตรวจล่าสุดเทียบ repo จริง:** main `bc993f9` — **7 ใบ merge เพิ่มตั้งแต่รอบก่อน** (ใบ 13 งบ · 9 contrast · 10 shell · 6/7/8 กระเป๋าเงิน · 11 คำ) · migration ล่าสุด **`0028`**
-> **ชั้น DB ขยับ 1 ก้าวรอบนี้ (ต่างจากรอบก่อนที่ frozen):** `git diff --stat 5242f0a..bc993f9 -- supabase/migrations src/lib/database.types.ts` = **เฉพาะ `0028` + 88 บรรทัดใน `database.types.ts`** (ฟีเจอร์กระเป๋าเงินล้วน) · ที่เหลือทั้งหมดเป็น **client ล้วน** (§12)
+> **ตรวจล่าสุดเทียบ repo จริง:** main `de0c6e4` — **รอบนี้เพิ่มฟีเจอร์ผู้ช่วย AI ครบวงจร (8 PR: PR-0 · PR-1a/1b · PR-2a/2b · PR-3 · PR-4 · PR-5)** + types-drift อีกใบ · migration ล่าสุด **`0030`**
+> **ชั้น DB ขยับ 2 ก้าวรอบนี้:** `0029` (`ai_settings` — consent) + `0030` (`stock_intake_list` — RPC อ่านอย่างเดียวให้ AI) · ที่เหลือทั้งหมดเป็น **worker (`src/worker/`) + client** (§12)
 
 ---
 
 ## 1. โปรเจกต์นี้คืออะไร
 
-PWA บันทึกรายรับ-รายจ่ายส่วนตัว ที่มี **กึ่งระบบสต็อกสินค้า** (เสื้อผ้า/ของมือสอง ขายต่อ) + ระบบ **ยอดค้างกับเพื่อน** + **กระเป๋าเงินหลายใบ** รวมอยู่ในแอปเดียว (`package.json` description)
+PWA บันทึกรายรับ-รายจ่ายส่วนตัว ที่มี **กึ่งระบบสต็อกสินค้า** (เสื้อผ้า/ของมือสอง ขายต่อ) + ระบบ **ยอดค้างกับเพื่อน** + **กระเป๋าเงินหลายใบ** + **ผู้ช่วย AI ตอบคำถามการเงิน** รวมอยู่ในแอปเดียว (`package.json` description · `router.tsx`)
 
 - **ผู้ใช้:** เจ้าของ + เพื่อนไม่กี่คน · **ต่างคนต่างขายของตัวเอง ไม่แชร์คลัง** · "ยอดค้าง" เป็นฟีเจอร์ cross-user ตัวเดียวในแอป
 - **ภาษา:** ไทย (`index.html` `lang="th"`) · **สกุลเงิน:** THB (`lib/format.ts` `Intl.NumberFormat('th-TH')`) · **เขตเวลา:** Asia/Bangkok
-- **เขตเวลาเป็นข้อจำกัดทั้งแอป:** ทั้ง client (`lib/dates.ts` `APP_TZ='Asia/Bangkok'`) และ DB (`0010`: `(now() at time zone 'Asia/Bangkok')::date`) เคาะ "วันนี้/เดือนนี้" เป็นเวลาไทยเสมอ ไม่ใช่ timezone ของเครื่อง — ไม่งั้นรายการเวลา 00:30 ICT จากเครื่อง UTC จะลงผิดวัน และยอดรายเดือน drift ที่ขอบเดือน
+- **เขตเวลาเป็นข้อจำกัดทั้งแอป:** ทั้ง client (`lib/dates.ts` `APP_TZ='Asia/Bangkok'`) และ DB (`0010`: `(now() at time zone 'Asia/Bangkok')::date`) เคาะ "วันนี้/เดือนนี้" เป็นเวลาไทยเสมอ ไม่ใช่ timezone ของเครื่อง — **RPC ใหม่ `stock_intake_list` (`0030`) ก็เทียบ `created_at at time zone 'Asia/Bangkok'` ก่อนกรองเดือน** ตามกฎเดียวกัน
 - **ไม่มีหน้าสมัครสมาชิก** — เจ้าของสร้างบัญชีให้ใน Supabase dashboard · มีเฉพาะเข้าสู่ระบบ + กู้รหัสผ่าน (`/login`, `/forgot-password`, `/reset-password`)
-- **Deploy:** Cloudflare Workers (static assets) — worker ชื่อ `stash-web` (`wrangler.jsonc`) · **production URL ที่แน่นอนไม่ได้ pin ในไฟล์ repo** → ยังไม่ได้ตรวจ
+- **Deploy:** Cloudflare Workers (static assets + `/api/*` dynamic) — worker ชื่อ `stash-web` (`wrangler.jsonc`) · **production URL ที่แน่นอนไม่ได้ pin ในไฟล์ repo** → ยังไม่ได้ตรวจ
 
 ---
 
@@ -26,30 +26,38 @@ PWA บันทึกรายรับ-รายจ่ายส่วนตั
 
 Vite 6 · React 18 · TypeScript · Tailwind 3 · Supabase (Postgres + Auth อีเมล/รหัส + Storage) · TanStack Query 5 · react-router-dom 6 · `vite-plugin-pwa` · Cloudflare Workers · Vitest 2 (รวม guard เบราว์เซอร์จริงด้วย `playwright-core` + Chromium) (จาก `package.json`)
 
-**สคริปต์จริง (`package.json`):** `dev` · `build`=`tsc -b && vite build` · `preview` · `test`=`vitest run` · `test:watch` · **`lint`=`tsc -b`** · `typecheck`=`tsc -b` · `cf:dev`=`wrangler dev` · `cf:typegen` · `deploy`=`npm run build && wrangler deploy`
+**สคริปต์จริง (`package.json`):** `dev` · `build`=`tsc -b && vite build` · `preview` · `test`=`vitest run` · `test:watch` · **`lint`=`tsc -b`** · `typecheck`=`tsc -b` · `cf:dev`=`wrangler dev` · `cf:typegen`=`wrangler types` · `deploy`=`npm run build && wrangler deploy`
 > **ยังไม่มี ESLint** — `npm run lint` เป็นแค่ `tsc -b` (ตรวจ `package.json` รอบนี้ · ไม่มี dependency/สคริปต์ eslint · ยังจริง)
+
+**tsconfig เป็น solution-style 3 project (`tsconfig.json` references):**
+- `tsconfig.app.json` — client (`src/` ทั้งหมด) · มี `baseUrl:'.'` + `paths` (`@/…`) · **`exclude: ["src/worker"]`**
+- `tsconfig.worker.json` — `include: ["src/worker"]` · `types: ["@cloudflare/workers-types"]` · **ไม่มี `paths`/`baseUrl`** → worker ต้อง import แบบ relative เท่านั้น (§8 · §9)
+- `tsconfig.node.json` — config เครื่องมือ (vite/vitest)
+- `tsc -b` build ทั้ง 3 → นี่คือคำสั่งเดียวกับที่ CI + Cloudflare รัน
 
 **ข้อจำกัดที่กำหนดวิธีทำงานทั้งหมด:**
 
 - เจ้าของทำงาน**ออนไลน์ล้วน ไม่มีเครื่อง dev** — รันคำสั่ง local เองไม่ได้ (AI agent รันให้)
-- **Migration เป็น raw SQL รันมือใน Supabase SQL Editor** — ไม่มี Supabase CLI/migration runner (`schema_migrations` เป็นตารางที่ migration แต่ละไฟล์ insert เอง)
+- **Migration เป็น raw SQL รันมือใน Supabase SQL Editor** — ไม่มี Supabase CLI/migration runner (`schema_migrations` เป็นตารางที่ migration แต่ละไฟล์ insert เอง · `0029`/`0030` insert version `'0029'`/`'0030'`)
 - **AI agent ต่อ DB ไม่ได้** — ส่ง SQL ให้เจ้าของรันแล้วรายงานกลับ · **แหล่งความจริงของ schema ที่ agent อ่านได้คือ `src/lib/database.types.ts`** (generate จาก DB จริง) ไม่ใช่การ query
 - **`database.types.ts` regenerate ผ่าน workflow `types-drift`** (ดู §2.1) — ไม่ paste มือ
-- **Deploy อัตโนมัติผ่าน Cloudflare Workers Git integration** — **ห้ามเพิ่ม deploy workflow ใน GitHub Actions** จะกลายเป็นสองทางเดินชนกัน (`vite.config.ts` อ่าน `WORKERS_CI_COMMIT_SHA`) · **`build` job ของ GitHub Actions คือด่านที่ต้องเขียวก่อน merge · Cloudflare Workers Builds เป็นคนละทางเดิน ไม่นับ**
+- **Deploy อัตโนมัติผ่าน Cloudflare Workers Git integration** — **ห้ามเพิ่ม deploy workflow ใน GitHub Actions** จะกลายเป็นสองทางเดินชนกัน (`vite.config.ts` อ่าน `WORKERS_CI_COMMIT_SHA`) · **`build` job ของ `ci.yml` คือด่านที่ต้องเขียวก่อน merge · Cloudflare Workers Builds เป็นคนละทางเดิน ไม่นับ**
+- **`tsc -b` เขียว ≠ deploy ได้** — worker bundle ด้วย esbuild ของ wrangler (ไม่ใช่ Vite ไม่ใช่ tsc) → **พิสูจน์ worker ด้วย `wrangler deploy --dry-run`** (§9 · บทเรียนรอบนี้)
 - **merged ≠ deployed ≠ สิ่งที่เบราว์เซอร์รันอยู่** — ก่อนไล่บั๊กหน้าจอทุกครั้ง อ่าน version stamp ท้ายหน้าตั้งค่าก่อน (§9 · §10)
 - **`refetchOnWindowFocus: true`** (`src/App.tsx`) — PWA ที่ค้าง background กลับมาต้องเห็นตัวเลขสด · **ผลข้างเคียง:** effect ที่ seed ฟอร์มจากผลของ query **ต้องผูกกับ `id` ไม่ใช่ object** ไม่งั้น window blur→focus (native date/file picker) จะ refetch → object ใหม่ → effect ทับสิ่งที่ผู้ใช้พิมพ์ค้าง (§11.4-17)
+- **ตัวแปร runtime ฝั่ง Cloudflare ที่ฟีเจอร์ AI ต้องใช้** (จาก `src/worker/index.ts` `Env` · ตั้งใน dashboard/`wrangler secret`, **ไม่อยู่ใน `wrangler.jsonc`, ห้ามขึ้นต้น `VITE_`**): `SUPABASE_URL` · `SUPABASE_ANON_KEY` (ใช้ verify JWT + query ใต้ RLS) · `ANTHROPIC_API_KEY` (server secret ล้วน) · KV binding `AI_RATE_LIMIT` (อยู่ใน `wrangler.jsonc`)
 
 ### 2.1 GitHub workflows (`.github/workflows/` — 2 ไฟล์)
 
 | ไฟล์ | trigger | ทำอะไร | secret |
 |---|---|---|---|
-| `ci.yml` | push→`main` + ทุก PR | `npm ci` → `npm run build` → `npx playwright-core install --with-deps chromium` → `npm test` (`vitest run`) · Node 22 · **ไม่ deploy** · ขั้น chromium มีเพื่อให้ guard เบราว์เซอร์จริงรันได้จริงใน CI (ไม่ skip) | **ไม่ใช้ secret** — เทสต์ใช้ dummy Supabase env จาก `vitest.config.ts` |
+| `ci.yml` | push→`main` + ทุก PR | Node 22 · `npm ci` → `npm run build` → `npx playwright-core install --with-deps chromium` → `npm test` (`vitest run`) · **ไม่ deploy** · ขั้น chromium มีเพื่อให้ guard เบราว์เซอร์จริงรันได้จริงใน CI (ไม่ skip) | **ไม่ใช้ secret** — เทสต์ใช้ dummy Supabase env จาก `vitest.config.ts` |
 | `types-drift.yml` | cron รายวัน + `workflow_dispatch` | `supabase gen types` เทียบกับ `database.types.ts` · ต่างเมื่อไร → เปิด/อัปเดต PR branch เดียว `automation/database-types-drift` (label `types-drift`) · เหมือน → เงียบ · **ไม่แตะ `main` ตรง ๆ** | `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_ID` · optional `GH_PAT` |
 
 > **ทำไมต้องมี `types-drift`:** เจ้าของไม่มีเครื่อง dev → regen จาก dashboard แล้ว paste มือทุกครั้ง · พลาดเมื่อไรฐานข้อมูลกับ repo แยกกันเงียบ ๆ (เกิดจริงกับ `0015`) · workflow นี้ปิดช่องนั้น (หัวไฟล์ `types-drift.yml`)
 > **ลำดับที่ถูกเมื่อ migration เปลี่ยน signature ของ RPC ที่ client เรียก:** ห้าม merge PR `types-drift` เดี่ยว — types ใหม่ไม่ตรง call site → `tsc` ล้ม → main แดง · ดึงไฟล์เข้า branch ฟีเจอร์แล้ว merge ทีเดียวพร้อม call site (`0020` พลาดข้อนี้ · §9)
-> **ข้อยกเว้นที่พิสูจน์แล้วรอบนี้ (ใบ 6/7):** ถ้า migration ใหม่ **ยังไม่มี call site ฝั่ง client เลย** types-drift merge เดี่ยวได้ปลอดภัย — แต่ถ้าการเพิ่มคอลัมน์ทำให้ **fixture/โค้ดเดิมพัง** (เช่น `opening_balance` not-null เพิ่มใน `wallets.Row` ทำให้ fixture ทดสอบเดิมคอมไพล์ไม่ผ่าน) ต้องดึง types เข้า branch แล้ว merge พร้อมการแก้ทีเดียว (types + fixture ต้องลง atomic ไม่งั้น main แดงกลางทาง)
-> (ยังไม่ได้ตรวจซ้ำทุกบรรทัดของ workflow รอบนี้ — ไฟล์ workflow ไม่อยู่ในชุดที่เปลี่ยน `git diff --name-only 5242f0a..bc993f9`)
+> **ข้อยกเว้น:** ถ้า migration ใหม่ **ยังไม่มี call site ฝั่ง client** types-drift merge เดี่ยวได้ปลอดภัย — แต่ถ้าการเพิ่มคอลัมน์ทำให้ **fixture/โค้ดเดิมพัง** ต้องดึง types เข้า branch แล้ว merge พร้อมการแก้ทีเดียว (types + fixture ต้องลง atomic)
+> **หนี้ที่รู้ตัว (§10):** PR ของ `types-drift` เปิดด้วย `${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}` (`types-drift.yml` บรรทัด 114) · **ถ้า `GH_PAT` ไม่ได้ตั้ง จะ fallback เป็น `GITHUB_TOKEN` ซึ่ง trigger `ci.yml` ต่อไม่ได้** (หัวไฟล์เขียนเอง: "default GITHUB_TOKEN can't trigger ci.yml, so you'd re-run CI manually") — PR types-drift ล่าสุด (`d65bd5c` merge #145) เข้า main ได้ · **`GH_PAT` ยังไม่ตั้ง = ช่องนี้ยังเปิดอยู่** (บันทึกใน §10)
 
 ---
 
@@ -57,153 +65,156 @@ Vite 6 · React 18 · TypeScript · Tailwind 3 · Supabase (Postgres + Auth อ�
 
 ```
 DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Query)  →  UI (pages/ + components/)
+                                    ↑
+              worker/ (Cloudflare) เรียก RPC + import pure function ของ lib/ ตรง ๆ (ไม่ผ่าน hooks/React)
 ```
 
-ตรรกะที่แตะเงินอยู่ใน **SQL** หรือใน **pure function ของ `lib/`** เท่านั้น **ห้าม inline ใน component** · `lib/` เดินทางเดียว **ห้าม import จาก `hooks/`** — รับ "รูปร่างขั้นต่ำ" structural แทน (มีคอมเมนต์กำกับที่หัวไฟล์ · convention 11/12)
+ตรรกะที่แตะเงินอยู่ใน **SQL** หรือใน **pure function ของ `lib/`** เท่านั้น **ห้าม inline ใน component** · `lib/` เดินทางเดียว **ห้าม import จาก `hooks/`/`pages/`** — รับ "รูปร่างขั้นต่ำ" structural แทน (มีคอมเมนต์กำกับที่หัวไฟล์ · convention 11/12)
+> **รอบนี้ `lib/` มีผู้บริโภคใหม่ที่ไม่ใช่ React: `src/worker/`** — `homeSummary.ts` + `stockAge.ts` ถูก**ย้ายจาก `useHome` hook / `StockPage`** เข้ามาที่ `lib/` (PR-2a) เพื่อให้ worker import ได้ (คอมเมนต์หัวไฟล์เขียนเอง: "Lives in `lib/` … so a non-React caller — the AI worker — can import it too") · นี่คือเหตุผลตรง ๆ ว่าทำไมกฎ "lib/ เดินทางเดียว" ถึงสำคัญขึ้นอีก
 
 **ไฟล์ `lib/` ที่ต้องรู้จัก (จากการอ่านจริงรอบนี้):**
 
 | ไฟล์ | หน้าที่ |
 |---|---|
 | `src/lib/database.types.ts` | **generated — ห้ามแก้มือ** · แหล่งความจริงของ schema ที่ agent อ่านได้ |
-| `src/lib/db.ts` | type alias ระดับแอป derive จาก generated (`Tables<>`/`Enums<>`/`Fns[...]`) · **เพิ่มรอบนี้:** `WalletBalance` (จาก `wallet_balances` Returns) · `WalletTransfer` (จาก `Tables<'wallet_transfers'>`) |
-| `src/lib/ledger.ts` | predicate กลางจำแนกแถว: `isSpendingRow` / `isBudgetSpendingRow` (ตัด `is_stock_cogs`/`is_debt_settlement`/`is_shop_operating`) + **`lockedRowInfo()`** แนวคิด "แถวล็อก" ที่เดียว (§5) · **หมายเหตุ: กระเป๋าเงิน (§4-14/§11.8) ไม่ใช้ predicate พวกนี้ — ใช้ `type` ดิบ** |
-| `src/lib/budgetable.ts` | `isBudgetableCategory()` — ตั้งงบได้เฉพาะ `kind==='expense' && !is_system && !is_shop_category && !is_stock_category` · pure/structural · **ใบ 13: ใช้ทั้งหน้างบและแถบ "งบที่ตั้งไว้" หน้าแรกแล้ว** (`budgetableRows` ใน `useBudgets.ts` — เดิมตรรกะอยู่สองที่) |
-| `src/lib/budgetNote.ts` | ถ้อยคำบรรทัดรองหน้างบที่เดียว: `paceNote(state, {remaining,over}, money)` + atom `overBudgetNote`/`remainingNote` · รับ `money` ฉีดเข้ามาเพื่อ mask ตาม `hideBalance` (§11.4-33/34) |
+| `src/lib/db.ts` | type alias ระดับแอป derive จาก generated · มี `WalletBalance` (จาก `wallet_balances` Returns) · `WalletTransfer` · **`AiSettings` = `Tables<'ai_settings'>` (ใหม่รอบนี้ · `0029`)** |
+| `src/lib/ledger.ts` | predicate กลางจำแนกแถว: `isSpendingRow`/`isBudgetSpendingRow`/`isIncomeRow` (ตัด `is_stock_cogs`/`is_debt_settlement`/`is_shop_operating`) + `lockedRowInfo()` (§5) · **กระเป๋าเงิน (§4-14) ไม่ใช้ predicate พวกนี้ — ใช้ `type` ดิบ** |
+| `src/lib/homeSummary.ts` | **ย้ายเข้า `lib/` รอบนี้ (PR-2a)** · `computeHomeSummary(rows, cats, month, now)` — aggregate หน้าแรกทั้งหมด (income/expense headline/budgetSpending/safeToSpend/daysLeft/dailyAllowance/donut) · **worker `home_summary` tool เรียกตัวนี้ตรง ๆ** · รับ `HomeSummaryRow` structural |
+| `src/lib/stockAge.ts` | **ย้ายเข้า `lib/` รอบนี้ (PR-2a)** · `AGE_FRESH_MAX=30`/`AGE_OLD_MAX=60` (เกณฑ์อายุที่เดียว) · `inStock`/`isStale`/`computeSunkCost`/`daysSince` · **คอมเมนต์ยอมรับเองว่า `AGE_OLD_MAX` เป็นค่าเดา** ("educated guess for second-hand clothing, not measured") · **worker `stale_stock` tool เรียกตัวนี้** (ห้าม hardcode 60 ซ้ำ) |
+| `src/lib/budgetable.ts` | `isBudgetableCategory()` — ตั้งงบได้เฉพาะ `kind==='expense' && !is_system && !is_shop_category && !is_stock_category` · ใช้ทั้งหน้างบและแถบ "งบที่ตั้งไว้" หน้าแรก (§11.4-35) · **คอมเมนต์ยังอ้างชื่อหมวด "จ่ายชำระหนี้" (ชื่อ seed ปัจจุบันคือ "จ่ายคืนเพื่อน" ตั้งแต่ `0017`) — คอมเมนต์ค้าง จดไว้ ไม่แก้ (§10)** |
+| `src/lib/budgetNote.ts` | ถ้อยคำบรรทัดรองหน้างบที่เดียว · รับ `money` ฉีดเข้ามาเพื่อ mask ตาม `hideBalance` |
 | `src/lib/shopAccount.ts` | `computeShopProfit()` — สูตร P&L ร้าน (ถังที่ 1 − ถังที่ 2) ที่เดียว (§4) |
-| `src/lib/shopCategory.ts` | resolve หมวดร้านฝั่งรายรับด้วย `kind + is_shop_category` (ไม่มี `system_key`) (§11.4-31) |
+| `src/lib/shopCategory.ts` | resolve หมวดร้านฝั่งรายรับด้วย `kind + is_shop_category` (ไม่มี `system_key`) |
 | `src/lib/spendable.ts` | `computeSpendable(safe, bills, daysLeft)` — บรรทัดรอง SAFE · ไม่ clamp เงียบ |
-| `src/lib/debtsSummary.ts` | `computeDebtsHeadline` (หน้ารวม อ่าน `shared_net`) + `computeFriendLedger` (รายคน แยก agreed/private) (§11.6) |
-| `src/lib/format.ts` | `formatBaht`/`formatBaht2`/`MASKED_BAHT`/`formatDueDate` ฯลฯ · **เพิ่มรอบนี้ (ใบ 8):** `sanitizeMoneyInput()` — กรองอินพุตเงินที่เดียว (ยอดตั้งต้นกระเป๋า + ยอดโอน ใช้ร่วม) |
-| `src/lib/sku.ts` | normalize/validate **prefix** เท่านั้น (`^[A-Z0-9]{3}$`) — ไม่ประกอบ SKU (สูตรอยู่ที่ RPC `stock_sku_build`) |
+| `src/lib/debtsSummary.ts` | `computeDebtsHeadline` (อ่าน `shared_net`) + `computeFriendLedger` (แยก agreed/private) (§11.6) |
+| `src/lib/format.ts` | `formatBaht`/`formatBaht2`/`MASKED_BAHT`/`formatDueDate`/`sanitizeMoneyInput()` (กรองอินพุตเงินที่เดียว) |
+| `src/lib/aiChat.ts` | **ใหม่รอบนี้ (PR-5)** · ฝั่ง client ของ `POST /api/ai` · `askAssistant(question, token)` คืน reply · โยน `AiHttpError{status, message}` → `translateError` map ตาม **status ไม่ใช่ substring** (§11.9) |
+| `src/lib/prefs.ts` | localStorage ทั้งหมด (`stash.*` คีย์เดียว) · `hideBalance`/`stockView`/`homeMoments` · **`AiPrefs.assistant` = vestigial ไม่มีใครอ่าน** (consent ย้ายไปเซิร์ฟเวอร์แล้ว · คอมเมนต์เขียนเอง "nothing reads it today") · `AiPrefs.autoCategory` ยังอ่านอยู่ในหน้าตั้งค่า |
+| `src/lib/sku.ts` | normalize/validate **prefix** เท่านั้น (`^[A-Z0-9]{3}$`) — สูตรอยู่ที่ RPC `stock_sku_build` |
 | `src/lib/username.ts` | กติกา username (`^[a-z0-9_]{3,20}$`) mirror CHECK ใน DB (`0020`) |
-| `src/lib/dates.ts` | helper วันที่/เดือนกลาง (Asia/Bangkok) · **"เดือน" = string `YYYY-MM`** เทียบ `<`/`>` ตรง ๆ (§11.4-19) · `todayISO`/`parseMonthParam`/`daysLeftInMonthKey`/`monthBoundsFromKey`/`addMonthsToKey` |
+| `src/lib/dates.ts` | helper วันที่/เดือนกลาง (Asia/Bangkok) · **"เดือน" = string `YYYY-MM`** · `monthKey`/`addMonthsToKey`/`monthBoundsFromKey`/`daysLeftInMonthKey`/`daysSince` — **worker `tools.ts` เรียกชุดนี้แปลง offset→เดือน** |
 | `src/lib/catColor.ts` | `catColorVar(index)` — slot 1–6 → CSS var **ที่เดียวที่แปลง index→สี** (ไม่มี hex) |
 | `src/lib/percent.ts` | `largestRemainderPercents()` — % รวม 100 พอดี (Hamilton) |
-| `src/lib/errors.ts` | `translateError()` → ข้อความไทยที่เดียว · จับด้วย `code`/`status` ไม่จับ substring · **ข้อความที่มีอักษรไทยอยู่แล้วส่งผ่านตรง ๆ** (§9) — นี่คือเหตุผลที่ RAISE ภาษาไทยใน RPC ถึงผู้ใช้ตรง ๆ (§10) |
-| `src/lib/txCache.ts` / `txRestore.ts` | เติมแถวที่เพิ่ง insert ลง cache / payload คืนแถวที่ลบ · pure · structural (§11.4-16/18) |
+| `src/lib/errors.ts` | `translateError()` → ข้อความไทยที่เดียว · จับด้วย `code`/`status` ไม่จับ substring · **ข้อความที่มีอักษรไทยอยู่แล้วส่งผ่านตรง ๆ** — นี่คือเหตุผลที่ทั้ง RAISE ภาษาไทยใน RPC และข้อความไทยจาก worker AI ถึงผู้ใช้ตรง ๆ (§10 · §11.9) |
+| `src/lib/txCache.ts` / `txRestore.ts` | เติมแถวที่เพิ่ง insert ลง cache / payload คืนแถวที่ลบ · pure · structural |
 | `src/lib/offlineQueue.ts` | write-outbox บน IndexedDB — **ไม่มีไฟล์ไหน import (dead code)** ยืนยัน grep รอบนี้ (§10) |
-| `src/lib/useDialogA11y.ts` | โฟกัส/คีย์บอร์ดชีตกลาง · **`onClose` ขี่ ref ไม่เป็น dependency ของ effect** (กันบั๊ก caret หลุด · §9) |
-| `src/lib/visual-contrast.ts` | helper วัด contrast ที่ compute จริงในเบราว์เซอร์ (ใช้โดย `AppLayout.theme` + `Toast.contrast` + `StockScrim.contrast` visual guard) |
+| `src/lib/useDialogA11y.ts` | โฟกัส/คีย์บอร์ดชีตกลาง · `onClose` ขี่ ref ไม่เป็น dependency ของ effect (กันบั๊ก caret หลุด · §9) |
+| `src/lib/visual-contrast.ts` | helper วัด contrast ที่ compute จริงในเบราว์เซอร์ (ใช้โดย visual guard) |
 
-**15 ตาราง** (นับจาก block `public.Tables` ใน `database.types.ts` รอบนี้ = 15 · **+1 จากรอบก่อน: `wallet_transfers`**):
-`budgets` `categories` `debt_events` `debts` `favorites` `friend_connections` `profiles` `recurring` `schema_migrations` `stock_items` `stock_sales` `stock_sku_config` `transactions` `wallet_transfers` `wallets`
+**`src/worker/` (Cloudflare Worker · typecheck ด้วย `tsconfig.worker.json` · bundle ด้วย esbuild ของ wrangler):** ดูรายละเอียดเต็มใน §11.9
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `index.ts` | fetch เดียว · `/api/ai` → `handleAi`, `/api/*` อื่น → 404 JSON, ที่เหลือ → `env.ASSETS` · หุ้มทุก response ด้วย `withSecurityHeaders` · ประกาศ `Env` (ASSETS/ANTHROPIC_API_KEY/SUPABASE_URL/SUPABASE_ANON_KEY/AI_RATE_LIMIT) |
+| `ai.ts` | `handleAi` — ด่าน 4 ชั้นตามลำดับ **verify token → consent → rate limit → Anthropic** (ห้ามสลับ) · ตัวตนจาก token เท่านั้น · anon key + RLS · ไม่มี service_role |
+| `anthropic.ts` | เรียก Anthropic Messages API + tool loop · **ที่เดียวที่ใช้ `ANTHROPIC_API_KEY`** · SYSTEM_PROMPT + **เพดานค่าใช้จ่าย 5 ตัว** (ค่าตัวเลขอยู่ในไฟล์นี้ ไม่คัดลอกมาที่นี่) |
+| `tools.ts` | 6 tool อ่านอย่างเดียว (`AI_TOOLS`) + `runTool` เรียก RPC/lib ใต้ JWT ผู้ใช้ · โมเดลส่ง `offset` ไม่ใช่วันที่ |
+| `categories.ts` | `resolveCategory` — แปลชื่อหมวดไทย→id ใต้ RLS · กำกวม→ถามกลับ ไม่เดา |
+| `rateLimit.ts` | `checkRateLimit(kv, uid, now)` — KV counter 2 หน้าต่าง (นาที/วัน) ผูก uid ที่ verify แล้ว · **ไม่ atomic โดยยอมรับ** |
+| `security.ts` | HTTP security headers (CSP `default-src 'self'` ฯลฯ) — **ไฟล์เดิม ไม่เปลี่ยนรอบนี้ (mtime เก่ากว่าไฟล์ AI)** |
+| `json.ts` | helper `json(body, status)` — ไฟล์เดิม |
+
+**16 ตาราง** (นับจาก block `public.Tables` ใน `database.types.ts` รอบนี้ = 16 · **+1 จากรอบก่อน: `ai_settings`**):
+`ai_settings` `budgets` `categories` `debt_events` `debts` `favorites` `friend_connections` `profiles` `recurring` `schema_migrations` `stock_items` `stock_sales` `stock_sku_config` `transactions` `wallet_transfers` `wallets`
 
 - ทุกตาราง RLS เปิด + policy owner-only บน `auth.uid() = user_id` (`0001`) — **ยกเว้น 2 กลุ่ม:**
   - `schema_migrations` (`0011`): RLS เปิด · **0 policy** · revoke สิทธิ์ anon/authenticated (ตั้งใจ)
   - **กลุ่มยอดค้าง** `debts`/`debt_events`/`friend_connections`/`profiles` (`0015`): RLS **select-only** (เห็นได้เมื่อเป็นคู่กรณี/เพื่อน) + **เขียนผ่าน SECURITY DEFINER RPC ที่ re-check `auth.uid()` เอง** (§6 · §11.6)
-- **`wallet_transfers` (`0028`) เป็น single-owner ธรรมดา** — RLS owner-only **CRUD ครบ** (select/insert/update/delete) ไม่ใช่ select-only แบบกลุ่มยอดค้าง · FK `from_wallet_id`/`to_wallet_id` → `wallets` **`on delete restrict`** (กระเป๋าที่มีประวัติโอนลบไม่ได้เงียบ)
+- **`ai_settings` (`0029`) เป็น single-owner ล้วน** — `user_id` PK `default auth.uid()` · RLS มี **select/insert/update owner-only** แต่ **ไม่มี delete policy โดยตั้งใจ** (§11.9) · ไม่แตะโมเดล DEFINER ของกลุ่มยอดค้าง (ไม่มี cross-user) · **จงใจไม่วางไว้บน `profiles`** เพราะ RLS ของ `profiles` เปิดให้เพื่อนที่ accepted เห็นแถวเรา → consent จะรั่ว (หัวไฟล์ `0029` §11.9)
+- **`wallet_transfers` (`0028`) เป็น single-owner** — RLS owner-only **CRUD ครบ** · FK → `wallets` **`on delete restrict`**
 
 ---
 
 ## 4. กฎธุรกิจ — เงิน (สำคัญที่สุดในไฟล์)
 
-ที่มา: `lib/ledger.ts` · `lib/shopAccount.ts` · `0012` (ขาย) · `0015` (ยอดค้าง) · `0026` (หมวดร้าน) · **`0028` (กระเป๋าเงิน — ใหม่รอบนี้)**
+ที่มา: `lib/ledger.ts` · `lib/homeSummary.ts` · `lib/shopAccount.ts` · `0012` (ขาย) · `0015` (ยอดค้าง) · `0026` (หมวดร้าน) · `0028` (กระเป๋าเงิน)
+> **กฎในหมวดนี้ตอนนี้บังคับผ่าน 2 ทางเดิน ไม่ใช่แค่ UI:** (1) โค้ด client/SQL เหมือนเดิม · (2) **`SYSTEM_PROMPT` ของผู้ช่วย AI (`worker/anthropic.ts`) บอกโมเดลย้ำความหมายของตัวเลขพวกนี้** เพื่อไม่ให้ตอบปนกัน — ตัวอย่างสำคัญคือข้อ 3 ข้างล่าง
 
 1. **ซื้อของเข้าสต็อกไม่ใช่รายจ่าย** — `is_stock_purchase=true` ตัดจาก "ยอดจ่าย" (`isSpendingRow` = `type==='expense' && !is_stock_purchase`)
 2. **ขาย = สองแถวเสมอ (Model A, gross)** (`stock_sale_create` `0012`/`0013`): income = ราคาขาย×qty (หมวด `stock_sale_income`) · expense = ต้นทุน×qty (`is_stock_cogs=true` · หมวด `stock_cogs` · wallet null)
-3. `safeToSpend = income − spending` — **ไม่ต้องมี accumulator แยกสำหรับ COGS** เพราะ COGS ถูกหักกลบด้วย income การขายเองใน Model A
-4. **COGS นับใน headline เงินออก + donut แต่ตัดจาก budget** (`isBudgetSpendingRow` ตัด `is_stock_cogs`)
+3. **`safeToSpend = income − spending` — "รับ−จ่ายของเดือนนี้" ไม่ใช่ "เงินในกระเป๋าทั้งหมด"** (`homeSummary.ts`: "safe-to-spend = income − expense") · **เป็นกฎที่ AI ต้องเคารพผ่าน system prompt ด้วย** — บรรทัดใน `SYSTEM_PROMPT` บอกตรง ๆ ว่า `safe_to_spend` ≠ "เงินคงเหลือในกระเป๋าทั้งหมด" (คนละอย่าง) · ยอดคงเหลือกระเป๋าดูจาก `wallet_balances` (§11.4-6 · §11.9)
+4. **COGS นับใน headline เงินออก + donut แต่ตัดจาก budget** (`isBudgetSpendingRow` ตัด `is_stock_cogs`) — ไม่ต้องมี accumulator แยกสำหรับ COGS เพราะถูกหักกลบด้วย income การขายใน Model A
 5. **เคลียร์ยอดค้าง (`is_debt_settlement=true`) กติกาเดียวกับ COGS:** นับใน headline ตัดจาก budget
-6. **ค่าดำเนินร้าน (`is_shop_operating=true`) กติกาเดียวกับ COGS:** นับใน headline **แต่ตัดจาก budget** (ถังที่ 2 · `0026`) — mirror สองที่: `isBudgetSpendingRow` (client) + query ของ `useMonthSpending` ก็ตัดฝั่ง SQL
-   - **`transactions.is_shop_operating` เป็น derived column เขียนโดย trigger `set_txn_shop_operating` เท่านั้น** (`0026` DEFINER) — **client ห้ามส่งค่า** · แหล่งความจริงคือป้าย `categories.is_shop_category`
-7. **บัญชีร้านมีสองถังแยกเด็ดขาด** (`computeShopProfit`): ถังที่ 1 = กำไรขั้นต้นจาก `stock_sales` · ถังที่ 2 = ค่าดำเนินร้าน (net: ค่าส่ง/แพ็ค/ฟี/การตลาดจ่าย − ค่าส่งที่เก็บจากลูกค้า) · **กำไรสุทธิ = ถัง 1 − ถัง 2** · **ห้ามเกลี่ยถังที่ 2 ลงรายชิ้น** (§11.4-28)
-8. **ขายขาดทุนได้** — สองแถว ledger ยังบวก มีแค่ `stock_sales.profit` ติดลบ · `computeShopProfit` **ไม่ clamp**
-9. `cost_at_sale` snapshot ต้นทุน/ชิ้น ณ วันขาย (ต่างจาก `is_shop_operating` ที่ไล่รีไรต์แถวเก่า · §11.4-25)
-10. **วันที่ฝั่ง DB ใช้ `(now() at time zone 'Asia/Bangkok')::date` เสมอ** ห้าม `current_date` (`0010`)
-11. **ตัดสินว่ารายการอยู่เดือนไหนอ่านจาก string `YYYY-MM-DD` ตรง ๆ** ห้ามแปลงเป็น Date (§11.4-19)
-12. **บิลรอจ่ายหักออกจาก "ใช้ได้วันละ" — หักเฉพาะรายจ่าย ไม่บวกรายรับ** (`spendable.ts` + `useUpcomingBills`) · ไม่สมมาตรโดยตั้งใจ (§11.4-7)
-13. **ห้าม clamp ยอดเงินเป็น 0 เงียบ ๆ ทุกที่ที่แสดงเงิน** — ติดลบ/เกิน บอกตรง ๆ + ไอคอนเตือน (§11.4-8) · `computePace` คืน `remaining` (budget−used, ติดลบได้) + `over` แยก · **กระเป๋าเงินก็ห้าม clamp** — คงเหลือติดลบได้จริง (ยอดตั้งต้นน้อยกว่าที่ใช้ไป) แสดงติดลบ + สี expense
+6. **ค่าดำเนินร้าน (`is_shop_operating=true`) กติกาเดียวกับ COGS:** นับใน headline ตัดจาก budget (ถังที่ 2 · `0026`) · **`is_shop_operating` เป็น derived column เขียนโดย trigger `set_txn_shop_operating` (`0026` DEFINER) เท่านั้น — client ห้ามส่งค่า**
+7. **บัญชีร้านมีสองถังแยกเด็ดขาด** (`computeShopProfit`): ถัง 1 = กำไรขั้นต้นจาก `stock_sales` · ถัง 2 = ค่าดำเนินร้าน (net) · **กำไรสุทธิ = ถัง 1 − ถัง 2** · **ห้ามเกลี่ยถัง 2 ลงรายชิ้น** — **AI `stock_sales` tool คืน `profit` จาก RPC ตรง ๆ ห้าม recompute** (§11.9)
+8. **ขายขาดทุนได้** — สองแถว ledger ยังบวก มีแค่ `stock_sales.profit` ติดลบ · `computeShopProfit` ไม่ clamp
+9. `cost_at_sale` snapshot ต้นทุน/ชิ้น ณ วันขาย (ต่างจาก `is_shop_operating` ที่ไล่รีไรต์แถวเก่า)
+10. **วันที่ฝั่ง DB ใช้ `(now() at time zone 'Asia/Bangkok')::date` เสมอ** ห้าม `current_date` (`0010`) · `stock_intake_list` (`0030`) กรอง `created_at at time zone 'Asia/Bangkok'` ตามกฎนี้
+11. **ตัดสินว่ารายการอยู่เดือนไหนอ่านจาก string `YYYY-MM-DD` ตรง ๆ** ห้ามแปลงเป็น Date
+12. **บิลรอจ่ายหักออกจาก "ใช้ได้วันละ" — หักเฉพาะรายจ่าย ไม่บวกรายรับ** (`spendable.ts`) · ไม่สมมาตรโดยตั้งใจ
+13. **ห้าม clamp ยอดเงินเป็น 0 เงียบ ๆ ทุกที่ที่แสดงเงิน** — ติดลบ/เกิน บอกตรง ๆ + ไอคอนเตือน · `computePace` คืน `remaining` (ติดลบได้) + `over` แยก · **กระเป๋าเงินก็ห้าม clamp** — คงเหลือติดลบได้จริง
 14. **🔑 คงเหลือกระเป๋า = สูตรที่ใช้ `type` ดิบ ต่างจากสูตรงบโดยสิ้นเชิง** (`wallet_balances()` · `0028`):
     ```
     คงเหลือ = opening_balance
-            + Σ(transactions ของกระเป๋านี้ที่ type='income')
-            − Σ(transactions ของกระเป๋านี้ที่ type='expense')
+            + Σ(transactions ของกระเป๋านี้ type='income')
+            − Σ(transactions ของกระเป๋านี้ type='expense')
             + Σ(transfers เข้า) − Σ(transfers ออก)
     ```
-    - **ใช้ `type` ดิบ ห้าม `isSpendingRow`/`isBudgetSpendingRow` เด็ดขาด** — สูตรนี้ถามคนละคำถามกับงบ: "เงินในกระเป๋าขยับจริงไหม" ไม่ใช่ "รายการนี้นับเป็นรายจ่ายเชิงบัญชีไหม"
-    - **ซื้อเข้าสต็อก (`is_stock_purchase`) ไม่ใช่รายจ่ายเชิงงบ (ข้อ 1) แต่เป็นเงินสดที่ออกจากกระเป๋าจริง → ต้องหัก** · COGS (`is_stock_cogs`, wallet null) → ไม่เข้าสูตรเอง · เคลียร์ยอดค้าง/ค่าดำเนินร้าน (มี wallet) → นับ
-    - **ขัดสัญชาตญาณของคนที่คุ้น predicate ชุดงบ — ถ้าเผลอเอา `isBudgetSpendingRow` มาใช้ ตัวเลขผิดเงียบ** · aggregate ฝั่ง SQL คืนส่วนประกอบครบ (`opening/income/expense/transfer_in/transfer_out/balance`) ให้ UI อธิบายที่มา (§11.8)
-15. **ห้ามเติมค่าเงินให้ล่วงหน้าในจุดที่ผู้ใช้จะกดผ่าน** — ราคาขาย · ค่าส่ง · **ยอดตั้งต้นกระเป๋า** · **ยอดโอน** เปิดมาว่างเสมอ (§11.4-30/32 · §11.8)
+    - **ใช้ `type` ดิบ ห้าม `isSpendingRow`/`isBudgetSpendingRow` เด็ดขาด** — ถามคนละคำถามกับงบ: "เงินในกระเป๋าขยับจริงไหม" ไม่ใช่ "รายการนี้นับเป็นรายจ่ายเชิงบัญชีไหม"
+    - **ซื้อเข้าสต็อก (`is_stock_purchase`) ไม่ใช่รายจ่ายเชิงงบ (ข้อ 1) แต่เป็นเงินสดที่ออกจากกระเป๋าจริง → ต้องหัก** · COGS (wallet null) → ไม่เข้าสูตรเอง · เคลียร์ยอดค้าง/ค่าดำเนินร้าน (มี wallet) → นับ
+    - **AI `wallet_balances` tool คืน `balance` จาก RPC ตรง ๆ ห้าม recompute** (§11.9)
+15. **ห้ามเติมค่าเงินให้ล่วงหน้าในจุดที่ผู้ใช้จะกดผ่าน** — ราคาขาย · ค่าส่ง · ยอดตั้งต้นกระเป๋า · ยอดโอน เปิดมาว่างเสมอ
 
 ---
 
 ## 5. กฎธุรกิจ — สต็อก + แถวที่ล็อก
 
-ที่มา: `0001`/`0012`/`0025`/`0027` · `pages/StockPage.tsx` · `components/StockFields.tsx` · `lib/ledger.ts`
+ที่มา: `0001`/`0012`/`0025`/`0027`/`0030` · `pages/StockPage.tsx` · `lib/stockAge.ts` · `lib/ledger.ts`
 
-- `qty_remaining` / `status` **คำนวณจากจำนวนเสมอ** (`sold` เหลือ 0 · `partial` < ทั้งหมด · `in_stock` = ทั้งหมด) · CHECK `qty_remaining <= qty_total` (`0001`)
+- `qty_remaining`/`status` **คำนวณจากจำนวนเสมอ** (`sold` เหลือ 0 · `partial` < ทั้งหมด · `in_stock` = ทั้งหมด) · CHECK `qty_remaining <= qty_total` (`0001`)
 - **`cost_per_unit` และ `qty_total` ล็อกเมื่อขายแล้ว** — trigger `stock_item_lock_after_sale` (`0012`)
-- **SKU สร้างจาก DB** ตาม `stock_sku_config` (1 แถว/user) · รูปแบบ **`{PREFIX}-{SEQ}`** · prefix `^[A-Z0-9]{3}$` · seq 4 หลัก zero-pad ขยายไม่ตัด (`0025`)
-- **ตัวนับ `next_seq` ผูกกับ user ไม่ผูกกับ prefix** เดินหน้าอย่างเดียว · สูตรประกอบที่ **`stock_sku_build(prefix, seq)` ที่เดียว** (§11.4-24)
-- **prefix แก้เองได้ตลอด** (`SkuManager` → `useUpdateSkuPrefix`) — มีผลกับของรับเข้าใหม่เท่านั้น
+- **SKU สร้างจาก DB** ตาม `stock_sku_config` (1 แถว/user) · รูปแบบ **`{PREFIX}-{SEQ}`** · prefix `^[A-Z0-9]{3}$` · seq 4 หลัก zero-pad ขยายไม่ตัด (`0025`) · **`stock_items.sku` NOT NULL ไม่มี default + unique(user_id, sku)** (`0001`/`0011`) — สำคัญกับ smoke test ที่ insert จริง (§9)
+- **ตัวนับ `next_seq` ผูกกับ user ไม่ผูกกับ prefix** · สูตรประกอบที่ `stock_sku_build(prefix, seq)` ที่เดียว
+- **prefix แก้เองได้ตลอด** — มีผลกับของรับเข้าใหม่เท่านั้น
 - สินค้าที่มีประวัติขาย **ลบไม่ได้** (`stock_item_delete` raise · FK `on delete restrict`) ต้อง reverse ก่อน
-- **ไม่มี `target_price` แล้ว** (`0027` DROP) — ราคาขายกรอกตอนขายเท่านั้น (§11.4-32/33)
-- **ทุนจม (`StockPage.computeSunkCost`)** = Σ `cost_per_unit × qty_remaining` ของของที่ `isStale` (ในสต็อก **และ** ค้างเกิน `AGE_OLD_MAX` วัน) · เงินจริง → mask ตาม `hideBalance` · ฿0 = ข่าวดี → "ไม่มีของค้างนาน"
-- **เกณฑ์อายุที่เดียว** (`StockPage.tsx`): `AGE_FRESH_MAX=30` · `AGE_OLD_MAX=60` (`isStale` reuse โดยชิป "ค้างนาน" · `computeSunkCost` · กระดิ่ง) — **คอมเมนต์ยอมรับเองว่าเป็นค่าเดา** ("educated guess for second-hand clothing, not measured") ควรทบทวนหลังใช้จริง (§10)
+- **ไม่มี `target_price` แล้ว** (`0027` DROP) — ราคาขายกรอกตอนขายเท่านั้น
+- **ทุนจม (`computeSunkCost` ใน `lib/stockAge.ts`)** = Σ `cost_per_unit × qty_remaining` ของของที่ `isStale` (ในสต็อก **และ** ค้างเกิน `AGE_OLD_MAX` วัน) · เงินจริง → mask ตาม `hideBalance` · **AI `stale_stock` tool ก็เรียก `computeSunkCost`/`isStale` ตัวเดียวกันนี้** (ไม่ hardcode 60 ซ้ำ · §11.9)
+- **เกณฑ์อายุที่เดียว** ใน `lib/stockAge.ts`: `AGE_FRESH_MAX=30` · `AGE_OLD_MAX=60` — **คอมเมนต์ยอมรับเองว่าเป็นค่าเดา** ควรทบทวนหลังใช้จริง (§10)
+- **"รับเข้าสต็อกในเดือน" มีสองแหล่งข้อมูลที่ตอบคนละคำถาม:** `stock_items` (มีชื่อ/จำนวน/ต้นทุนครบ แต่ไม่มีตัวกรองเดือน) กับ `transactions_search filter='stock'` (ปนซื้อ/ขาย ไม่มีชื่อสินค้า) → **RPC ใหม่ `stock_intake_list` (`0030`) เติมช่องว่างนี้** โดยกรอง `stock_items` ตามเดือน (เวลาไทย) คืน name/qty_total/cost_per_unit (§6 · §11.9)
 
-**แนวคิด "แถวที่ล็อก" — รวมที่ `ledger.ts` `lockedRowInfo(r)` ที่เดียว** คืน `{ kind, dateEditable, reason, actionLabel, actionTo }` ครอบ 3 ชนิด:
-
-| kind | เงื่อนไข | แก้วันที่ | ไปย้อนที่ |
-|---|---|---|---|
-| `stock_purchase` | `is_stock_purchase` | **ได้** | `/stock` |
-| `stock_sale` | `isSaleLinkedRow(r)` | ไม่ได้ | `/stock` |
-| `debt_settlement` | `is_debt_settlement` | ไม่ได้ | `/debts` |
-
-- แต่ละชนิดมี **trigger กันที่ DB** (`stock_sale_txn_guard` `0012` · `debt_settlement_txn_guard` `0015`) · `lockedRowInfo` = client mirror เตือนก่อนชน trigger · แก้ note/wallet ได้ แต่ยอด/ประเภท/วันที่ไม่ได้
-- **`lockedRowInfo()` ยังเป็นด่านของ undo การลบ** — `txRestore.buildRestoreInsert()` โยน error ถ้า snapshot เป็นแถวล็อก
-- **เพิ่มชนิดล็อกใหม่ → แก้ที่เดียว:** union `LockedKind` + 1 branch · **การโอนกระเป๋าไม่ใช่แถวล็อกในตารางนี้ — มันไม่อยู่ใน `transactions` เลย** (§11.8)
+**แนวคิด "แถวที่ล็อก" — รวมที่ `ledger.ts` `lockedRowInfo(r)` ที่เดียว** ครอบ 3 ชนิด (`stock_purchase` แก้วันที่ได้ · `stock_sale`/`debt_settlement` ไม่ได้) · แต่ละชนิดมี trigger กันที่ DB (`stock_sale_txn_guard` `0012` · `debt_settlement_txn_guard` `0015`) · `lockedRowInfo` = client mirror · **การโอนกระเป๋าไม่ใช่แถวล็อกในตารางนี้ — มันไม่อยู่ใน `transactions` เลย** (§11.8)
 
 ---
 
-## 6. RPC ทั้งหมด — 28 ตัว
+## 6. RPC ทั้งหมด — 29 ตัว
 
-นับจาก block `public.Functions` ใน `database.types.ts` รอบนี้ = **28** (**+2 จากรอบก่อน: `wallet_balances` · `wallet_transfer_create`**) · definer/invoker อ่านจาก migration เวอร์ชันล่าสุดที่ (re)define
+นับจาก block `public.Functions` ใน `database.types.ts` รอบนี้ = **29** (**+1 จากรอบก่อน: `stock_intake_list`**) · definer/invoker อ่านจาก migration เวอร์ชันล่าสุดที่ (re)define **รอบนี้**
 
-**สต็อก/ระบบ (12):** `stock_intake_create` (INVOKER · `0027` 13-arg) · `stock_item_delete` (`0006`) · `stock_sale_create` (`0013`) · `stock_sale_reverse` (`0013`) · `stock_sales_summary` (`0012`) · `stock_sku_build` (`0025` 2-arg) · `stock_sku_preview` (`0025` 0-arg) · `seed_defaults` (**DEFINER** · `0008` · guard `auth.uid()=uid`) · `seed_defaults_internal` (**DEFINER** · `0026`) · `recurring_run_due` (`0010`) · `recurring_next_date` (`0008`) · `pick_category_color_index` (`0016`)
+**สต็อก/ระบบ (12):** `stock_intake_create` (INVOKER โดย default ไม่มี security clause · `0027` · 13-arg) · `stock_item_delete` (INVOKER · `0006`) · `stock_sale_create` (INVOKER · `0013`) · `stock_sale_reverse` (INVOKER · `0013`) · `stock_sales_summary` (INVOKER · `0012`) · `stock_sku_build` (INVOKER · `0025` · 2-arg) · `stock_sku_preview` (INVOKER stable · `0025` · 0-arg) · `seed_defaults` (**DEFINER** · `0008` · guard `auth.uid()=uid`) · `seed_defaults_internal` (**DEFINER** · reproduce ล่าสุด `0026`) · `recurring_run_due` (INVOKER · `0008`) · `recurring_next_date` (`0008`) · `pick_category_color_index` (INVOKER volatile · `0016`)
 
-**ประวัติ/ค้นหา (1):** `transactions_search` (INVOKER · stable · `0024` 6-arg = `p_filter, p_q, p_limit, p_offset, p_month, p_category_id`) — filter+ค้นหา + ยอดรวมทั้งชุด (`count(*) over ()`) query เดียว (§11.4-15)
+**สต็อกสำหรับ AI (1 · ใหม่ `0030`):**
+- **`stock_intake_list(p_from date, p_to date, p_limit integer)`** (**INVOKER** · plpgsql · **stable** · `set search_path=''`) — รายการรับเข้าสต็อกช่วง `[p_from, p_to)` (เวลาไทย) · คืน `name/qty_total/cost_per_unit/total_count` · **`total_count = count(*) over ()`** (จำนวนจริงก่อน LIMIT · แบบเดียวกับ `transactions_search`) · `p_limit` clamp `least(greatest(coalesce(p_limit,50),1),200)` · **ไม่มีพารามิเตอร์ระบุตัวตน → RLS ของ `stock_items` เป็นด่านจริง**
 
-**กระเป๋าเงิน (2 · ใหม่ `0028`):**
-- **`wallet_balances()`** (INVOKER · SQL · 0-arg) — คงเหลือทุกกระเป๋าครั้งเดียว **aggregate ฝั่ง SQL** คืน `wallet_id/opening_balance/income_total/expense_total/transfer_in/transfer_out/balance` (คืนส่วนประกอบด้วย ไม่ใช่แค่ยอดสุทธิ · §4-14)
-- **`wallet_transfer_create(p_from,p_to,p_amount,p_date?,p_note?)`** (INVOKER · plpgsql) — คืนแถว `wallet_transfers` · ตรวจ `amount>0` · `from<>to` · ทั้งสองกระเป๋าเป็นของ `auth.uid()` · วันที่ไม่อนาคต (เทียบ Bangkok date) · raise ข้อความ**ไทย**ผ่าน `errors.ts` ตรง ๆ
-- **ลบการโอน = ไม่มี RPC** — ใช้ DELETE policy บนแถวตัวเอง (`for delete using auth.uid()=user_id` · `0028`) client `.delete().eq('id',…)` ได้เลย (single-owner ไม่ผูก transactions)
+**ประวัติ/ค้นหา (1):** `transactions_search` (**INVOKER** · stable · `0024` · 6-arg = `p_filter, p_q, p_limit, p_offset, p_month, p_category_id`) — filter+ค้นหา + ยอดรวมทั้งชุด (`count(*) over ()`) query เดียว · **AI `month_spending` tool เรียกตัวนี้** (§11.9)
 
-**ยอดค้าง (13):** `debt_create` (**DEFINER** · `0019`) · `debt_confirm` (`0015`) · `debt_reject` (`0015`) · `debt_cancel` (`0018`) · `debt_settle` (`0015`) · `debt_settle_many` (`0021` — วนฝั่งเซิร์ฟเวอร์ ทรานแซกชันเดียว) · `debt_settle_reverse` (`0015`) · `debt_share_private` (`0018`) · `debt_delete_private` (`0015`) · `friend_request_send` (**DEFINER** · `0020` = `p_username`) · `friend_request_respond` (`0015`) · **`friend_debts_summary`** (INVOKER · `0017` 0-arg) · `generate_friend_code` (**DEFINER** · `0015` · เลิกใช้ · §11.4-14)
+**กระเป๋าเงิน (2 · `0028`):**
+- **`wallet_balances()`** (**INVOKER** · SQL · stable · 0-arg) — คงเหลือทุกกระเป๋าครั้งเดียว aggregate SQL คืน `wallet_id/opening_balance/income_total/expense_total/transfer_in/transfer_out/balance`
+- **`wallet_transfer_create(p_from,p_to,p_amount,p_date?,p_note?)`** (**INVOKER** · plpgsql) — คืนแถว `wallet_transfers` · ตรวจ `amount>0`/`from<>to`/ทั้งสองกระเป๋าเป็นของ `auth.uid()`/วันที่ไม่อนาคต · raise ข้อความไทยผ่าน `errors.ts`
+- **ลบการโอน = ไม่มี RPC** — DELETE policy บนแถวตัวเอง (`0028`)
 
-**สรุป definer/invoker:** cross-user / seed / เขียนยอดค้าง = **DEFINER** (re-check `auth.uid()`) · single-owner read/write + สต็อก RPC + search + **กระเป๋าเงิน** = **INVOKER** (พึ่ง RLS ที่มีอยู่) · **กระเป๋าเงินไม่มี cross-user เลย → INVOKER ทั้งคู่** (DEFINER สงวนไว้ให้ยอดค้าง/seed)
+**ยอดค้าง (13):** `debt_create` (**DEFINER** · reproduce ล่าสุด `0019` · แก้ enum cast) · `debt_confirm` (**DEFINER** · `0015`) · `debt_reject` (**DEFINER** · `0015`) · `debt_cancel` (**DEFINER** · `0015`) · `debt_settle` (**DEFINER** · `0015`) · `debt_settle_many` (**DEFINER** · `0021` — วนฝั่งเซิร์ฟเวอร์ ทรานแซกชันเดียว) · `debt_settle_reverse` (**DEFINER** · `0015`) · `debt_share_private` (**DEFINER** · `0018`) · `debt_delete_private` (**DEFINER** · `0015`) · `friend_request_send` (**DEFINER** · reproduce ล่าสุด `0020` = `p_username`) · `friend_request_respond` (**DEFINER** · `0015`) · `friend_debts_summary` (**INVOKER** · reproduce ล่าสุด `0017` · 0-arg) · `generate_friend_code` (**DEFINER** · `0015` · เลิกใช้ · §10)
 
-> **ไม่ใช่ RPC (trigger function — ไม่โผล่ใน types):** `set_updated_at` · `handle_new_user` · `stock_item_lock_after_sale` · `system_category_no_delete` · `stock_sale_txn_guard` · `debt_settlement_txn_guard` · `set_category_color_index` · `profiles_username_setonce` · `set_txn_shop_operating` (`0026`) · `sync_shop_operating_on_category` (`0026`)
-> **ทุก RPC ที่แก้ข้อมูลต้องถูก "เรียกจริง" ถึงจะพิสูจน์** — `debt_create` มีบั๊ก cast enum ตั้งแต่ `0015` แต่ผ่าน verification ทุกครั้งเพราะไม่มี UI เรียก (แก้ `0019`) → smoke test ต้องเรียกฟังก์ชันจริงและ assert · **`0028` มี smoke test เต็มในหัวไฟล์** (โอน net-zero · from=to/amount≤0/กระเป๋าคนอื่น/วันที่อนาคต raise · **`is_stock_purchase` ถูกหัก** · COGS wallet-null ไม่กระทบ) — ครอบ `begin;…rollback;` (§9)
+**สรุป definer/invoker (นับรอบนี้: DEFINER 14 · INVOKER 15):** cross-user / seed / เขียนยอดค้าง = **DEFINER** (re-check `auth.uid()`) · single-owner read/write + สต็อก RPC + search + กระเป๋าเงิน + **`stock_intake_list`** = **INVOKER** (พึ่ง RLS ที่มีอยู่) · **ทุก RPC ที่ AI เรียกเป็น INVOKER ล้วน** (`wallet_balances`/`transactions_search`/`stock_sales_summary`/`stock_intake_list`) → ตัวตนมาจาก JWT ผู้ใช้เท่านั้น RLS เป็นด่านสุดท้าย (§11.9)
+
+> **ไม่ใช่ RPC (trigger function — ไม่โผล่ใน types):** `set_updated_at` · `handle_new_user` · `stock_item_lock_after_sale` · `system_category_no_delete` · `stock_sale_txn_guard` · `debt_settlement_txn_guard` · `set_category_color_index` · `profiles_username_setonce` · `set_txn_shop_operating` (`0026`) · `sync_shop_operating_on_category` (`0026`) · **`ai_settings` reuse `set_updated_at` เดิม ไม่มี trigger function ใหม่**
+> **ทุก RPC ที่แก้ข้อมูลต้องถูก "เรียกจริง" ถึงจะพิสูจน์** (`debt_create` มีบั๊ก cast enum ตั้งแต่ `0015` แต่ผ่าน verification ทุกครั้งเพราะไม่มี UI เรียก แก้ `0019`) → smoke test ต้องเรียกฟังก์ชันจริงและ assert · **`0029` + `0030` มี smoke test เต็มในหัวไฟล์ (result set + rollback)** ครอบ RLS ข้ามผู้ใช้ + ขอบเดือน + total_count จริงแม้ถูก cap (§9)
 
 ---
 
 ## 7. Seed ของ user ใหม่
 
-`handle_new_user()` (trigger AFTER INSERT บน `auth.users` · DEFINER) → `seed_defaults_internal(uid)` (**DEFINER**)
+`handle_new_user()` (trigger AFTER INSERT บน `auth.users` · DEFINER) → `seed_defaults_internal(uid)` (**DEFINER** · reproduce ล่าสุด `0026`)
 
-- **3 wallets** (`เงินสด`/`ธนาคาร`/`พร้อมเพย์`) · seed insert แค่ `(user_id, name, type)` — **`wallets.opening_balance` (numeric not null default 0 · `0028`) ได้ 0 อัตโนมัติ ไม่ต้องแตะ seed** · **ไม่มีคอลัมน์ `balance`** (DROP `0011` — ดู §11.8 ว่าทำไม `opening_balance` ไม่ใช่การกลับคำ)
-- **1 แถว `stock_sku_config`** (prefix `STZ`, `next_seq=0`) · **1 แถว `profiles`** (`display_name`=ชื่อก่อน `@` · `friend_code` สุ่มเติมคอลัมน์ NOT NULL · **`username`=null** ตั้งเองทีหลัง)
+- **3 wallets** (`เงินสด`/`ธนาคาร`/`พร้อมเพย์`) · seed insert แค่ `(user_id, name, type)` — **`wallets.opening_balance` (numeric not null default 0 · `0028`) ได้ 0 อัตโนมัติ ไม่ต้องแตะ seed** · **ไม่มีคอลัมน์ `balance`** (DROP `0011` · §11.8)
+- **1 แถว `stock_sku_config`** (prefix `STZ`, `next_seq=0`) · **1 แถว `profiles`** (`display_name`=ชื่อก่อน `@` · `friend_code` สุ่มเติมคอลัมน์ NOT NULL · `username`=null)
+- **`ai_settings` ไม่ถูก seed โดยตั้งใจ** (`0029`) — "ไม่มีแถว" = ยังไม่ยินยอม · **ผู้ใช้ใหม่เริ่มแบบ "ไม่มีแถว" เท่าผู้ใช้เดิม** จึง**ไม่ต้อง reproduce seed เลย** (หัวไฟล์ `0029` เขียนเอง: เป็นห่วงโซ่ที่เปราะที่สุดของโปรเจกต์ `0015→…→0026` เลี่ยงได้ = additive ล้วน · §11.9)
 
-> **reproduce ล่าสุดของ `seed_defaults_internal` อยู่ที่ `0026` SECTION 6** (chain `0015`→`0016`→`0017`→`0026`) — **migration ตัวถัดไปที่แตะ seed ต้อง reproduce จาก `0026`** ตรวจเลข reproduce ล่าสุดจากไฟล์จริงก่อนเขียนทุกครั้ง · **`0028` ไม่แตะ seed** (default 0 พอ)
+> **migration ตัวถัดไปที่แตะ seed ต้อง reproduce จาก `0026`** ตรวจเลข reproduce ล่าสุดจากไฟล์จริงก่อนเขียนทุกครั้ง · **`0028`/`0029`/`0030` ไม่แตะ seed**
 
-**หมวดหมู่ที่ seed = 18 หมวด** (13 expense + 5 income · คอลัมน์: `user_id, name, kind, is_stock_category, is_shop_category, is_system, system_key, icon, color_index, sort_order`):
-
-| system_key | หมวด | kind | ป้าย | ลบได้ | เห็นในหน้ากรอกมือ |
-|---|---|---|---|---|---|
-| `stock_sale_income` | ขายสต็อก | income | — | ไม่ได้ | ซ่อน (`0026` กลับคำ) |
-| `stock_cogs` | ต้นทุนขายสต็อก | expense | — | ไม่ได้ | ซ่อน |
-| `debt_repayment_income` | ได้รับคืนจากเพื่อน | income | — | ไม่ได้ | ซ่อน (จาก `debt_settle`) |
-| `debt_repayment_expense` | จ่ายคืนเพื่อน | expense | — | ไม่ได้ | ซ่อน (จาก `debt_settle`) |
-| (null) | อาหาร · เดินทาง · ช้อปปิ้ง · บิล/ค่าบ้าน · บันเทิง | expense | — | ได้ | เห็น |
-| (null) | เสื้อเข้าร้าน · รองเท้าเข้าร้าน | expense | `is_stock_category` | ได้ | ซ่อน (ป้ายสต็อก) |
-| (null) | ค่าส่ง · บรรจุภัณฑ์ · ค่าธรรมเนียมขาย · การตลาด | expense | **`is_shop_category`** | ได้ | เห็น |
-| (null) | เงินเดือน · ฟรีแลนซ์ | income | — | ได้ | เห็น |
-| (null) | ค่าส่งที่เก็บจากลูกค้า | income | **`is_shop_category`** | ได้ | เห็น |
-
-- **ชื่อหมวดยอดค้างเปลี่ยนใน `0017` ให้เลี่ยงคำว่า "หนี้"** — เดิม `0015`/`0016` = "จ่ายชำระหนี้"/"ได้รับชำระหนี้" ตอนนี้ = "จ่ายคืนเพื่อน"/"ได้รับคืนจากเพื่อน" (§11.4-14) · seed ปัจจุบัน (`0026`) ใช้ชื่อใหม่
-- **`categories`:** `color_index smallint 1–6 NOT NULL` (trigger `set_category_color_index`) · **`categories.color` (hex) DROP แล้ว** (`0016`) · `icon text NOT NULL default 'tag'` **ไม่มี CHECK ชื่อไอคอน** (`lib/icons.tsx` fallback · §11.4-4) · **CHECK `categories_shop_flag_check`: `not (is_shop_category and (is_system or is_stock_category))`** (`0026`)
-- **resolve หมวด system ด้วย `system_key` เท่านั้น ห้าม match ชื่อไทย** · หมวดร้านไม่มี `system_key` → resolve ด้วย `kind + is_shop_category` (§11.4-31)
+**หมวดหมู่ที่ seed = 18 หมวด** (13 expense + 5 income · จาก `0026` SECTION 6 · ยังไม่ได้ตรวจซ้ำนับทีละแถวรอบนี้ — ไม่อยู่ในชุดไฟล์ที่เปลี่ยน) — โครง: 4 หมวด system (`stock_sale_income`/`stock_cogs`/`debt_repayment_income`/`debt_repayment_expense` · ซ่อน · ลบไม่ได้) + หมวดผู้ใช้ทั่วไป + หมวดสต็อก (`is_stock_category`) + หมวดร้าน (`is_shop_category`)
+- **ชื่อหมวดยอดค้างเปลี่ยนใน `0017` ให้เลี่ยงคำว่า "หนี้"** — ตอนนี้ = "จ่ายคืนเพื่อน"/"ได้รับคืนจากเพื่อน"
+- **`categories`:** `color_index smallint 1–6 NOT NULL` (trigger) · `categories.color` (hex) DROP แล้ว (`0016`) · `icon` ไม่มี CHECK · CHECK `categories_shop_flag_check` (`0026`)
+- **resolve หมวด system ด้วย `system_key` เท่านั้น ห้าม match ชื่อไทย** — **`worker/categories.ts` (`resolveCategory`) บังคับกฎนี้ด้วย** (ตัด `is_system`/`system_key != null` ออกก่อน match ชื่อไทย · §11.9)
 
 ---
 
@@ -211,32 +222,37 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 
 ### Migration
 1. **ห้ามแก้ไฟล์ migration ที่ apply แล้ว** — เขียนไฟล์ใหม่เสมอ
-2. **reproduce ฟังก์ชัน/seed จากเวอร์ชันล่าสุดบน main** (seed = `0026`) · **ตรวจเลข migration/seed ล่าสุดจากไฟล์จริงก่อนเขียนสเปกทุกใบ ห้ามอ่านจากเอกสารนี้** (§9)
+2. **reproduce ฟังก์ชัน/seed จากเวอร์ชันล่าสุดบน main** (seed = `0026`) · **ตรวจเลข migration/seed ล่าสุดจากไฟล์จริงก่อนเขียนสเปกทุกใบ ห้ามอ่านจากเอกสารนี้** (`0029`/`0030` หัวไฟล์เขียน pre-flight `select max(version) from schema_migrations` เพื่อยืนยันเลขก่อน)
 3. เปลี่ยน signature → `drop function` ด้วย signature จริง (ไม่ใส่ `if exists`) แล้ว re-grant
-4. ตารางใหม่ → enable RLS + policy (single-owner CRUD ได้ · cross-user = select-only + DEFINER RPC)
-5. เจ้าของรันเอง ครอบ `begin; … commit;` + snapshot ฟังก์ชันเดิม · **หลังรัน ตรวจว่าไฟล์ `.sql` เข้า main จริงด้วย git** (กับดัก `0015` · §9)
-6. **อ่าน `pg_constraint` ของทั้งตารางก่อนแก้** ไม่ใช่แค่ `information_schema.columns` (มองไม่เห็น CHECK · §9)
+4. ตารางใหม่ → enable RLS + policy (single-owner CRUD · cross-user = select-only + DEFINER RPC) · **`0029` ทำครบ: enable RLS + select/insert/update (ไม่มี delete โดยตั้งใจ)**
+5. เจ้าของรันเอง ครอบ `begin; … commit;` + snapshot ฟังก์ชันเดิม · **หลังรัน ตรวจว่าไฟล์ `.sql` เข้า main จริงด้วย git** (กับดัก `0015`)
+6. **อ่าน `pg_constraint` + NOT NULL ของทั้งตารางก่อนแก้/เขียน smoke test** ไม่ใช่แค่ `information_schema.columns` (มองไม่เห็น CHECK · §9) — smoke test ของ `0030` ยกเป็นบทเรียน (`stock_items.sku` NOT NULL ไม่มี default → seed ล้ม 23502 ก่อนถึง RPC)
 
 ### SQL
-7. **`RETURNS TABLE`/OUT param กลายเป็นตัวแปรใน scope** → alias ทุกตาราง qualify ทุกคอลัมน์ (กับดัก `qty_remaining` · §9)
+7. **`RETURNS TABLE`/OUT param กลายเป็นตัวแปรใน scope** → alias ทุกตาราง qualify ทุกคอลัมน์ (`stock_intake_list` `0030` qualify `si.` ทุกคอลัมน์ · §9)
 8. **ค่าจาก CASE/`values` list ไม่ cast enum อัตโนมัติ** → cast `::public.enum_type` ตอน INSERT (บั๊ก `debt_create` · §9)
 9. **Verification ต้องพิสูจน์ว่า "ทำงานได้" ไม่ใช่แค่ "มีอยู่"** — smoke test เรียกฟังก์ชันจริงใน `begin;…rollback;` แล้ว assert
 10. เงินคำนวณใน numeric เท่านั้น
 
-### Client
-11. **ห้ามมีตรรกะซ้ำสองที่** — แยกเป็นฟังก์ชันกลางแล้ว import (สี=`catColor` · วันที่=`dates` · แถว ledger=`LedgerRow` · แถวล็อก=`ledger` · P&L ร้าน=`shopAccount` · หมวดร้าน=`shopCategory` · ตั้งงบได้ไหม=`budgetable` · ถ้อยคำบรรทัดรองงบ=`budgetNote` · **กรองอินพุตเงิน=`format.sanitizeMoneyInput`**)
-12. **ห้าม `as unknown as` / `as any` / `@ts-ignore` / `@ts-expect-error`** — รับ "รูปร่างขั้นต่ำ" structural แทน · ถ้า generator ประกาศคอลัมน์ nullable เป็น non-null → `Omit` + ประกาศใหม่ใน `db.ts` ไม่ cast
+### Client + Worker
+11. **ห้ามมีตรรกะซ้ำสองที่** — แยกเป็นฟังก์ชันกลางแล้ว import (สี=`catColor` · วันที่=`dates` · แถวล็อก=`ledger` · P&L=`shopAccount` · aggregate หน้าแรก=`homeSummary` · อายุสต็อก/ทุนจม=`stockAge` · ตั้งงบได้ไหม=`budgetable` · กรองอินพุตเงิน=`format`) · **worker ห้าม re-implement เงิน/วันเอง — เรียก RPC หรือ pure function ของ `lib/` แล้วส่งตัวเลขผ่าน** (คอมเมนต์หัว `tools.ts`)
+12. **ห้าม `as unknown as` / `as any` / `@ts-ignore` / `@ts-expect-error`** — รับ "รูปร่างขั้นต่ำ" structural แทน (เช่น `RateLimitStore` เป็น slice ของ KVNamespace ให้เทสต์ stub ได้โดยไม่ cast)
 13. `database.types.ts` generated ห้ามแก้มือ · alias อยู่ใน `db.ts`
-14. **ห้ามใช้คำว่า "ผ่าน" ถ้ายังไม่ได้รัน `npm run build` + `npm test`** · **รายงาน skipped แยกจาก passed เสมอ** (§9)
-15. **จับ error ด้วย code/status เท่านั้น ห้ามจับ substring** · error hint allowlist · **error ต้องถึงผู้ใช้** ห้าม catch ว่าง
-16. **ห้ามเผยว่าอีเมลมีบัญชีในระบบหรือไม่** · ค้นหาเพื่อนใช้ `username` ไม่ใช่อีเมล
-17. **ห้าม `new Date('YYYY-MM-DD')` แล้วอ่านค่า** (`formatBuildStamp` เป็นข้อยกเว้นมีคอมเมนต์) — helper กลางใน `dates.ts` · วันที่ในฟอร์ม (โอนกระเป๋า) default = `todayISO()` เทียบ string
+14. **ห้ามใช้คำว่า "ผ่าน" ถ้ายังไม่ได้รัน `npm run build` + `npm test`** · **รายงาน skipped แยกจาก passed เสมอ**
+15. **จับ error ด้วย code/status เท่านั้น ห้ามจับ substring** · **error ต้องถึงผู้ใช้** ห้าม catch ว่าง · **`aiChat.ts` + `ai.ts` map ตาม HTTP status ล้วน** (401/403/429/502/504/…) ไม่ parse ข้อความ (§11.9)
+16. **ห้ามเผยว่าอีเมลมีบัญชีในระบบหรือไม่** · ค้นหาเพื่อนใช้ `username` ไม่ใช่อีเมล · **ด่าน 401 ของ AI ใช้ข้อความเดียวสำหรับ missing/expired/revoked** ไม่บอกว่าต่างกันตรงไหน (`ai.ts`)
+17. **ห้าม `new Date('YYYY-MM-DD')` แล้วอ่านค่า** — helper กลางใน `dates.ts` · **worker แปลงเดือนด้วย `dates.ts` เท่านั้น** (โมเดลส่ง offset int)
 18. **สีต้องมาจาก token** ห้าม hex ดิบใหม่ใน `src/` · **hex เป็นแหล่งความจริงที่ `tailwind.config.ts` + `src/styles/index.css` เท่านั้น ห้ามคัดลอกไปที่อื่น (รวมเอกสารนี้)**
-19. **คำที่ห้ามบนหน้าจอ:** หนี้ · เจ้าหนี้ · ลูกหนี้ · เรียกเก็บ · ทวง — **ชื่อในฐานข้อมูล/โค้ดยังเป็น `debt*` ตั้งใจ** (§11.4-14) · *`src/` สะอาด (คำ "หนี้" เหลือเฉพาะคอมเมนต์/ชื่อเทสต์ใน `budgetable.ts`+test) · แต่ยังค้างใน `RAISE EXCEPTION` ของ RPC ยอดค้าง (§10)*
+19. **คำที่ห้ามบนหน้าจอ:** หนี้ · เจ้าหนี้ · ลูกหนี้ · เรียกเก็บ · ทวง — **ชื่อในฐานข้อมูล/โค้ดยังเป็น `debt*` ตั้งใจ** · *`src/` สะอาดจากคำเหล่านี้ในเชิงข้อความจอ · เหลือเฉพาะ (ก) คอมเมนต์/ชื่อเทสต์ใน `budgetable.ts` และ (ข) **`SYSTEM_PROMPT` ของ AI (`worker/anthropic.ts`) ที่ใช้คำเหล่านี้เพื่อ "สั่งห้าม" โมเดลพูด** — ตั้งใจ ไม่ใช่ข้อความที่แสดง* · แต่ยังค้างใน `RAISE EXCEPTION` ของ RPC ยอดค้าง (§10)
 20. **`transactions.is_shop_operating` เป็น derived column เขียนโดย trigger เท่านั้น** — client ห้ามส่งค่า (§4-6)
-21. **1 PR = 1 เรื่อง** แตกจาก main ล่าสุด ไม่ stack · PR ที่ merge แล้ว = เริ่ม branch ใหม่จาก main
-22. **กับดัก opacity:** ค่า opacity เปล่าใน Tailwind build นี้ **ต้องเป็นทวีคูณของ 5** (`/90`,`/95`) หรือ arbitrary (`/[0.92]`) — ค่าอย่าง `/92` **ไม่ถูก emit เลย ไม่ error ไม่ warning** · **มีเทสต์สแกนกันไว้: `src/styles/opacity-scale.test.ts`** (อ่านสเกลจริงจาก config · ตัด comment ก่อนสแกน) (§9 · `Toast.tsx`)
-23. **คำบนจอต้องตรงกันทั้งแอป (glossary · ใบ 11):** บทบาทหมวดที่ป้อนสต็อก = **`เติมสต็อก`** ทุกที่ (เดิมหน้า intake เรียก "หมวดสต็อก") · การกระทำรับของเข้าคลัง = **`รับเข้าสต็อก`** (กริยา ตั้งใจต่างจากบทบาท) · section/สถานะ = **`สต็อก`/`ในสต็อก`** · **มีเทสต์กันคำเก่ากลับ: `StockIntakePage.wording.test.ts`** (สแกน app source ตัด comment ข้าม `*.test.*`)
+21. **1 PR = 1 เรื่อง** แตกจาก main ล่าสุด ไม่ stack · PR ที่ merge แล้ว = เริ่ม branch ใหม่จาก main (ฟีเจอร์ AI รอบนี้แตกเป็น 8 PR: table → gate → tools → UI แยกกัน)
+22. **กับดัก opacity:** ค่า opacity เปล่าใน Tailwind build นี้ **ต้องเป็นทวีคูณของ 5** หรือ arbitrary (`/[0.92]`) — `/92` **ไม่ถูก emit เลย ไม่ error ไม่ warning** · เทสต์สแกน `src/styles/opacity-scale.test.ts` (§9)
+23. **คำบนจอต้องตรงกันทั้งแอป (glossary):** บทบาทหมวดที่ป้อนสต็อก = `เติมสต็อก` · การกระทำรับของเข้าคลัง = `รับเข้าสต็อก` · section/สถานะ = `สต็อก`/`ในสต็อก` · เทสต์ `StockIntakePage.wording.test.ts`
+
+### Worker (ใหม่รอบนี้)
+24. **worker import runtime code จาก `src/lib/` ต้องใช้ relative import ห้าม `@/`** — `tsconfig.worker.json` ไม่มี `paths`, และ esbuild ของ wrangler ก็ไม่อ่าน `tsconfig paths` → `@/` พังทั้งตอน typecheck และตอน bundle · **ยืนยันรอบนี้: `src/worker/` ไม่มี `@/` เลย ทุก import เป็น `../lib/…`** (`tools.ts` import `../lib/dates`/`../lib/homeSummary`/`../lib/stockAge`)
+25. **smoke test ที่ insert ลงตารางจริง:** อ่าน NOT NULL ทั้งตารางก่อนเขียน · assert ค่าแน่นอนต้องเลือกช่วง/คีย์ที่การันตีว่าง (`0030` ใช้เดือน มิ.ย. 2020 + sku `ZZZ-90xx`) · คืนผลเป็น **result set ไม่ใช่ `RAISE NOTICE`** (SQL Editor ไม่แสดง notice) · FAIL ใช้ `RAISE EXCEPTION` · impersonate ด้วย `request.jwt.claims` + สลับ role `authenticated` (owner bypass RLS) · จบด้วย `rollback;` เท่านั้น
+26. **`/api/ai` ห้ามใช้ `service_role` · ห้ามรับ `user_id` จาก body · ลำดับ verify→consent→limit→Anthropic ห้ามสลับ** (§11.9 · บังคับเชิงโครงสร้างใน `ai.ts`)
 
 ---
 
@@ -244,108 +260,89 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 
 | เหตุการณ์ | บทเรียน |
 |---|---|
-| **เอกสารค้างหลังของจริงจนสเปกผิด** — เคยเชื่อว่า migration ล่าสุด `0021` ทั้งที่ถึง `0024` → สเปกสั่งสร้าง `0022` ผิด | **สเปกทุกใบต้องให้ agent ยืนยันเลข migration/seed ล่าสุดจากไฟล์จริงก่อนเขียน** (§8-2) |
-| **`information_schema.columns` ไม่แสดง CHECK constraint** — migration ล้มเพราะชน CHECK ที่มองไม่เห็น | **อ่าน `pg_constraint` ของทั้งตาราง** (§8-6) |
-| **ค่าจาก `values`/CASE ไม่ cast enum ให้** — ชน enum column · ตระกูล `debt_create` | cast `::public.enum_type` ตอน INSERT (§8-8) · `debt_create` มีบั๊กนี้ตั้งแต่ `0015` รอด verification ทุกครั้งเพราะไม่มี UI เรียก (แก้ `0019`) |
-| **Supabase คืนแถวได้จำกัด** — รวมยอด/ลิสต์ client ที่ชนเพดานให้ผลน้อยกว่าจริงเงียบ ๆ | **guard เสมอ** — `useShopOperating` `.limit(SHOP_ROW_CAP=1000)` + `capped` · **`useWalletTransfers` `.limit(WALLET_TRANSFER_CAP=100)` + `capped`** → เตือน "แสดง N รายการล่าสุด" |
-| `create or replace` ตอนเพิ่มพารามิเตอร์ → ฟังก์ชันซ้อน 2 ตัว | signature เปลี่ยน = drop ก่อนด้วย signature จริง |
-| `qty_remaining` เป็นทั้ง OUT param และคอลัมน์ → การขายพังตอนกดจริง ทั้งที่ verification ผ่าน | qualify ทุกคอลัมน์ · smoke test (`0013` แก้เป็น alias) |
-| **`0015` รันลง DB แล้วแต่ไฟล์ไม่เคยเข้า main** | `schema_migrations` กับ repo ต้องตรง · **ตรวจหลัง migration ว่าไฟล์เข้า main จริงด้วย git** · workflow `types-drift` ปิดช่องนี้ |
+| **`tsc` เขียวแต่ Cloudflare deploy พัง** — `tsconfig.app.json` มี `paths` (`@/`) และ `exclude: ["src/worker"]` · worker typecheck ด้วย `tsconfig.worker.json` ที่**ไม่มี paths** · แต่ตัว build จริงของ worker คือ **esbuild ของ wrangler ที่ไม่อ่าน `tsconfig paths` เลย** → import แบบ `@/` ที่เครื่องมือหนึ่งยอมรับได้ จะพังตอน bundle → CI ของ Workers Build จับได้ | **เครื่องมือตรวจ ≠ เครื่องมือ build จริง** (ตระกูลเดียวกับ jsdom vs เบราว์เซอร์ · tsc --noEmit ตรวจ 0 ไฟล์) · worker ต้องพิสูจน์ด้วย **`wrangler deploy --dry-run`** (รอบนี้: dry-run ผ่าน · worker import relative ล้วน · §8-24) |
+| **smoke test ล้มตั้งแต่ seed** — `stock_items.sku` NOT NULL ไม่มี default (23502) และ assert `count=3` บนเดือนปัจจุบันจะชนข้อมูลจริง → FAIL ทั้งที่ RPC ถูก | smoke test ที่ insert ลงตารางจริงต้อง**อ่าน NOT NULL ทั้งตารางก่อน** + เลือกช่วง/คีย์ที่ว่างแน่ (`0030`: มิ.ย. 2020 + `ZZZ-90xx`) · **เทสต์ที่ล้มก่อนเรียกฟังก์ชันไม่ได้พิสูจน์อะไรเลย** (§8-25) |
+| **types-drift PR merge เข้า main ได้โดยไม่ผ่าน `ci.yml`** — เปิดด้วย `GITHUB_TOKEN` (fallback เมื่อ `GH_PAT` ไม่ตั้ง) ซึ่ง**trigger workflow ต่อไม่ได้** (`types-drift.yml` หัวไฟล์เขียนเอง) · รอดมาได้เพราะบังเอิญมี PR อื่นรัน CI ทับ | ยังเป็นช่องเปิดอยู่ — **`GH_PAT` ยังไม่ตั้ง** · บันทึกใน §10 เป็นหนี้ที่รู้ตัว |
+| **เอกสารค้างหลังของจริงจนสเปกผิด** — เคยเชื่อ migration ล่าสุด `0021` ทั้งที่ถึง `0024` · **รอบนี้: เอกสารเดิมยังบอก AI เป็น stub ทั้งที่ครบวงจรแล้ว** | สเปก/เอกสารทุกใบยืนยันจากไฟล์จริงก่อนเขียน (§8-2) |
+| **`information_schema.columns` ไม่แสดง CHECK constraint** | อ่าน `pg_constraint` ของทั้งตาราง (§8-6) |
+| **ค่าจาก `values`/CASE ไม่ cast enum ให้** — ตระกูล `debt_create` | cast `::public.enum_type` (§8-8) |
+| **Supabase คืนแถวได้จำกัด** — รวมยอด/ลิสต์ที่ชนเพดานให้ผลน้อยกว่าจริงเงียบ ๆ | **guard เสมอ** — `useShopOperating` `.limit(1000)` · `useWalletTransfers` `.limit(100)` · **worker tools: `RAW_ROW_MAX=2000` → เกิน = คืน `too_many_*` ไม่ under-report · list tool ใช้ `count(*) over ()`/`match_count` ให้ยอดรวมถูกแม้ list ถูก cap** (§11.9) |
+| `qty_remaining` เป็นทั้ง OUT param และคอลัมน์ → การขายพัง ทั้งที่ verification ผ่าน | qualify ทุกคอลัมน์ · smoke test (`0013` alias · `0030` qualify `si.`) |
+| **`0015` รันลง DB แล้วแต่ไฟล์ไม่เคยเข้า main** | `schema_migrations` กับ repo ต้องตรง · ตรวจหลัง migration ว่าไฟล์เข้า main จริง |
 | **`tsc --noEmit` บน solution-style tsconfig → ตรวจ 0 ไฟล์ ผ่านเสมอ** | "ผ่าน" ต้องมาจากคำสั่งเดียวกับ CI (`tsc -b && vite build` + `vitest run`) |
-| `getDate()` บน date-only string → วันเลื่อนใน timezone ติดลบ | อ่านวันจาก string ตรง ๆ · helper รวมใน `dates.ts` |
-| **ป้ายพับในฮีโร่เป็นแถบเปล่าบน production ทั้งที่โค้ดถูก เทสต์ jsdom เขียว** | **เทสต์ jsdom "อยู่ใน DOM" ≠ ผู้ใช้เห็น** · fix = `flex flex-col` บนปุ่ม + guard `WovenHero.visual.test.ts` |
-| **dark mode พื้นหลังทั้งหน้าขาว** ทั้งที่ทุกเทสต์เขียว | guard เบราว์เซอร์จริง `AppLayout.theme.visual.test.tsx` วัดสีที่ compute จริง |
-| **ไล่บั๊กที่แก้ไปแล้วหลายชั่วโมง** เพราะบันเดิลค้าง — SW precache | **merged ≠ deployed ≠ สิ่งที่เบราว์เซอร์รัน · อ่าน version stamp ก่อนไล่บั๊ก** · guard `pwa-freshness.visual.test.ts` |
+| **ป้ายพับในฮีโร่เป็นแถบเปล่าบน production ทั้งที่โค้ดถูก เทสต์ jsdom เขียว** | เทสต์ jsdom "อยู่ใน DOM" ≠ ผู้ใช้เห็น · guard เบราว์เซอร์จริง `WovenHero.visual.test.ts` |
+| **dark mode พื้นหลังทั้งหน้าขาว** ทั้งที่ทุกเทสต์เขียว | guard `AppLayout.theme.visual.test.tsx` วัดสีที่ compute จริง |
+| **ไล่บั๊กที่แก้ไปแล้วหลายชั่วโมง** เพราะบันเดิลค้าง — SW precache | **merged ≠ deployed ≠ สิ่งที่เบราว์เซอร์รัน · อ่าน version stamp ก่อน** · guard `pwa-freshness.visual.test.ts` |
 | `grep "mint-" src/` ว่าง แต่สีเก่าอยู่ใน DB | **grep พิสูจน์ได้แค่เรื่องในโค้ด · ค่าที่ seed ลง DB คืออีกแหล่ง** (แก้ `0016`) |
-| **รายงานเทสต์ "ผ่าน N" โดยมี skipped ซุกอยู่ — คือ visual guard ทั้งหมด** | guard `ctx.skip()` นอก CI (ใน CI `process.env.CI` → throw ไม่ skip) · อ่าน skipped ทุกครั้ง รายงานแยก |
-| **PR ถูกรายงานว่า merge แล้ว ทั้งที่ยังไม่เข้า main** | ยืนยันด้วย `git ls-remote origin main` |
-| **`0020` เปลี่ยน signature RPC แล้ว merge PR `types-drift` เดี่ยว → main แดง** | migration ที่เปลี่ยน signature/ทำ fixture พัง **ห้าม merge PR `types-drift` เดี่ยว** — merge พร้อม call site/การแก้ (§2.1) |
-| Supabase free tier pause เอง หน้า login ค้างไม่บอกอะไร | error ต้องถึงผู้ใช้ · `errors.ts` `isConnectFailure` ดัก `AuthRetryableFetchError`/status 0,502-524,540,544 |
-| **กับดัก opacity — `bg-ink/92` ไม่ compile เลย** · `/92` ไม่ใช่ scale step ที่ Tailwind build นี้ emit → ไม่มีพื้นหลัง · **ไม่ error ไม่ warning** | opacity เปล่าต้องเป็นทวีคูณ 5 หรือ `/[0.xx]` (§8-22) · ตระกูล "grep เห็นว่ามี แต่ของจริงไม่ emit" · guard `Toast.contrast.visual.test.tsx` + **เทสต์สแกน `opacity-scale.test.ts`** |
-| **token `toast`/`scrim` จงใจไม่มี dark override** · ถ้าชี้กลับไปที่ `ink` → `ink` พลิกเกือบขาวในโหมดมืด → ตัวอักษรขาวหาย | `--color-toast` และ **`--color-scrim` (ใบ 9)** นิยามใน `:root` และ **ไม่ override ใน `html.dark`** — เป็นพื้นเข้มเสมอทุกธีม · คอมเมนต์ล็อก "do NOT add a dark variant; it is not forgotten" ห้ามเข้าใจว่าลืม |
-| **`bg-ink` พลิกเกือบขาวในโหมดมืด** (ใบ 9) · แถบ "ขายแล้ว" + badge ✕ ลบรูป (พื้นเข้ม+ตัวอักษร/ไอคอนขาว) เคยใช้ `bg-ink` → contrast ~2.2:1 / ~1.2:1 ในโหมดมืด อ่านไม่ออก | เพิ่ม token **`scrim`** (theme-independent) แทน `bg-ink` เฉพาะจุดที่มี**เนื้อหาขาวทับบนพื้นเข้ม** · **`bg-ink` ที่เหลือ = จุด "in use" 7px ใน `CategoriesManager` (ไม่มีตัวอักษร ตั้งใจให้พลิกคู่กับ `surface`) ห้ามเปลี่ยนเป็น `scrim`** · guard `StockScrim.contrast.visual.test.tsx` (แถบ ≥4.5 · ไอคอน ≥3) |
-| **`useDialogA11y` ทำ input หลุดโฟกัสทุกตัวอักษร** · effect ผูก dependency กับ `onClose` (inline · identity ใหม่ทุก render) → ชีตที่ยกค่าไป state ของหน้า re-render ทุกคีย์ → caret หลุด → คีย์บอร์ดมือถือปิด | `onClose` ขี่ `onCloseRef` · effect depend `[active]` เท่านั้น · **ห้ามเติม `onClose` กลับเข้า dependency** (คอมเมนต์ยาวใน `useDialogA11y.ts` · เทสต์ `BudgetPage.editor.test.tsx`) |
-| **`truncate` ตัดชื่อเงียบ** · jsdom ไม่ layout จับไม่ได้ | ยอมรับ + `title` เต็ม + **guard 360px วัด `scrollWidth − clientWidth` assert ≤ budget** (จับ regression ไม่บังคับพอดี) · ตอนนี้ 3 หน้าใช้: หมวด ≤15px · กระเป๋า ≤8px · ประวัติโอน ≤8px (§10) |
-| **ช่องว่างขอบล่างระดับ shell** (ใบ 10) · `#root{height:100%}` วัดเทียบ html/body ซึ่งบนมือถือใช้ viewport ใหญ่ (ก่อนแถบ address หด) → เหลือแถบพื้น beige ใต้เนื้อหา (เห็นชัดสุดที่ `/add`) | `#root{height:100dvh}` (ยึด dynamic viewport ตามแถบเครื่องมือจริง) · เก็บ `height:100%` เป็น fallback · **`max-w-3xl` container (`AppLayout`) เป็นข้อจำกัด "แนวนอน" ไม่ใช่สาเหตุ ห้ามแก้** · guard `AppLayout.fill.visual.test.tsx` + `AddPage.fill.visual.test.tsx` (gap ≤1px · เคยพังที่ 240–680px) |
-| **สูตรคงเหลือกระเป๋าใช้ predicate งบผิด → ผิดเงียบ** (กระเป๋า · ใบ 6-8) · ซื้อเข้าสต็อกไม่ใช่รายจ่ายงบ แต่เงินออกจากกระเป๋าจริง | คงเหลือกระเป๋าใช้ **`type` ดิบ** ไม่ใช่ `isSpendingRow`/`isBudgetSpendingRow` (§4-14) · smoke test `0028` assert `is_stock_purchase` ถูกหัก + COGS wallet-null ไม่กระทบ |
+| **รายงานเทสต์ "ผ่าน N" โดยมี skipped ซุกอยู่ — visual guard ทั้งหมด** | guard `ctx.skip()` นอก CI (ใน CI throw) · อ่าน skipped ทุกครั้ง รายงานแยก (รอบนี้ 15 skip นอก CI · 0 skip เมื่อมี Chromium) |
+| **`0020` เปลี่ยน signature RPC แล้ว merge PR `types-drift` เดี่ยว → main แดง** | migration ที่เปลี่ยน signature/ทำ fixture พัง ห้าม merge types-drift เดี่ยว (§2.1) |
+| Supabase free tier pause เอง หน้า login ค้างไม่บอกอะไร | error ต้องถึงผู้ใช้ · `errors.ts` `isConnectFailure` |
+| **กับดัก opacity — `bg-ink/92` ไม่ compile เลย** ไม่ error ไม่ warning | opacity เปล่าต้องเป็นทวีคูณ 5 · guard `Toast.contrast.visual.test.tsx` + `opacity-scale.test.ts` |
+| **token `toast`/`scrim` จงใจไม่มี dark override** | คอมเมนต์ล็อก "do NOT add a dark variant; it is not forgotten" — ห้ามเข้าใจว่าลืม (§11.2) |
+| **`bg-ink` พลิกเกือบขาวในโหมดมืด** (ใบ 9) | เพิ่ม token `scrim` (theme-independent) เฉพาะจุดเนื้อหาขาวบนพื้นเข้ม · guard `StockScrim.contrast.visual.test.tsx` |
+| **`useDialogA11y` ทำ input หลุดโฟกัสทุกตัวอักษร** | `onClose` ขี่ ref · effect depend `[active]` เท่านั้น · ห้ามเติม `onClose` กลับ dependency |
+| **`truncate` ตัดชื่อเงียบ** · jsdom ไม่ layout จับไม่ได้ | guard 360px วัด `scrollWidth − clientWidth` · หมวด/กระเป๋า/ประวัติโอน |
+| **ช่องว่างขอบล่างระดับ shell** (ใบ 10) `#root{height:100%}` วัดเทียบ viewport ใหญ่บนมือถือ | `#root{height:100dvh}` · `max-w-3xl` เป็นข้อจำกัดแนวนอน ไม่ใช่สาเหตุ · guard `AppLayout.fill`/`AddPage.fill` |
+| **สูตรคงเหลือกระเป๋าใช้ predicate งบผิด → ผิดเงียบ** | คงเหลือกระเป๋าใช้ `type` ดิบ ไม่ใช่ `isSpendingRow`/`isBudgetSpendingRow` (§4-14) · smoke test `0028` |
 
 ---
 
 ## 10. สถานะปัจจุบัน
 
-**Migration:** `0001`–`0028` (`ls supabase/migrations/*.sql | wc -l` = **28** · ล่าสุด `0028_wallet_opening_balance_transfers.sql`) — **1 migration ใหม่รอบนี้ (กระเป๋าเงิน)** ที่เหลือ client ล้วน
+**Migration:** `0001`–`0030` (`ls supabase/migrations/*.sql | wc -l` = **30** · ล่าสุด `0030_stock_intake_list.sql`) — **2 migration ใหม่รอบนี้: `0029` (`ai_settings` consent) + `0030` (`stock_intake_list`)** · ที่เหลือ worker + client
 
-**หน้าจริงในแอป:** **13** ไฟล์ `*Page.tsx` (`find src/pages -name '*Page.tsx' | wc -l` = 13) · `router.tsx` มี **14 route** (13 หน้า + catch-all `*` → `<Navigate to="/" replace />`) — eager import ทั้งหมด · **กระเป๋าเงินไม่ใช่หน้าใหม่** — UI อยู่ใน `WalletsManager` (ชีตย่อยในหน้าตั้งค่า) จึงไม่เพิ่ม route:
+**หน้าจริงในแอป:** **14** ไฟล์ `*Page.tsx` (`find src/pages -name '*Page.tsx' | wc -l` = 14 · **+1: `AiPage.tsx`**) · `router.tsx` มี **15 route** (14 หน้า + catch-all `*` → `<Navigate to="/" replace />`) — eager import ทั้งหมด:
 - ไม่ต้อง auth: `/login` · `/forgot-password` · `/reset-password`
 - ใต้ `RequireAuth` + `AppLayout`: `/` Home · `/history` · `/debts` · `/debts/friend/:friendId` · `/stock` · `/budget` · `/settings`
-- ใต้ `RequireAuth` **นอก** `AppLayout` (เต็มจอ ไม่มี bottom nav): `/add` · `/stock/intake` · `/stock/queue`
-- *(คอมเมนต์หัว `router.tsx` ยังเขียน "10 screens" = คอมเมนต์ค้าง จดไว้ ไม่แก้ในใบนี้)*
+- ใต้ `RequireAuth` **นอก** `AppLayout` (เต็มจอ ไม่มี bottom nav): `/add` · **`/ai` (ใหม่ · แชทผู้ช่วย AI)** · `/stock/intake` · `/stock/queue`
+- *(คอมเมนต์หัว `router.tsx` ยังเขียน "Routes for the 10 screens" = คอมเมนต์ค้าง จดไว้ ไม่แก้ในใบนี้)*
 
-**Bottom nav = 5 ช่อง:** มือถือ (`AppLayout.tsx` `sm:hidden`) = **4 แท็บ + FAB กลาง** — LEFT `หน้าหลัก`/`ประวัติ` · FAB `+`→`/add` · RIGHT `ยอดค้าง`/`สต็อก` · **`ตั้งค่า`/`งบประมาณ` ไม่อยู่ในแถบล่าง** (ตั้งค่าเข้าจากเฟืองมุมขวาบนหน้าแรก · §11.4-37) · จำนวนช่องคี่ทำให้ FAB กึ่งกลางจริง · **rail เดสก์ท็อป (`sm:flex`) ยังครบ 6** (หน้าหลัก/ประวัติ/ยอดค้าง/งบประมาณ/สต็อก/ตั้งค่า) · guard `AppLayout.visual.test.tsx` (5 ช่อง · ≥44px · FAB กึ่งกลาง ≤1px)
+**Bottom nav = 5 ช่อง:** มือถือ (`AppLayout.tsx` `sm:hidden`) = **4 แท็บ + FAB กลาง** — LEFT `หน้าหลัก`/`ประวัติ` · FAB `+`→`/add` · RIGHT `ยอดค้าง`/`สต็อก` · **`ตั้งค่า`/`งบประมาณ` ไม่อยู่ในแถบล่าง** · **rail เดสก์ท็อป (`sm:flex`) ยังครบ 6** (หน้าหลัก/ประวัติ/ยอดค้าง/งบประมาณ/สต็อก/ตั้งค่า) · guard `AppLayout.visual.test.tsx` (5 ช่อง · ≥44px · FAB กึ่งกลาง ≤1px)
+> **ปุ่ม "ถาม AI" ไม่ใช่ช่องที่ 6** — เป็น pill absolute-positioned ลอยเหนือแถบล่าง (มือถือ) / ปุ่มท้าย rail (เดสก์ท็อป) · **แสดงเฉพาะเมื่อ consent = 'on'** (`useConsent().data === 'on'`) · never_chosen/off/กำลังโหลด → ซ่อน · คอมเมนต์ยืนยัน "NOT one of the five bar slots" ไม่ขยับ FAB centre (§11.9)
 
-**เทสต์:** `npm test` (`vitest run`) รอบนี้ = **62 ไฟล์** (`find src \( -name '*.test.ts' -o -name '*.test.tsx' \) | wc -l` = 62)
-- **มี Chromium (แบบ CI):** `Tests 495 passed | 0 skipped (495)` · Test Files 62 passed
-- **ไม่มี Chromium (เครื่องเปล่า):** `Tests 481 passed | 14 skipped (495)` — **14 ที่ skip = guard เบราว์เซอร์จริง** `ctx.skip()` นอก CI (ใน CI throw) → **รันในเครื่องพิสูจน์ guard พวกนี้ไม่ได้ ต้องรอ CI**
+**เทสต์:** `npm test` (`vitest run`) รอบนี้ = **68 ไฟล์** (`find src \( -name '*.test.ts' -o -name '*.test.tsx' \) | wc -l` = 68 · **+6 จากรอบก่อน** · รวมเทสต์ worker `ai.test.ts`/`tools.test.ts` + `useAiSettings.test.tsx` + `AiPage.test.tsx` + `AppLayout.consent.test.tsx`)
+- **มี Chromium (แบบ CI):** `Tests 565 passed (565)` · Test Files 68 passed
+- **ไม่มี Chromium (เครื่องเปล่า):** `Tests 550 passed | 15 skipped (565)` — **15 ที่ skip = guard เบราว์เซอร์จริง** `ctx.skip()` นอก CI (ใน CI throw) → รันในเครื่องพิสูจน์ guard พวกนี้ไม่ได้ ต้องรอ CI
 
-**Guard เบราว์เซอร์จริง = 13 ไฟล์** (`find src -name '*.visual.test.*'` · เดิม 8 → 13 · ทุกตัวใช้นโยบาย skip-นอก-CI / throw-ใน-CI ผ่าน `visual-harness.ts` เว้น `pwa-freshness` ที่ทำ inline):
+**Guard เบราว์เซอร์จริง = 13 ไฟล์** (`find src -name '*.visual.test.*'` · เท่ารอบก่อน · ทุกตัวใช้นโยบาย skip-นอก-CI / throw-ใน-CI ผ่าน `visual-harness.ts` เว้น `pwa-freshness` inline): `AppLayout.visual` · `AppLayout.theme.visual` · `AppLayout.fill.visual` · `WovenHero.visual` · `charts.visual` · `pwa-freshness.visual` · `CategoriesManager.visual` · `Toast.contrast.visual` · `StockScrim.contrast.visual` · `AddPage.keypad.visual` · `AddPage.fill.visual` · `WalletsManager.visual` · `WalletsManager.transfers.visual`
+> **หมายเหตุ:** ไฟล์ visual guard เท่ารอบก่อน (13) แต่จำนวนเคสที่ skip นอก CI ขยับ 14→15 (มีเคส guard เพิ่มในไฟล์เดิม — ไม่ได้ไล่ว่าเคสไหน)
 
-| ไฟล์ | กันอะไร · budget |
-|---|---|
-| `AppLayout.visual.test.tsx` | bottom nav = **5 ช่อง** · แต่ละช่อง **≥44px** · FAB กึ่งกลาง **≤1px** |
-| `AppLayout.theme.visual.test.tsx` | dark bg ทึบ (alpha >0.99) + luminance **<0.15** · text contrast **≥4.5** ทั้ง light/dark |
-| `AppLayout.fill.visual.test.tsx` | **ใหม่ (ใบ 10)** · shell เต็ม viewport มือถือ **gap ≤1px** (360×640 · 390×740) |
-| `WovenHero.visual.test.ts` | ป้ายพับถูกวาดจริงที่จุดกึ่งกลาง (`elementFromPoint`=SELF) · ปุ่มตา **≥44px** |
-| `charts.visual.test.ts` | ยอดรวมกลางโดนัทอยู่ในวง (`maxCorner ≤ innerR`) ทุกขนาดเลข + เคส mask |
-| `pwa-freshness.visual.test.ts` | client หลัง deploy รันบันเดิลใหม่ (chunk-hash = v2) ไม่ใช่ shell precache |
-| `CategoriesManager.visual.test.tsx` | ชื่อหมวดยาวสุดที่ 360px clip **≤15px** (§9 truncate) |
-| `Toast.contrast.visual.test.tsx` | toast มีพื้นหลังจริง · text **≥4.5** · ไอคอน **≥3** ทั้งสองธีม (§9 opacity/toast) |
-| `StockScrim.contrast.visual.test.tsx` | **ใหม่ (ใบ 9)** · แถบ "ขายแล้ว" text **≥4.5** · badge ✕ ลบรูป **≥3** ในโหมดมืด (`bg-scrim`) |
-| `AddPage.keypad.visual.test.tsx` | แป้นเลข dock: ยอดค้างบนจอ · บันทึกเหนือแป้น · padding เคลียร์ (geometry boolean) |
-| `AddPage.fill.visual.test.tsx` | **ใหม่ (ใบ 10)** · หน้า `/add` เต็ม viewport **gap ≤1px** |
-| `WalletsManager.visual.test.tsx` | **ใหม่ (ใบ 7)** · ชื่อกระเป๋าที่ 360px clip **≤8px** (ยอดอยู่ subline `shrink-0` ไม่มีวันตัด) |
-| `WalletsManager.transfers.visual.test.tsx` | **ใหม่ (ใบ 8)** · แถวประวัติโอน "จาก → ไป" clip **≤8px** (พิสูจน์ fail เมื่อย้ายยอดขึ้นบรรทัด = 149px) |
+**Cloudflare Worker (`src/worker/`):** ดู §11.9 — **AI proxy ใช้งานได้ครบวงจรแล้ว ไม่ใช่ stub อีกต่อไป** (`ai.ts`/`anthropic.ts`/`tools.ts`/`categories.ts`/`rateLimit.ts` เป็นของจริง · `index.ts` route `/api/ai`) · `security.ts`/`json.ts` เดิม
+> **`wrangler deploy --dry-run` รอบนี้ผ่าน** — bundle worker + อ่าน 19 ไฟล์จาก `dist` + เห็น binding `AI_RATE_LIMIT` (KV) + `ASSETS`
 
-**Cloudflare Worker (`src/worker/`):** `index.ts` fetch เดียวหุ้มทุก response ด้วย security headers · `/api/*` เท่านั้น dynamic · `ai.ts` = AI proxy **ยังเป็น stub** · `security.ts` = HTTP security headers (CSP `default-src 'self'` ฯลฯ) · *(worker ไม่อยู่ในชุดที่เปลี่ยนรอบนี้ — ยังไม่ได้ตรวจซ้ำทุกบรรทัด)*
+**Version stamp + PWA:** `vite.config.ts` `define` `__COMMIT_SHA__` + `__BUILD_TIME__` แสดงท้าย `SettingsPage` · PWA precache 22 entries (จาก build รอบนี้) · *(โครงไม่เปลี่ยน — ไม่ได้อ่าน vite.config ทุกบรรทัดรอบนี้)*
 
-**Version stamp + PWA:** `vite.config.ts` `define` `__COMMIT_SHA__` + `__BUILD_TIME__` แสดงท้าย `SettingsPage` · PWA navigation ผ่าน **NetworkFirst** (`app-shell`) · `skipWaiting`+`clientsClaim`+`cleanupOutdatedCaches` · *(โครงไม่เปลี่ยน — ยังไม่ได้ตรวจ vite.config ทุกบรรทัดรอบนี้)*
+**ทำเสร็จแล้ว (มีในโค้ดจริง):** ระบบขายครบวงจร · บัญชีร้าน 2 ถัง · SKU prefix-only · ทุนจม/วันในคลัง · ยอดค้างครบวงจร · ค้นหาประวัติ + ตัวกรองเดือน · หน้างบ · dark mode + guard · shell เต็มจอมือถือ · glossary คำบนจอ · กระเป๋าเงินครบวงจร (§11.8) · **🆕 ผู้ช่วย AI ครบวงจร (8 PR):** consent เซิร์ฟเวอร์ (`ai_settings`) + สวิตช์ในตั้งค่า + ปุ่ม "ถาม AI" + หน้าแชท `/ai` (ephemeral) + `/api/ai` (verify→consent→limit→Anthropic) + 6 tool อ่านอย่างเดียว + resolveCategory + rate limit KV + เพดานค่าใช้จ่าย 5 ตัว (§11.9)
 
-**ทำเสร็จแล้ว (มีในโค้ดจริง):** ระบบขายครบวงจร · บัญชีร้าน 2 ถัง + `ShopProfitCard` · SKU prefix-only · ทุนจม/วันในคลัง · ยอดค้างครบวงจร · ค้นหาประวัติ + ตัวกรองเดือน · หน้างบเลื่อนดูเดือน + ตัวเลขแทนคำตัดสิน + กันตั้งงบนอกงบ (**ใบ 13: รวม `isBudgetableCategory` ทั้งหน้างบและหน้าแรกแล้ว**) · dark mode + guard (**ใบ 9: token `scrim`**) · **shell เต็มจอมือถือ (ใบ 10)** · **คำบนจอ glossary ตรงกัน (ใบ 11)** · **🆕 กระเป๋าเงินครบวงจร (ใบ 6/7/8): ยอดตั้งต้น + คงเหลือรายกระเป๋า + โอนระหว่างกระเป๋า + ประวัติโอน** (§11.8)
-
-**ยังไม่ได้ทำ / หนี้ที่รู้ตัว (ตรวจรอบนี้ว่ายังจริงทุกข้อ):**
-- **แถบเลือกยังมีสอง implementation** — `SegmentedControl.tsx` (`role="tablist"` · **ผู้เรียกเดียว = `ShopProfitCard`**) กับ `RolePicker` ใน `CategoriesManager` (`role="radiogroup"`) · คนละ a11y role โดยตั้งใจ · จะยุบหรือไม่เป็นดุลพินิจ (คนละใบ)
-- **ค่าดำเนินร้านรวมยอดฝั่ง client ไม่ใช่ RPC** (`useShopOperating` + guard `SHOP_ROW_CAP=1000`) · ชนเพดานจริง → ย้ายเป็น RPC aggregate
-- **เกณฑ์ "ค้างนาน 60 วัน" (`AGE_OLD_MAX`) เป็นตัวเลขที่เดา** — คอมเมนต์ยอมรับเอง ควรทบทวนหลังใช้จริง
-- **คำที่ห้ามขึ้นจอยังค้างใน `RAISE EXCEPTION` ของ RPC ยอดค้าง** (ใบ 11 สำรวจ) — `src/` สะอาด แต่ยังมี **16 จุด raise** ที่มี "หนี้/เจ้าหนี้/ลูกหนี้": `0015` ×12 · `0018` ×1 · `0019` ×3 (debt_create ล่าสุด) → ผู้ใช้เห็นได้เพราะ `errors.ts` ส่งไทยผ่านตรง ๆ · **แก้ต้อง migration reproduce ~8 ฟังก์ชันจากไฟล์ล่าสุด = ใบแยก** (`0021` หัวไฟล์เคยประกาศ "OUT OF SCOPE โดยตั้งใจ")
-- **`friend_code` + `generate_friend_code()` เลิกใช้แต่ยังอยู่** — `profiles.friend_code` ยัง `not null` · ยัง seed เติม · **ไม่มี code path ใน `src/` อ่าน** (มีแต่คอมเมนต์ `ProfileManager` ว่า "gone from the screen") → ยังจริง
-- **`src/lib/offlineQueue.ts` ไม่มีใครเรียก (dead code)** — `grep -rn offlineQueue src | grep -v lib/offlineQueue.ts` = ว่าง · คอมเมนต์ workbox + `README.md` ยังพูดถึง = เอกสารค้าง
-- **ยังไม่มี ESLint** — `npm run lint` = `tsc -b` (ไม่มี dependency/สคริปต์ eslint)
-- **`transactions_search` ยังไม่มีหลักฐานว่าถูกรัน smoke test** ทั้งที่ UI เรียก production (smoke อยู่ในหัวไฟล์ `0022` พร้อมรัน · ยังไม่ได้ตรวจว่ารันแล้ว)
-- ถังขยะ/สำรองข้อมูล · ฟีเจอร์ AI (โครงเปล่า `worker/ai.ts`) — ยังไม่ทำ
+**ยังไม่ได้ทำ / หนี้ที่รู้ตัว (ตรวจรอบนี้ว่ายังจริง):**
+- **`GH_PAT` ยังไม่ตั้ง** — PR types-drift fallback เป็น `GITHUB_TOKEN` ที่ trigger `ci.yml` ต่อไม่ได้ (§2.1 · §9) → ยังเป็นช่องเปิด · แก้ = ตั้ง secret (ใบแยก)
+- **`AiPrefs.assistant` ไม่มีใครอ่าน** — consent ย้ายไปเซิร์ฟเวอร์ (`ai_settings`) แล้ว · field นี้เหลือเป็น vestigial UI mirror (`prefs.ts` คอมเมนต์เขียนเอง "nothing reads it today") · `AiPrefs.autoCategory` ยังอ่านอยู่ · ลบทิ้งเป็น cleanup ใบแยก
+- **`friend_code` + `generate_friend_code()` เลิกใช้แต่ยังอยู่** — `profiles.friend_code` ยัง not null · ยัง seed เติม · **ไม่มี code path ใน `src/` อ่าน** (grep เจอแค่คอมเมนต์ `ProfileManager` "gone" + `database.types.ts`) → ยังจริง
+- **คำที่ห้ามขึ้นจอยังค้างใน `RAISE EXCEPTION` ของ RPC ยอดค้าง** — `grep 'raise exception' + 'หนี้/เจ้าหนี้/ลูกหนี้'` = **16 จุด** (`0015`×12 · `0018`×1 · `0019`×3) → ผู้ใช้เห็นได้เพราะ `errors.ts` ส่งไทยผ่านตรง ๆ · แก้ต้อง migration reproduce หลายฟังก์ชัน = ใบแยก
+- **`src/lib/offlineQueue.ts` ไม่มีใครเรียก (dead code)** — grep ว่าง · คอมเมนต์ workbox (`vite.config.ts`) + `README.md` ยังพูดถึง = เอกสารค้าง
+- **ยังไม่มี ESLint** — `npm run lint` = `tsc -b`
+- **`AGE_OLD_MAX=60` เป็นค่าเดา** — คอมเมนต์ `stockAge.ts` ยอมรับเอง ควรทบทวนหลังใช้จริง
+- **`transactions_search` ยังไม่มีหลักฐานว่ารัน smoke test** — UI + AI `month_spending` เรียก production (smoke อยู่ในหัวไฟล์ `0022` · ยังไม่มีหลักฐานว่ารันแล้ว) · ต่างจาก `0028`/`0029`/`0030` ที่มี smoke test เต็มในหัวไฟล์
+- **ค่าดำเนินร้านรวมยอดฝั่ง client ไม่ใช่ RPC** (`useShopOperating` + `SHOP_ROW_CAP=1000`) — ชนเพดานจริง → ย้ายเป็น RPC aggregate (ใบแยก)
+- **PR-6 (ประวัติแชทถาวร) ตัดสินใจข้ามไปก่อน** — เจ้าของเคาะให้ข้าม · แชทตอนนี้ ephemeral (in-memory · `AiPage` useState · เคลียร์เมื่อ reload · ไม่เขียน localStorage/DB) · **ติดเรื่อง: ต้องเคาะ mask `hideBalance` ใหม่ก่อนทำ** — คำตัดสิน "แชทตอบเลขจริงแม้เปิด `hideBalance`" (เพราะเป็นการถามเจาะจง) **ยกไปใช้กับประวัติถาวรไม่ได้** เพราะประวัติถาวร = กวาดตา (§11.9)
+- ถังขยะ/สำรองข้อมูล · offline-first เต็มรูปแบบ — ยังไม่ทำ
 
 ---
 
 ## 11. Redesign + ฟีเจอร์ — สถานะปัจจุบัน (ไม่ใช่แผน)
 
-> **แหล่งความจริงของสี:** `tailwind.config.ts` + `src/styles/index.css` (คอมเมนต์กำกับ locked/role) — **เอกสารนี้ไม่คัดลอกค่า hex**
-> **เอกสารดีไซน์:** `docs/design/…`
+> **แหล่งความจริงของสี:** `tailwind.config.ts` + `src/styles/index.css` — **เอกสารนี้ไม่คัดลอกค่า hex** · **แหล่งความจริงของเพดาน AI:** `src/worker/anthropic.ts` — **เอกสารนี้ไม่คัดลอกค่าตัวเลข**
+> **เอกสารดีไซน์:** `docs/design/…` · **เอกสารออกแบบ AI:** `docs/ai-assistant-design.md` (v1)
 
 ### 11.1 ฮีโร่ — ป้ายทอคอเสื้อ (`src/components/WovenHero.tsx`)
-**หลักการ: กิมมิกต้องเผย ไม่ใช่ซ่อน**
-- ป้ายทอ **3 ใบ ล็อกที่ 3 — ไม่มีใบยอดค้าง** · ลำดับ `SAFE TO SPEND` → `BUDGET` → `STOCK PROFIT` · ใบพับโชว์ eyebrow + ตัวเลขย่อ เรนเดอร์ไม่มีเงื่อนไข
-- **`flex flex-col` บนปุ่มป้ายเป็น load-bearing** — ห้ามถอด (บั๊กแถบเปล่า · §9)
-- **ปุ่มลูกศรเข้า `/budget`** เป็น **sibling button** (แสดงเมื่อ `selected==='budget'`) · ปุ่มตา hideBalance ก็ sibling — **ไม่ซ้อน `<button>` ใน `<button>`**
-- บรรทัดรอง SAFE หักบิลรอจ่าย (`computeSpendable`) · เกินยอด → ไอคอนเตือน ไม่ clamp · **เดือนที่จบแล้ว** eyebrow → `LEFT OVER` + recap
-- **ชิป "เกินงบ ฿X" ดึงถ้อยคำจาก `lib/budgetNote.overBudgetNote` ที่เดียว** — แหล่งเดียวกับบรรทัดรองต่อหมวดในหน้างบ
-- เรขาคณิต (`CONTAINER_H`/`LABEL_H`/`POSITIONS`) มี guard `WovenHero.visual.test.ts` — **ค่าอ่านจากไฟล์ ไม่คัดลอกมาที่นี่**
+**หลักการ: กิมมิกต้องเผย ไม่ใช่ซ่อน** · ป้ายทอ 3 ใบ ลำดับ `SAFE TO SPEND` → `BUDGET` → `STOCK PROFIT` (ไม่มีใบยอดค้าง) · `flex flex-col` บนปุ่มป้ายเป็น load-bearing (บั๊กแถบเปล่า · §9) · ปุ่มลูกศร/ปุ่มตาเป็น sibling button ไม่ซ้อน `<button>` · **เรขาคณิต (`CONTAINER_H`/`LABEL_H`/`POSITIONS`) อ่านจากไฟล์ ไม่คัดลอกมาที่นี่** · guard `WovenHero.visual.test.ts`
 
 ### 11.2 สี — คราม + สีหมวดต่อ slot (`tailwind.config.ts` + `src/styles/index.css`)
-- สีแบรนด์ = คราม · `brand.fabric*`/`thread` ขับ WovenHero (คอมเมนต์ "locked — do NOT change")
-- `cat.1–6` + `cat.other` เป็น CSS variable (light `:root` · dark override `html.dark`) — **สีหมวดมาจาก `color_index` ผ่าน `catColorVar()` ที่เดียว** · cat.1 = สีแบรนด์
-- **mint ถูกนำกลับมา** — กลับคำจาก PR-C · คอมเมนต์ "do NOT fix back out" ห้ามลบเป็น leftover
-- **token theme-independent (พื้นเข้มเสมอทุกธีม ไม่มี dark override โดยตั้งใจ):** `toast` · **`scrim` (ใบ 9 · ใหม่)** — `--color-scrim` นิยามใน `:root` เท่านั้น · ใช้แทน `bg-ink` เฉพาะจุดที่มีเนื้อหาขาวทับพื้นเข้ม (แถบ "ขายแล้ว" ใน `StockPage` · badge ✕ ลบรูปใน `StockFields`) เพราะ `ink` พลิกเกือบขาวในโหมดมืด · คอมเมนต์ล็อก "do NOT add a dark variant" (§9) · **`bg-ink` ที่เหลือ = จุด in-use 7px ใน `CategoriesManager` ตั้งใจให้พลิกคู่กับ `surface`**
+- สีแบรนด์ = คราม · `cat.1–6`+`cat.other` เป็น CSS variable (light/dark override) · **สีหมวดมาจาก `color_index` ผ่าน `catColorVar()` ที่เดียว** · mint ถูกนำกลับมา (คอมเมนต์ "do NOT fix back out")
+- **token theme-independent (พื้นเข้มเสมอทุกธีม ไม่มี dark override โดยตั้งใจ):** `toast` · `scrim` — ใช้แทน `bg-ink` เฉพาะจุดเนื้อหาขาวบนพื้นเข้ม เพราะ `ink` พลิกเกือบขาวในโหมดมืด · **`bg-ink` ที่เหลือ = จุด in-use 7px ใน `CategoriesManager`** (ยืนยัน grep รอบนี้: `bg-ink` เหลือที่นี่ที่เดียว)
 
 ### 11.3 โดนัท (`src/components/charts.tsx`)
-- ตัวเลขรวม **บรรทัดเดียว** · `donutCenterFontSize(charCount)` = แหล่งเดียวที่ตัดสินขนาด · guard `charts.visual.test.ts` · `largestRemainderPercents()` legend รวม 100 · สี slice จาก `color_index`
+ตัวเลขรวมบรรทัดเดียว · `donutCenterFontSize(charCount)` แหล่งเดียว · guard `charts.visual.test.ts` · `largestRemainderPercents()` legend รวม 100
 
 ### 11.4 การตัดสินใจสำคัญ — ทำไม (หัวใจของไฟล์)
 โค้ดบอก "ทำอะไร" เอกสารบอก "ทำไม" · ข้อที่**กลับคำ**สำคัญที่สุด:
@@ -355,123 +352,108 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 3. **DB เก็บความหมาย client เก็บหน้าตา** — เปลี่ยนพาเลตต์ไม่ต้องแตะ DB
 4. **`icon` ไม่มี CHECK** — `lib/icons.tsx` fallback ชื่อผิดเสื่อมนุ่มนวล
 5. **โดนัท: ขยายรู ไม่ย่อตัวเลข**
-6. **หน้าแรกตอบ "เหลือเงินเท่าไหร่" งบเป็นป้ายใบสอง** — **ระวังพาดหัวที่สองที่ตอบคำถามเดียวกันคนละฐาน:** `safeToSpend` = "รับ−จ่ายเดือนนี้" ต่างจาก "เงินในกระเป๋าทั้งหมด" (§11.8) = "เงินที่มีอยู่จริง" → ยอดรวมกระเป๋าจึงเป็นบรรทัดเงียบในหน้าตั้งค่า มี subtitle แยกความหมาย ไม่ใช่พาดหัวคู่แข่ง
+6. **หน้าแรกตอบ "เหลือเงินเท่าไหร่" งบเป็นป้ายใบสอง** — `safeToSpend` = "รับ−จ่ายเดือนนี้" ต่างจาก "เงินในกระเป๋าทั้งหมด" (§11.8) → ยอดรวมกระเป๋าเป็นบรรทัดเงียบในหน้าตั้งค่า ไม่ใช่พาดหัวคู่แข่ง · **กฎนี้ขยายไปถึงผู้ช่วย AI** — `SYSTEM_PROMPT` ย้ำว่า `safe_to_spend` ≠ ยอดคงเหลือกระเป๋า (§4-3 · §11.9)
 7. **บิลรอจ่าย: หักเฉพาะรายจ่าย ไม่บวกรายรับ**
 8. **ห้าม clamp เป็น 0 เงียบ ๆ** — เกิน/ติดลบ บอกตรง ๆ + ไอคอน
-9. **texture + เงา = ข้อยกเว้นเฉพาะป้ายทอ** · motion จาก token เคารพ `motion-reduce`
+9. **texture + เงา = ข้อยกเว้นเฉพาะป้ายทอ** · motion เคารพ `motion-reduce`
 10. **เส้นประถูกใช้กับโซนวางรูปแล้ว** — ห้ามให้ความหมายที่สอง
-11. **`hideBalance` = "ซ่อนตอนกวาดตา เปิดตอนตัดสินใจ"** — **ชีตที่ขอให้ยอมรับข้อผูกพัน (`ConfirmDebtSheet`·`SettleSheet`·แผงขายใน `StockEditSheet`·`WalletTransferSheet`) ต้องแสดงเงินเสมอ ไม่รับ prop `hideBalance` (กันเชิงโครงสร้าง — prop ไม่มีอยู่จริง)** · **หน้างบ + ลิสต์คงเหลือ/ประวัติโอนในหน้ากระเป๋า mask ตาม `hideBalance`** (กวาดตา)
+11. **`hideBalance` = "ซ่อนตอนกวาดตา เปิดตอนตัดสินใจ"** — **ชีตที่ขอให้ยอมรับข้อผูกพัน (`ConfirmDebtSheet`/`SettleSheet`/แผงขาย/`WalletTransferSheet`) ต้องแสดงเงินเสมอ ไม่รับ prop `hideBalance`** (กันเชิงโครงสร้าง prop ไม่มีอยู่จริง) · **`AiPage` ก็ไม่รับ prop ใด ๆ เลย** → `hideBalance` ส่งเข้าไม่ได้ (§11.9) · หน้างบ + ลิสต์กระเป๋า mask ตาม `hideBalance` (กวาดตา)
 12. **private ไม่รวมในพาดหัว และไม่รวมกับ shared** — `computeFriendLedger` แยกถัง
 13. **ย้อนการเคลียร์ได้เฉพาะคนที่กดเคลียร์เอง** (`settled_by = auth.uid()`)
-14. **ชื่อฟีเจอร์ = "ยอดค้าง"** · คำห้ามบนจอ: หนี้/เจ้าหนี้/ลูกหนี้/เรียกเก็บ/ทวง · **schema/โค้ดยังเป็น `debt*` ตั้งใจ** → gap ระหว่าง "จ่ายคืนเพื่อน" บนจอ กับ `debt_repayment_expense` ใน DB (และคำ "หนี้" ที่ยังค้างใน RAISE · §10)
+14. **ชื่อฟีเจอร์ = "ยอดค้าง"** · คำห้ามบนจอ: หนี้/เจ้าหนี้/ลูกหนี้/เรียกเก็บ/ทวง · schema/โค้ดยังเป็น `debt*` ตั้งใจ → gap ระหว่าง "จ่ายคืนเพื่อน" บนจอ กับ `debt_repayment_expense` ใน DB (และคำ "หนี้" ที่ยังค้างใน RAISE · §10) · **ผู้ช่วย AI ตัดเรื่องยอดค้าง/เพื่อนออกทั้งหมด และ `SYSTEM_PROMPT` สั่งห้ามพูดคำเหล่านี้** (§11.9)
 
-**— รอบฟีเจอร์หลัง redesign —**
-
-15. **หน้าประวัติใช้ RPC เดียว** (`transactions_search`) — window aggregate ทำให้หน้ากับยอดรวมมาจาก query เดียว ขัดกันไม่ได้เชิงโครงสร้าง
-16. **"เติม cache" หลังบันทึก ไม่ใช่ optimistic update** (`txCache`) · `insertRecent` **เรียงใหม่ ไม่ prepend**
+**— รอบฟีเจอร์หลัง redesign —** (15–22 · เท่ารอบก่อน · ยังไม่ได้ตรวจซ้ำทีละบรรทัดรอบนี้ ยกเว้นข้อที่ AI มาแตะ):
+15. **หน้าประวัติใช้ RPC เดียว** (`transactions_search`) — window aggregate ทำให้หน้ากับยอดรวมมาจาก query เดียว · **AI `month_spending` reuse RPC เดียวกันนี้** (§11.9)
+16. **"เติม cache" หลังบันทึก ไม่ใช่ optimistic update** (`txCache`) · `insertRecent` เรียงใหม่ ไม่ prepend
 17. **effect ที่ seed ฟอร์มต้องผูกกับ `id` ไม่ใช่ object** — `refetchOnWindowFocus` + native picker → object ใหม่ → ทับที่พิมพ์ค้าง
-18. **undo การลบคืนแถวด้วย `id` + `created_at` ชุดเดิม** (`txRestore`) · guard "ห้ามคืนแถวล็อก" ใช้ `lockedRowInfo()`
-19. **"เดือน" คือ string `YYYY-MM` ไม่ใช่ Date** (`dates.ts`) · `addMonthsToKey` เลขคณิตบน year*12+month
-20. **`computeHomeSummary` แยก `month` ออกจาก `now`** · `daysLeftInMonthKey(key)` คืน 0 เมื่อเดือนจบ
-21. **`useUpcomingBills` จงใจไม่รับเดือน** — ผูกกับ "ตอนนี้" เสมอ · guard `MAX_OCCURRENCES_PER_RULE=40`
-22. **`onTap` ป้ายด่วนอยู่บน `click` ไม่ใช่ `pointerUp`** · `moveTolerancePx` กันปัดเลื่อนกลายเป็นบันทึก
+18. **undo การลบคืนแถวด้วย `id`+`created_at` ชุดเดิม** (`txRestore`) · guard "ห้ามคืนแถวล็อก"
+19. **"เดือน" คือ string `YYYY-MM` ไม่ใช่ Date** (`dates.ts`) · **worker แปลง offset→YYYY-MM ด้วย `addMonthsToKey`/`monthKey`** (§11.9)
+20. **`computeHomeSummary` แยก `month` ออกจาก `now`** · `daysLeftInMonthKey(key)` คืน 0 เมื่อเดือนจบ · **worker `home_summary` tool เรียก `computeHomeSummary` ตรง ๆ** (§11.9)
+21. **`useUpcomingBills` จงใจไม่รับเดือน** — ผูกกับ "ตอนนี้" · guard `MAX_OCCURRENCES_PER_RULE=40`
+22. **`onTap` ป้ายด่วนอยู่บน `click` ไม่ใช่ `pointerUp`** · กันปัดเลื่อนกลายเป็นบันทึก
 
-**— รอบ SKU / หมวดร้าน / กำไรร้าน / ค่าส่ง / ทุนจม (`0025`–`0027`) —**
+**— รอบ SKU / หมวดร้าน / กำไรร้าน / ทุนจม (`0025`–`0027`) —** (23–33 · เท่ารอบก่อน · ไม่ได้ตรวจซ้ำทีละบรรทัด): SKU ตัดท่อนแบรนด์ · ตัวนับผูก user · ป้ายอยู่ที่หมวดธงลงตัวรายการ · ค่าดำเนินร้านห้ามเกลี่ยลงรายชิ้น · หมวดร้านไม่มี `system_key` resolve ด้วย `kind+is_shop_category` · ตัดราคาขายเป้าหมาย+กำไรคาดการณ์ทิ้ง แทนด้วยทุนจม · ห้ามเติมราคาขายล่วงหน้า
 
-23. **ตัดท่อนแบรนด์ออกจาก SKU** — SKU เป็นเลขอ้างอิงไม่ซ้ำ · คอลัมน์ format ที่ไม่มีใครใช้ drop ทิ้ง
-24. **ตัวนับ SKU ผูกกับ user ไม่ผูกกับ prefix** · preview ไม่จองเลข → ถ้อยคำ "โดยประมาณ"
-25. **ป้ายอยู่ที่หมวด แต่ธงคัดลอกลงตัวรายการ** (`is_shop_category`→trigger→`is_shop_operating`) — predicate อ่านจากตัวรายการไม่ต้อง join · **แลกกับ: เปลี่ยนป้ายแล้วตัวเลขเดือนเก่าขยับ** ยอมรับโดยตั้งใจ
-26. **`is_stock_category` ไม่อยู่ในสูตรงบ** — ป้ายสต็อกคุมแค่ว่าหมวดโผล่หน้ากรอกมือไหม (`isEntrySelectableCategory`)
-27. **ปิดการกรอก `stock_sale_income` ด้วยมือ — กลับคำจาก §7 เดิม** เพราะรายรับก้อนนั้นไม่มี COGS คู่ → พองรายรับ · ไม่ลบหมวด แค่ซ่อนจากตัวเลือก
-28. **ค่าดำเนินร้านห้ามเกลี่ยลงรายชิ้น** — กำไรขั้นต้นดูรายชิ้น (ถัง 1) · กำไรสุทธิดูรายร้านรายเดือน (ถัง 2)
-29. **ป้ายหมวดเป็นตัวเลือกเดียว 3 แบบใน UI แต่ยัง 2 คอลัมน์ใน DB** — mutually exclusive (CHECK) · **ห้ามรวมเป็นคอลัมน์เดียว — งาน UI ล้วน** · `useSetCategoryRole` เขียนสองคอลัมน์ครั้งเดียว · **ปุ่มลบซ่อนเมื่อ `is_system`**
-30. **ค่าดำเนินร้านรวมฝั่ง client ไม่ทำ RPC** — merge รวดเดียวไม่รอ types-drift · guard `SHOP_ROW_CAP` · **กำไรสุทธิย้อนหลังไม่นิ่งโดยตั้งใจ** (`REVALUATION_NOTE`)
-31. **ป๊อปอัพหลังปิดการขายถามเฉพาะค่าส่งขาเข้า** · **หมวดร้านไม่มี `system_key`** → resolve ด้วย `kind + is_shop_category` (`lib/shopCategory.ts`) · **ไม่ prefill ยอด**
-32. **ตัดราคาขายเป้าหมาย + กำไรคาดการณ์ทิ้ง — แทนด้วยทุนจม** (`0027`) · `target_price` = ตัวเลขที่ดูเหมือนเงินแต่ไม่ใช่เงิน · **ห้ามเอากลับมา**
-33. **ห้ามเติมราคาขายล่วงหน้าในแผงขาย** — ช่องเปิดมาว่าง+focus
+**— รอบงบ (34–36 · client ล้วน · ไม่ได้ตรวจซ้ำทีละบรรทัด):** `computePace()` ตัดสินสถานะ ถ้อยคำอยู่ `paceNote()` · `isBudgetableCategory()` ใช้ทั้งชีตตั้งงบ+แถบหน้าแรก · ฐาน "นอกงบ" กันที่ระดับ flag ธุรกรรม
 
-**— รอบงบ: ตัวเลขแทนคำตัดสิน + กันตั้งงบนอกงบ + รวม predicate (ใบ 5 + 13 · client ล้วน) —**
-
-34. **`computePace()` แยกหน้าที่ — ตัดสิน "สถานะ" อย่างเดียว ถ้อยคำอยู่ที่ `paceNote()`** · สถานะ = `over`/`fast`/`unused`/`on_track` · คืน `remaining`/`over` **ไม่ clamp** · `computePaceStatic()` สำหรับเดือนปิดแล้ว แชร์ `baseState()` · บรรทัดรองบอกยอดจริง ไม่ใช่คำตัดสินประดับ
-35. **`isBudgetableCategory()` — ตั้งงบได้เฉพาะ `expense` ที่ไม่ใช่ system/shop/stock** · **ใบ 13: ใช้ทั้งชีตตั้งงบ · แถวงบเก่าที่ตกค้าง · และแถบ "งบที่ตั้งไว้" หน้าแรก** — เดิม `useMonthBudgetTotal` `.select('amount')` รวมทุกแถวดิบ (ตรรกะสองที่) · ตอนนี้ทั้ง `useBudgets` + `useMonthBudgetTotal` ผ่าน `budgetableRows()` + `BUDGET_WITH_CATEGORY_SELECT` ตัวเดียวใน `useBudgets.ts` (§10 · หนี้นี้ปิดแล้ว)
-36. **ฐานของ "นอกงบ" ถูกอยู่แล้ว — ไม่ต้องแก้** — สามกลุ่มที่ตัดจากงบถูกกัน**ที่ระดับ flag ของธุรกรรม** (`is_stock_cogs`/`is_debt_settlement`/`is_shop_operating`/`is_stock_purchase`) + `isEntrySelectableCategory` → ตัวเลขไม่พอง · **จุดที่ดูเหมือนบั๊กแต่ไม่ใช่**
-
-**— รอบ redesign แถบล่าง + ทางเข้าตั้งค่า + หน้า /add (ใบ 1–4 · client ล้วน) —**
-
-37. **แถบล่างเหลือ 4 แท็บ + FAB กลาง = 5 ช่อง · ตั้งค่าออกจากแถบ** — **ทางเข้าตั้งค่า = เฟืองมุมขวาบนหน้าแรกข้างกระดิ่ง** (`HomePage` เฉพาะหน้าแรก · เฟือง+กระดิ่งปุ่มแยก ≥44px) · rail เดสก์ท็อปยังครบ 6
-38. **หน้า `/add` ยกเครื่อง — แป้นเลขเป็น dock ยึดขอบล่าง** · **padding-bottom วัดด้วย `ResizeObserver` จากความสูง dock จริง ไม่ hardcode** (fallback `measure()` เผื่อ jsdom) · guard `AddPage.keypad.visual.test.tsx`
-39. **หน้า `/add` ตัดบล็อก "ใช้บ่อย" ที่ซ้ำออก** — `orderByFrequency` เรียง frequent ขึ้นต้นลิสต์เดียว · ranking freeze ต่อ session
-40. **`CategoriesManager` เหลือแถวเดียวต่อหมวด + `RoleBadge`** · **ตัวเลือกบทบาทใน `RolePicker`** (`role="radiogroup"`) · **`ROLES_BY_KIND`: expense = [ส่วนตัว, เติมสต็อก, ของร้าน] · income = [ส่วนตัว, ของร้าน]** · **ชื่อบทบาทบนจอ = `ส่วนตัว`/`เติมสต็อก`/`ของร้าน`** — **ชื่อคอลัมน์/ตัวแปรใน DB คงเดิม** (`ROLE_LABEL` เป็น label จอเท่านั้น · glossary ใบ 11 · §8-23)
-41. **แถว "หมวดที่ลงสต็อกอัตโนมัติ" ใน `SettingsPage` ถูกลบ** — ทางลัดซ้ำ · ยุบหัวข้อกลุ่ม "สต็อก" มารวมกลุ่มบน
-
-**— รอบ contrast + shell (ใบ 9 + 10 · client ล้วน) —**
-
-42. **`bg-ink` พลิกเกือบขาวในโหมดมืด → เพิ่ม token `scrim`** (ใบ 9) — theme-independent · แทน `bg-ink` เฉพาะจุดเนื้อหาขาวบนพื้นเข้ม · **`bg-ink` in-use dot คงไว้** (§11.2 · §9)
-43. **ช่องว่างขอบล่าง shell → `#root{height:100dvh}`** (ใบ 10) — สาเหตุ: `height:100%` วัดเทียบ viewport ใหญ่บนมือถือ · **`max-w-3xl` เป็นข้อจำกัดแนวนอน ไม่ใช่สาเหตุ ห้ามแก้** · guard `AppLayout.fill`/`AddPage.fill` (§9)
+**— รอบ redesign แถบล่าง / /add / contrast / shell (37–43 · ไม่ได้ตรวจซ้ำทีละบรรทัด):** แถบล่าง 4 แท็บ+FAB · ทางเข้าตั้งค่า = เฟืองมุมขวาบนหน้าแรก · หน้า `/add` แป้นเลข dock · `bg-ink`→`scrim` · `#root{height:100dvh}`
 
 ### 11.5 บั๊กรอบก่อน — แก้แล้ว
-B1–B14 (redesign) · ค้นหาแมตช์แค่ note · ยอดรวมประวัติยิง query ซ้ำ · dark-mode พื้นขาว · ป้าย "บันทึกแล้ว" โกหก · **toast มองไม่เห็น** · **caret หลุดในชีต** · **ชื่อหมวด truncate เงียบ** · **`bg-ink` contrast ต่ำในโหมดมืด (ใบ 9)** · **ช่องว่างขอบล่าง shell (ใบ 10)** · **คำ "หมวดสต็อก" ไม่ตรงบทบาท "เติมสต็อก" (ใบ 11)** — บันทึกที่ §9/§11.4 ตามชนิด
+B1–B14 (redesign) · ค้นหาแมตช์แค่ note · dark-mode พื้นขาว · ป้าย "บันทึกแล้ว" โกหก · toast มองไม่เห็น · caret หลุด · ชื่อหมวด truncate · `bg-ink` contrast · ช่องว่างขอบล่าง shell · คำ glossary — บันทึกที่ §9/§11.4 ตามชนิด
 
 ### 11.6 ยอดค้าง (friend outstanding balances) — ครบวงจร
-**แนวคิด:** ติดตามยอดค้างระหว่างเพื่อน แยก **"ตกลงกันแล้ว" (shared)** กับ **"จดไว้เอง" (private)** ไม่รวมกันทุกที่ (§11.4-12) · ฟีเจอร์ cross-user ตัวเดียว → security model ต่าง (§3)
-
-- **ตาราง (`0015`):** `profiles` · `friend_connections` (`status`) · `debts` (`creditor_id`/`debtor_id`/`amount`/`visibility`/`status`/`settled_by`/`settlement_transaction_id`) · `debt_events`
-- **สถานะ (`debt_status`):** `pending_confirmation` → `confirmed` → `settled` · หรือ `rejected`/`cancelled`
-- **Flow + RPC (`useFriends.ts`):** เพิ่มเพื่อน `friend_request_send(p_username)`/`respond` · บันทึก `debt_create` (shared รอ confirm · private confirmed ทันที) · `debt_share_private`/`debt_delete_private`/`debt_cancel` · เคลียร์ `debt_settle`/**`debt_settle_many`** (atomic) · ย้อน `debt_settle_reverse` (เฉพาะคนที่กดเคลียร์ · §11.4-13)
-- **เชื่อมเงินหลัก:** เคลียร์ → **transaction จริง 1 แถว `is_debt_settlement=true`** (หมวด `debt_repayment_*`) · `settlement_transaction_id` ผูกกลับ · แถวนี้ "ล็อก" (§5) นับ headline ตัดงบ (§4)
-- **สรุป (`debtsSummary.ts`):** `computeFriendLedger` แยก agreed/private/settled/pending/rejected · `computeDebtsHeadline` อ่าน `friend_debts_summary.shared_net`
-- **หน้าจอ:** `/debts` · `/debts/friend/:friendId` · ชีต `AddFriendSheet`/`DebtFormSheet`/`ConfirmDebtSheet`/`SettleSheet`/`ProfileManager`
-- **username (`0020`):** `^[a-z0-9_]{3,20}$` · **ตั้งครั้งเดียว** (trigger) · เจ้าของแก้ผ่าน SQL Editor ได้
+**แนวคิด:** ติดตามยอดค้างระหว่างเพื่อน แยก **"ตกลงกันแล้ว" (shared)** กับ **"จดไว้เอง" (private)** ไม่รวมกัน (§11.4-12) · ฟีเจอร์ cross-user ตัวเดียว → security model ต่าง (§3) · **ผู้ช่วย AI v1 ตัดยอดค้าง/เพื่อนออกจากมือ AI ทั้งหมด** (§11.9)
+- **ตาราง (`0015`):** `profiles` · `friend_connections` · `debts` · `debt_events` · RLS select-only + DEFINER RPC
+- **Flow + RPC (`useFriends.ts`):** `friend_request_send(p_username)`/`respond` · `debt_create`/`debt_share_private`/`debt_delete_private`/`debt_cancel` · `debt_settle`/`debt_settle_many` · `debt_settle_reverse` (เฉพาะคนที่กดเคลียร์)
+- **เชื่อมเงินหลัก:** เคลียร์ → transaction จริง 1 แถว `is_debt_settlement=true` · แถวล็อก (§5) นับ headline ตัดงบ
+- **สรุป:** `computeFriendLedger` + `computeDebtsHeadline` (`friend_debts_summary.shared_net`)
+- **หน้าจอ:** `/debts` · `/debts/friend/:friendId` · ชีตต่าง ๆ · username `^[a-z0-9_]{3,20}$` ตั้งครั้งเดียว (`0020`)
 
 ### 11.7 flow หลังปิดการขาย — ค่าส่งขาเข้า
-เหตุผล + resolve หมวด: §11.4-31 · `StockEditSheet.doSell` สำเร็จ → ถ้า `hasShopIncomeCategory` แสดง `ConfirmDialog` → `navigate('/add', {state:{prefill, returnTo:'/stock'}})` · เทสต์: `lib/shopCategory.test.ts` · `StockEditSheet.test.tsx` · `AddPage.*`
+`StockEditSheet.doSell` สำเร็จ → ถ้ามีหมวดรายรับร้าน แสดง `ConfirmDialog` → `navigate('/add', {state:{prefill, returnTo:'/stock'}})` · resolve หมวด: §11.4-31 · ไม่ prefill ยอด
 
-### 11.8 กระเป๋าเงิน — คงเหลือ + ยอดตั้งต้น + โอน (ใบ 6/7/8 · ครบวงจร)
-**แนวคิด:** แอปมีกระเป๋า 3 ใบ (เงินสด/ธนาคาร/พร้อมเพย์) แต่เดิม**ไม่มีที่ไหนบอกว่าแต่ละใบเหลือเท่าไร** · รอบนี้เพิ่มยอดตั้งต้น + คงเหลือคำนวณสด + การโอน · UI ทั้งหมดอยู่ใน `WalletsManager` (ชีตในหน้าตั้งค่า) + `WalletTransferSheet` — **ไม่มี route ใหม่**
+### 11.8 กระเป๋าเงิน — คงเหลือ + ยอดตั้งต้น + โอน (`0028` · ครบวงจร)
+**แนวคิด:** กระเป๋า 3 ใบ แต่เดิมไม่มีที่ไหนบอกว่าแต่ละใบเหลือเท่าไร · เพิ่มยอดตั้งต้น + คงเหลือคำนวณสด + การโอน · UI อยู่ใน `WalletsManager` (ชีตในหน้าตั้งค่า) + `WalletTransferSheet` — **ไม่มี route ใหม่**
+- **`wallets.opening_balance` (numeric not null default 0 · `0028`) — ไม่ใช่การเอา `balance` ที่ DROP ไปกลับมา:** `balance` เดิม (`0001`, DROP `0011`) = ยอดสะสมที่ต้องคอยอัปเดต = แหล่งความจริงซ้ำ · `opening_balance` = ค่าที่ผู้ใช้กรอกครั้งเดียวแล้วคงที่ คงเหลือยังคำนวณจากรายการเสมอ · **ถ้าไม่มีมัน คงเหลือจะกลายเป็น "เงินที่ขยับตั้งแต่เริ่มใช้แอป" ไม่ใช่ "เงินที่มีอยู่จริง"** · แก้ยอดตั้งต้นทีหลัง → คงเหลือขยับย้อนหลัง (ตั้งใจ · คนละกรณีกับ `cost_at_sale`)
+- **สูตรคงเหลือใช้ `type` ดิบ** (`wallet_balances()` · INVOKER · aggregate SQL) — ห้าม predicate งบ (§4-14 · กับดัก §9)
+- **`wallet_transfers` เป็นตารางแยก ไม่ยัดลง `transactions`** — การโอนไม่ใช่ทั้งรายรับและรายจ่าย · **แลกกับ: การโอนจงใจไม่โผล่ในหน้าประวัติ** — ชดเชยด้วยลิสต์ "ประวัติการโอน" ในหน้ากระเป๋า (guard `WALLET_TRANSFER_CAP=100`)
+- **ลบการโอน = DELETE policy บนแถวตัวเอง ไม่มี RPC** · `WalletTransferSheet` ไม่รับ `hideBalance` · await เซิร์ฟเวอร์ก่อนปิดชีต ไม่ optimistic · **create โอน invalidate เฉพาะ `['wallets']` ไม่แตะ `['transactions']`** (พิสูจน์ว่าการโอนไม่รั่วเข้า headline/งบ/donut/ประวัติ)
 
-- **`wallets.opening_balance` (numeric not null default 0 · `0028`) — ไม่ใช่การเอา `balance` ที่ DROP ไปกลับมา:**
-  - `balance` เดิม (`0001`, DROP `0011`) = **ยอดสะสมที่ต้องคอยอัปเดตทุกรายการ** = แหล่งความจริงซ้ำกับ `transactions` (audit F-05 เรียก dead column)
-  - `opening_balance` = **ค่าที่ผู้ใช้กรอกครั้งเดียวแล้วคงที่** — คงเหลือยังคำนวณจากรายการเสมอ ไม่มีใครเขียนกลับ · **ถ้าไม่มีมัน คงเหลือจะกลายเป็น "เงินที่ขยับตั้งแต่เริ่มใช้แอป" ไม่ใช่ "เงินที่มีอยู่จริง"** (ตระกูล `target_price`) · **นี่ไม่ใช่การกลับคำจาก `0011`**
-  - **แก้ยอดตั้งต้นทีหลังได้ → คงเหลือขยับย้อนหลัง (ตั้งใจ)** — คนละกรณีกับ `cost_at_sale` ที่ snapshot อดีต · มันคือ "การแก้ค่าที่กรอกผิด"
-- **สูตรคงเหลือใช้ `type` ดิบ** (`wallet_balances()` · INVOKER · aggregate SQL) — **ห้าม predicate งบ** (§4-14 · กับดัก §9) · คืนส่วนประกอบครบให้ UI กดดูที่มาได้
-- **`wallet_transfers` เป็นตารางแยก ไม่ยัดลง `transactions`** (`wallet_transfer_create` · INVOKER) — การโอนไม่ใช่ทั้งรายรับและรายจ่าย ถ้าสร้างสองแถวใน `transactions` พาดหัวรับ/จ่ายจะพอง และต้อง thread flag ผ่าน `ledger.ts`/hooks ทุกจุด (ผิดเงียบง่าย) · **แลกกับ: การโอนจงใจไม่โผล่ในหน้าประวัติ** — ชดเชยด้วยลิสต์ "ประวัติการโอน" ในหน้ากระเป๋า (ที่เดียวที่การโอนโผล่ · guard เพดานแถว `WALLET_TRANSFER_CAP=100`)
-- **ลบการโอน = DELETE policy บนแถวตัวเอง ไม่มี RPC** (single-owner ไม่ผูก transactions · §6) · ลบแล้ว invalidate `['wallets']` → คงเหลือ + ลิสต์อัปเดตทันที · มี ConfirmDialog ก่อนลบ
-- **`WalletTransferSheet` ไม่รับ `hideBalance`** (โครงสร้าง · §11.4-11) — ยืนยันยอดที่ปิดตาไว้ = ยอมรับแบบตาบอด · **await เซิร์ฟเวอร์ก่อนปิดชีต ไม่ optimistic** (แพทเทิร์น AddPage) · กระเป๋าปลายทางกรอง `!== from` ออกจากตัวเลือก **แต่ RPC ยังเป็นด่านจริง** (raise ถึงผู้ใช้)
-- **cache:** balances + transfers key ใต้ `['wallets', …]` → create/delete โอน (invalidate `['wallets']`) refresh ทั้งคู่ · **create โอน invalidate เฉพาะ `['wallets']` ไม่แตะ `['transactions']`** → พิสูจน์ (เทสต์ `useWalletTransfers.test.tsx`) ว่าการโอนไม่รั่วเข้า headline/งบ/donut/ประวัติ/กำไรร้าน
-- **หน้าจอ:** `WalletsManager` (ยอดรวมเงียบ "เงินในกระเป๋าทั้งหมด" · §11.4-6 · แถวคงเหลือ + กดกางส่วนประกอบ · ปุ่มโอน header เมื่อ ≥2 กระเป๋า · ประวัติโอน) · `WalletTransferSheet`
+### 11.9 ผู้ช่วย AI — แชทตอบคำถามการเงินจากข้อมูลผู้ใช้ (8 PR · ครบวงจร)
+**แนวคิด:** ผู้ใช้ถามเรื่องเงินของตัวเองเป็นภาษาไทย ผู้ช่วยตอบจากข้อมูลจริงในแอปผ่าน tool อ่านอย่างเดียว · **ข้อมูลการเงินไหลออกไปประมวลผลที่ Anthropic (ต่างประเทศ) จริงเมื่อผู้ใช้ยินยอม** — จึงมีด่านความปลอดภัยหลายชั้น · แหล่งความจริง: `docs/ai-assistant-design.md` · โค้ด: `src/worker/*` · `src/lib/aiChat.ts` · `src/hooks/useAiSettings.ts` · `src/pages/AiPage.tsx` · `0029`/`0030`
+
+**ทำไมออกแบบแบบนี้ (เน้น "ทำไม" มากกว่า "ทำอะไร"):**
+
+- **ตัวตนมาจาก token เท่านั้น ห้ามรับจาก body · ห้าม `service_role`** — `ai.ts` verify JWT ด้วย `supabase.auth.getUser(token)` แล้วผูก consent + rate limit + ทุก tool กับ uid ที่ verify แล้ว · client ที่ถือ anon key + JWT ผู้ใช้ → ทุก query วิ่งใต้ `auth.uid()` → **RLS เป็นด่านสุดท้ายที่ทำงานเสมอ** · `user_id` ไม่เคยอ่านจาก body (body มีแค่ `message`)
+- **consent เก็บฝั่งเซิร์ฟเวอร์ (`ai_settings`) ไม่ใช่ localStorage** — flag ฝั่ง client เชื่อไม่ได้ (หลักเดียวกับไม่เชื่อ `user_id` จาก body) · worker เช็คเองก่อนเรียก Anthropic · **จงใจไม่วางบน `profiles`** เพราะ RLS ของ `profiles` เปิดให้เพื่อนที่ accepted เห็นแถวเรา → consent (แม้บูลีนเดียว) จะรั่วให้เพื่อน · `ai_settings` เป็น single-owner ปิดช่องนั้น
+- **"ไม่มีแถว" = ไม่ยินยอม** (`.maybeSingle()` คืน null ไม่ใช่ error → 403) — ไม่ backfill ไม่แตะ seed · ให้ "ไม่มีแถว" มีความหมาย "ยังไม่เคยเลือก" ฟรี ทำให้ migration additive ล้วน + เลี่ยงห่วงโซ่ reproduce seed ที่เปราะที่สุด (`0015→…→0026`) · `useConsent` แยก 3 สถานะ `never_chosen`/`off`/`on` เพื่อให้ UI โชว์คำอธิบายครั้งแรกได้
+- **ไม่มี DELETE policy บน `ai_settings` โดยตั้งใจ** — ลบแถว = ย้อนไปสถานะ "ยังไม่เคยเลือก" ซึ่งขัดเจตนา · เปลี่ยนใจใช้ `update consent=false` ไม่ใช่ลบแถว (คอมเมนต์ล็อก "นี่ตั้งใจ ไม่ใช่ลืม" แนวเดียวกับ token scrim)
+- **tool อ่านอย่างเดียว · ไม่มีพารามิเตอร์ระบุตัวตน · โมเดลส่ง offset ไม่ใช่วันที่** — 6 tool (`wallet_balances`/`month_spending`/`home_summary`/`stock_sales`/`stock_intake`/`stale_stock`) ไม่มีตัวไหนเขียน/ลบ และไม่มีตัวไหนให้โมเดลระบุว่าอ่านข้อมูลของใคร (RPC เป็น 0-arg หรือ arg-ไม่มี-ตัวตน + INVOKER → RLS scope ให้ผู้เรียก) · โมเดลส่ง `offset` int (0=เดือนนี้ -1=เดือนที่แล้ว) worker แปลงเป็น `YYYY-MM` ด้วย `dates.ts` — "โมเดลเลือกเจตนา โค้ดคำนวณช่วง"
+- **worker ไม่ re-implement เงิน/วันเอง** — เรียก RPC (`transactions_search`/`stock_sales_summary`/`stock_intake_list`/`wallet_balances`) หรือ pure function ของ `lib/` (`computeHomeSummary`/`computeSunkCost`/`isStale`) แล้วส่งตัวเลขผ่านตรง ๆ ห้าม recompute (กับดัก predicate งบ §4-14) · `resolveCategory` (`categories.ts`) แปลชื่อหมวดไทย→id ใต้ RLS · **กำกวม→ถามกลับ ไม่เดา** (คำตอบที่ถูกตัวเลขแต่ผิดหมวด = คำตอบผิดที่ผู้ใช้จับไม่ได้) · ตัดหมวด system ออกจากการ match ชื่อไทย (§7)
+- **v1 ตัดยอดค้าง/เพื่อนออกจากมือ AI ทั้งหมด** — ไม่มี tool แตะ `debts`/`friend_connections`/`profiles` · `SYSTEM_PROMPT` สั่งห้ามพูดถึงยอดค้าง เพื่อน หรือคำ หนี้/เจ้าหนี้/ลูกหนี้/ทวง/เรียกเก็บ · หน้าแชท empty-state บอกผู้ใช้ตรง ๆ ว่า "ยังไม่ตอบเรื่องยอดค้าง" · **ทำไม:** ลด blast radius · ข้อมูล cross-user รั่วไม่ได้ · เลี่ยงคำต้องห้ามบนจอ · ปิดช่อง injection ข้ามคน
+- **เพดานค่าใช้จ่าย 5 ตัว อยู่ที่เดียวใน `src/worker/anthropic.ts`** (model · max output tokens · loop cap ต่อ request · per-call timeout · deadline รวมทั้ง request) — **ค่าตัวเลขอยู่ในไฟล์นั้น เอกสารนี้ไม่คัดลอกมา** (หลักเดียวกับ hex สี — ชี้ไปที่แหล่งความจริง ไม่กลายเป็นแหล่งที่สอง) · ถ้าขาดตัวใดตัวหนึ่ง endpoint กลายเป็นบ่อเงินไม่มีเพดาน · เมื่อชน loop cap → **หยุด ไม่เรียกต่อ** คืน fallback · **model id ต้องให้เจ้าของยืนยันก่อนเปิด ไม่ใช่ค่า default เงียบ** (คอมเมนต์ล็อกในไฟล์)
+- **rate limit ผูก uid ที่ verify แล้ว ไม่ใช่ IP** (`rateLimit.ts` · KV 2 หน้าต่าง นาที/วัน) · **KV ไม่ atomic (read-modify-write ไม่มี compare-and-set) → เพดานคลาดเกินได้ตามจำนวน request ที่วิ่งพร้อมกัน · ยอมรับโดยตั้งใจ** (ผู้ใช้ไม่กี่คน เป้าหมายคือกันเงินบานปลาย ไม่ใช่มิเตอร์เป๊ะ) · คอมเมนต์เขียนเอง "Do NOT describe these caps as precise anywhere" · นับ**ก่อน**เรียก Anthropic (upstream ล้มก็กินโควตา = อนุรักษ์นิยมเพื่อ budget เจ้าของ) · KV binding ขาด → 503 (fail closed ไม่ปล่อยทะลุ)
+- **แชทตอบเลขจริงแม้เปิด `hideBalance`** — เพราะเป็นการถามเจาะจง (ตัดสินใจ) ไม่ใช่กวาดตา (§11.4-11) · `AiPage` ไม่รับ prop ใด ๆ เลย → `hideBalance` ส่งเข้าไม่ได้เชิงโครงสร้าง · **คำตัดสินนี้ยกไปใช้กับ PR-6 (ประวัติถาวร) ไม่ได้** — ประวัติถาวร = กวาดตา ต้องเคาะ mask ใหม่ก่อนทำ (§10)
+- **ประวัติแชท ephemeral (in-memory)** — `AiPage` เก็บใน `useState` เคลียร์เมื่อ reload · ไม่เขียน localStorage/DB · token อ่านสดจาก session ทุกครั้งที่ส่ง ไม่ cache · กันกดซ้ำระหว่าง request วิ่ง (ปุ่ม disabled + guard `pending`) · error ถึงผู้ใช้ผ่าน `translateError` (map ตาม HTTP status ไม่ parse ข้อความ) — คำถามคาไว้ใน transcript ให้เห็นว่าอะไรล้ม
+- **ทางเข้า:** สวิตช์ "ใช้ผู้ช่วย AI" ในหน้าตั้งค่า (`SettingsPage` · `ConsentExplainer` แสดงคำอธิบายเต็มก่อนกดครั้งแรก · toggle await write+refetch ไม่ optimistic เพราะคุมว่าข้อมูลไหลออกไหม) · ปุ่ม "ถาม AI" ใน `AppLayout` (แสดงเฉพาะ consent='on') → `/ai` · `AiPage` redirect ผู้ที่ consent ไม่ใช่ 'on' กลับ `/settings` (fail closed ไม่โชว์แชทที่จะ 403)
+
+**ความเสี่ยงที่เหลือ — เขียนตรง ๆ (ไม่ทำให้ดูปลอดภัยเกินจริง):**
+- **ข้อมูลเงินไหลออกไป Anthropic จริงเมื่อผู้ใช้ยินยอม** — คำถาม + ตัวเลขที่เกี่ยวข้อง (ยอดรวม/รายการ) ถูกส่งไปประมวลผลต่างประเทศ
+- **ส่งไปแล้วเรียกคืนไม่ได้** — `ConsentExplainer` บอกข้อนี้ตรง ๆ ("สิ่งที่ส่งออกไปแล้วก่อนหน้านี้ เรียกคืนไม่ได้") ห้ามตัดออกเพราะดูน่ากลัว
+- **โมเดลยังตอบผิดได้** — system prompt สั่งพูดเฉพาะตัวเลขจาก tool + บอกที่มา แต่ไม่การันตี
+- **token ขยะยังกิน quota Supabase Auth ได้** — request ที่ token เพี้ยนยังเรียก `auth.getUser` (นับก่อนถึง rate limit ของเรา)
 
 ---
 
 ## 12. คำสั่งตรวจตัวเลขในไฟล์นี้ (ให้เจ้าของรันซ้ำได้)
 
-ทุกตัวเลข/รายชื่อในเอกสารนี้มาจากคำสั่งเหล่านี้ รันบน main `bc993f9` รอบนี้:
+ทุกตัวเลข/รายชื่อในเอกสารนี้มาจากคำสั่งเหล่านี้ รันบน main `de0c6e4` รอบนี้:
 
 | อ้างที่ | คำสั่ง | ผล (รอบนี้) | ฉบับก่อนบอก |
 |---|---|---|---|
-| main sha (หัวไฟล์) | `git rev-parse --short HEAD` | `bc993f9` | `ddada9e` |
-| migration ล่าสุด (§10) | `ls supabase/migrations/*.sql \| wc -l` | **28** (`0028_wallet_opening_balance_transfers.sql`) | 27 |
-| ชั้น DB ขยับอะไร | `git diff --stat 5242f0a..bc993f9 -- supabase/migrations src/lib/database.types.ts` | **เฉพาะ `0028` + `database.types.ts` (+88)** | (รอบก่อน ว่าง) |
-| 15 ตาราง (§3) | นับ block `public.Tables` ใน `database.types.ts` | **15** (+`wallet_transfers`) | 14 |
-| 28 RPC (§6) | extract block `public.Functions` แล้วนับ key `^      \w+: \{` | **28** (+`wallet_balances`/`wallet_transfer_create`) | 26 |
-| 8 enum | นับ block `public.Enums` | **8** (`category_kind`/`debt_status`/`debt_visibility`/`friend_status`/`item_condition`/`stock_status`/`transaction_type`/`wallet_type`) | 8 |
-| ไฟล์เทสต์ (§10) | `find src \( -name '*.test.ts' -o -name '*.test.tsx' \) \| wc -l` | **62** | 52 |
-| visual guard (§10) | `find src -name '*.visual.test.*'` | **13 ไฟล์** | 8 |
-| เคสเทสต์ (มี Chromium) | `CHROMIUM_EXECUTABLE=… npm test` | **`Tests 495 passed \| 0 skipped (495)`** · 62 files | 433/9/442 |
-| เคสเทสต์ (เครื่องเปล่า) | `npm test` | **`Tests 481 passed \| 14 skipped (495)`** (14 skip = visual guard) | 433/9/442 (มี chromium ไม่ได้ตอนนั้น) |
-| 13 หน้า / 14 route (§10) | `find src/pages -name '*Page.tsx' \| wc -l` · อ่าน `router.tsx` | **13 หน้า + catch-all = 14 route** (กระเป๋าไม่ใช่หน้าใหม่) | 13 / 14 |
-| bottom nav slots (§10) | อ่าน `AppLayout.tsx` (LEFT+RIGHT+FAB) | **5 ช่อง** (4 แท็บ + FAB) | 5 |
+| main sha (หัวไฟล์) | `git rev-parse --short HEAD` | `de0c6e4` | `bc993f9` |
+| migration ล่าสุด (§10) | `ls supabase/migrations/*.sql \| wc -l` | **30** (`0030_stock_intake_list.sql`) | 28 |
+| 16 ตาราง (§3) | นับ block `public.Tables` ใน `database.types.ts` | **16** (+`ai_settings`) | 15 |
+| 29 RPC (§6) | นับ key ใน block `public.Functions` | **29** (+`stock_intake_list`) | 28 |
+| 8 enum | นับ block `public.Enums` | **8** (`category_kind`/`debt_status`/`debt_visibility`/`friend_status`/`item_condition`/`stock_status`/`transaction_type`/`wallet_type` — **ไม่มี enum ใหม่ของ AI**) | 8 |
+| ไฟล์เทสต์ (§10) | `find src \( -name '*.test.ts' -o -name '*.test.tsx' \) \| wc -l` | **68** | 62 |
+| visual guard (§10) | `find src -name '*.visual.test.*' \| wc -l` | **13 ไฟล์** | 13 |
+| เคสเทสต์ (มี Chromium) | `CHROMIUM_EXECUTABLE=… npm test` | **`Tests 565 passed (565)`** · 68 files | 495/0/495 |
+| เคสเทสต์ (เครื่องเปล่า) | `npm test` | **`Tests 550 passed \| 15 skipped (565)`** (15 skip = visual guard) | 481/14/495 |
+| 14 หน้า / 15 route (§10) | `find src/pages -name '*Page.tsx' \| wc -l` · อ่าน `router.tsx` | **14 หน้า + catch-all = 15 route** (+`AiPage`/`/ai`) | 13 / 14 |
+| bottom nav slots (§10) | อ่าน `AppLayout.tsx` (LEFT+RIGHT+FAB) | **5 ช่อง** (ปุ่ม "ถาม AI" เป็น pill ลอย ไม่ใช่ช่อง) | 5 |
 | offlineQueue dead (§10) | `grep -rn offlineQueue src \| grep -v lib/offlineQueue.ts` | ว่าง | ว่าง |
-| friend_code อ่านใน src? (§10) | `grep -rn friend_code src` | เฉพาะ `database.types.ts` + คอมเมนต์ `ProfileManager` (ไม่มี code path อ่าน) | ว่าง (โค้ด) |
-| useMonthBudgetTotal กรอง? (§10 · ใบ 13) | อ่าน `useBudgets.ts` | **ใช้ `budgetableRows`/`isBudgetableCategory` แล้ว** (เดิมรวมแถวดิบ) | (เดิม: สองที่) |
-| `bg-ink` ยังอยู่ไหน (§9 · ใบ 9) | `grep -rn 'bg-ink' src` | เฉพาะจุด in-use dot `CategoriesManager.tsx` (ไม่มีตัวอักษร ตั้งใจ) | (เดิม: StockFields/StockPage ด้วย) |
-| คำ "หนี้" ใน src (§8-19) | `grep -rln 'หนี้' src` | `lib/budgetable.ts` + test (คอมเมนต์/ชื่อเทสต์) | เท่าเดิม |
-| คำ "หนี้" ใน migrations RAISE (§10) | `grep -rn 'raise exception' supabase/migrations \| grep 'หนี้\|เจ้าหนี้\|ลูกหนี้'` | **16 จุด** (`0015`×12 · `0018`×1 · `0019`×3) | (เดิมนับรวมคอมเมนต์) |
-| build/test เขียว | `npm run build` · `npm test` | เขียวทั้งคู่รอบนี้ (build ✓ · 495/0 มี Chromium) | — |
+| หนี้ ใน src (§8-19) | `grep -rln 'หนี้' src` | `worker/anthropic.ts` (SYSTEM_PROMPT สั่งห้าม) + `lib/budgetable.ts` (+`.test`) | budgetable.ts + test |
+| หนี้ ใน migrations RAISE (§10) | `grep -rn 'raise exception' migrations \| grep 'หนี้\|เจ้าหนี้\|ลูกหนี้' \| wc -l` | **16 จุด** (`0015`×12 · `0018`×1 · `0019`×3) | 16 |
+| friend_code อ่านใน src? (§10) | `grep -rn friend_code src` | คอมเมนต์ `ProfileManager` ("gone") + `database.types.ts` เท่านั้น | เท่าเดิม |
+| worker ใช้ `@/` ไหม (§8-24) | `grep -rn '@/' src/worker` | ว่าง — ทุก import เป็น `../lib/…` | (รอบก่อนไม่ได้ตรวจ) |
+| worker deploy bundle ได้ (§9) | `npx wrangler deploy --dry-run` | **ผ่าน** — bundle worker + 19 asset + binding `AI_RATE_LIMIT`/`ASSETS` | (รอบก่อนไม่ได้ตรวจ) |
+| build/test เขียว | `npm run build` · `npm test` | เขียวทั้งคู่ (build ✓ PWA precache 22 · 565/0 มี Chromium) | — |
 
 > **ยังไม่ได้ตรวจในรอบนี้ (บันทึกตรง ๆ):**
-> - **schema จริงบน DB** — AI ต่อ DB ไม่ได้ · แหล่งความจริงคือ `database.types.ts` (รอบนี้ยืนยันว่าขยับเฉพาะ `0028` ด้วย git diff) ไม่ใช่ query สด
-> - **`transactions_search` smoke test** ถูกรันจริงหรือยัง (มีในหัวไฟล์ `0022` · ยังไม่มีหลักฐาน) · **ต่างจาก `0028` ที่ smoke test เต็มอยู่ในหัวไฟล์พร้อมรัน**
+> - **schema จริงบน DB** — AI ต่อ DB ไม่ได้ · แหล่งความจริงคือ `database.types.ts` ไม่ใช่ query สด · **smoke test ของ `0029`/`0030` (ในหัวไฟล์) ต้องเจ้าของรันเองใน SQL Editor — ยังไม่มีหลักฐานว่ารันแล้ว** (เช่นเดียวกับ `transactions_search`/`0022`)
 > - **production URL ที่แน่นอน** — ไม่ pin ในไฟล์ repo
-> - **`.github/workflows/`, `vite.config.ts`, `src/worker/`** — ไม่อยู่ในชุดไฟล์ที่เปลี่ยน (`git diff --name-only 5242f0a..bc993f9`) จึงเชื่อว่าไม่ขยับ แต่ไม่ได้อ่านซ้ำทุกบรรทัดรอบนี้
-> - **เนื้อ implementation ของทุก component ไม่ได้อ่านครบทุกบรรทัด** — อ่านตรงไฟล์ที่เปลี่ยน (client + `0028`) + จุดที่คิดเงิน/ตัดสินใจ
-> - **คอมเมนต์ค้างที่พบ (จดไว้ ไม่แก้ — นอกขอบเขตใบนี้):** หัว `router.tsx` เขียน "10 screens" (จริง 13) · คอมเมนต์ workbox ใน `vite.config.ts` + `README.md` ยังพูดถึง offline queue ราวกับใช้อยู่ · คอมเมนต์ใน `lib/budgetable.ts` อ้างชื่อหมวด "จ่ายชำระหนี้" (ชื่อ seed ปัจจุบันคือ "จ่ายคืนเพื่อน" ตั้งแต่ `0017`)
+> - **`vite.config.ts`, `src/worker/security.ts`, `json.ts`** — ไม่ได้อ่านทุกบรรทัดรอบนี้ (`security.ts`/`json.ts` mtime เก่ากว่าไฟล์ AI = ไม่เปลี่ยนรอบนี้)
+> - **การเชื่อมต่อ Anthropic จริง + KV จริง** — พิสูจน์ได้แค่ผ่านเทสต์ (`ai.test.ts`/`tools.test.ts` ใช้ stub) ไม่ได้ยิงของจริงรอบนี้
+> - **§7 นับหมวด seed 18 · §11.4 ข้อ 15–43 · §11.6 · §11.8** — ยืนยันโครง/ชื่อไฟล์จากการอ่านรอบนี้ แต่ไม่ได้อ่านทุกบรรทัดของทุก component (ไฟล์เหล่านี้ไม่อยู่ในชุดที่เปลี่ยนรอบ AI); จุดที่ AI มาแตะ (RPC/lib ที่ tool เรียก) ตรวจจากไฟล์จริงแล้ว
+> - **คอมเมนต์/เอกสารค้างที่พบ (จดไว้ ไม่แก้ — นอกขอบเขตใบนี้):** หัว `router.tsx` เขียน "10 screens" (จริง 14 หน้า) · `README.md` ยังบอก AI/`worker/ai.ts` เป็น stub · migration 28 · 13 หน้า · และพูดถึง `offlineQueue` ราวกับใช้อยู่ · คอมเมนต์ workbox ใน `vite.config.ts` เรื่อง offline queue · คอมเมนต์ `lib/budgetable.ts` อ้างชื่อหมวด "จ่ายชำระหนี้" (ปัจจุบัน "จ่ายคืนเพื่อน" ตั้งแต่ `0017`)
