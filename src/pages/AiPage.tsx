@@ -4,7 +4,7 @@ import { IconArrowLeft, IconSend, IconSparkles } from '@tabler/icons-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useConsent } from '@/hooks/useAiSettings'
 import { useToast } from '@/components/Toast'
-import { askAssistant } from '@/lib/aiChat'
+import { askAssistant, type ChatTurn } from '@/lib/aiChat'
 import { translateError } from '@/lib/errors'
 
 /**
@@ -98,12 +98,27 @@ export function AiPage() {
     // with its own Thai line instead of us inventing one.
     const token = session?.access_token ?? ''
 
+    // Snapshot the transcript AS OF this send — the render-closure `messages`,
+    // i.e. everything BEFORE this question is optimistically appended below. Read
+    // from the closure (NOT a setter callback) so it's the pre-append history. A
+    // failed earlier question can leave a trailing `user` here, which the Worker's
+    // sanitizeHistory is built to handle. Still ephemeral: nothing is persisted.
+    //
+    // DELIBERATELY map field-by-field into `ChatTurn`, do NOT pass `messages`
+    // through. The Worker (worker/history.ts) is an ALLOWLIST that accepts ONLY
+    // `{ role, text }` and 400s on any extra key. So a field added to
+    // `ChatMessage` later (e.g. the deep-link data AI-J will attach to assistant
+    // turns) must NOT leak onto the wire automatically. The `: ChatTurn[]`
+    // annotation is the real guard: TypeScript's excess-property check fails the
+    // build the moment an extra field is spread into this literal.
+    const history: ChatTurn[] = messages.map(({ role, text }) => ({ role, text }))
+
     setMessages((m) => [...m, { role: 'user', text: question }])
     setInput('')
     setError(null)
     setPending(true)
     try {
-      const reply = await askAssistant(question, token)
+      const reply = await askAssistant(question, token, history)
       setMessages((m) => [...m, { role: 'assistant', text: reply }])
     } catch (e) {
       // Error must reach the user (convention 15) — mapped by errors.ts, keyed on

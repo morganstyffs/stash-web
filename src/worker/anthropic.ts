@@ -19,6 +19,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
+import type { HistoryTurn } from './history'
 import { AI_TOOLS, runTool, type ToolContext } from './tools'
 
 /**
@@ -62,6 +63,16 @@ const AI_MIN_CALL_BUDGET_MS = 2_000
  * aggregate) and the prompt makes the model tell the user it's partial.
  */
 export const AI_ROW_CAP = 50
+
+/**
+ * History cost ceilings. The Messages API is stateless, so the ENTIRE
+ * conversation history is re-sent on every turn → input cost grows with chat
+ * length. These are COST ceilings, not just a UX nicety — tune spend here, in
+ * one place. Enforced by sanitizeHistory (worker/history.ts), which drops the
+ * oldest turns first when either is exceeded.
+ */
+export const AI_MAX_HISTORY_TURNS = 12 // = 6 question/answer pairs
+export const AI_MAX_HISTORY_CHARS = 8000 // summed across every turn
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const ANTHROPIC_VERSION = '2023-06-01'
@@ -137,11 +148,19 @@ export async function runAssistant(opts: {
   question: string
   apiKey: string
   supabase: SupabaseClient<Database>
+  /** Prior conversation turns, ALREADY parsed + sanitised by ai.ts. Ownership is
+   *  deliberate: every validation / security gate already lives in ai.ts, so it
+   *  owns parseHistory + sanitizeHistory and we receive clean data here. We do
+   *  NOT sanitise again — the logic must live in exactly one place (convention
+   *  11). Default `[]` keeps single-question callers (and every existing test)
+   *  behaving exactly as before. */
+  history?: HistoryTurn[]
   /** Injectable clock (ms). Defaults to Date.now; tests pass a fake so the
    *  shared-deadline path is deterministic. */
   now?: () => number
 }): Promise<string> {
   const { question, apiKey, supabase } = opts
+  const history = opts.history ?? []
   const now = opts.now ?? Date.now
   // Capture the shared deadline ONCE, up front — every call this request makes
   // must finish before it (see AI_REQUEST_DEADLINE_MS above for why per-call
@@ -150,7 +169,12 @@ export async function runAssistant(opts: {
   // "today" for month/offset/age logic, captured once (a request doesn't span a
   // day boundary). Bangkok reckoning happens inside dates.ts.
   const ctx: ToolContext = { supabase, nowDate: new Date(now()), rowCap: AI_ROW_CAP }
-  const messages: Turn[] = [{ role: 'user', content: question }]
+  // Prior turns (already clean) first, then the new question. The tool-use loop
+  // below keeps pushing onto this same array, so it just continues from here.
+  const messages: Turn[] = [
+    ...history.map((h) => ({ role: h.role, content: h.text })),
+    { role: 'user', content: question },
+  ]
 
   for (let call = 0; call < AI_MAX_MODEL_CALLS; call++) {
     const res = await callAnthropic(apiKey, messages, deadlineAt, now)

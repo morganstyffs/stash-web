@@ -131,7 +131,7 @@ describe('errors reach the user', () => {
     expect(screen.getByText('q')).toBeTruthy()
   })
 
-  it('a successful send renders the assistant reply', async () => {
+  it('a successful send renders the assistant reply (first send carries empty history)', async () => {
     h.askAssistant.mockResolvedValue('เดือนนี้จ่าย ฿1,200 (จากสรุปเดือน)')
     renderAt()
 
@@ -139,7 +139,62 @@ describe('errors reach the user', () => {
     fireEvent.click(screen.getByLabelText('ส่งคำถาม'))
 
     expect(await screen.findByText('เดือนนี้จ่าย ฿1,200 (จากสรุปเดือน)')).toBeTruthy()
-    expect(h.askAssistant).toHaveBeenCalledWith('จ่ายเท่าไหร่', 'live-token')
+    // The transcript is empty on the first send, so history is [].
+    expect(h.askAssistant).toHaveBeenCalledWith('จ่ายเท่าไหร่', 'live-token', [])
+  })
+
+  it('a follow-up send passes the prior transcript (multi-turn) as of send time', async () => {
+    h.askAssistant.mockResolvedValueOnce('เดือนที่แล้วจ่าย ฿2,000')
+    h.askAssistant.mockResolvedValueOnce('เดือนก่อนหน้าจ่าย ฿1,500')
+    renderAt()
+
+    const box = screen.getByLabelText('พิมพ์คำถาม')
+    const btn = screen.getByLabelText('ส่งคำถาม')
+
+    fireEvent.change(box, { target: { value: 'เดือนที่แล้วจ่ายเท่าไหร่' } })
+    fireEvent.click(btn)
+    expect(await screen.findByText('เดือนที่แล้วจ่าย ฿2,000')).toBeTruthy()
+
+    fireEvent.change(box, { target: { value: 'แล้วเดือนก่อนหน้าล่ะ' } })
+    fireEvent.click(btn)
+    expect(await screen.findByText('เดือนก่อนหน้าจ่าย ฿1,500')).toBeTruthy()
+
+    // The 2nd call carries the transcript AS OF that send: the prior Q + its reply,
+    // not yet the new question (which is appended after the snapshot is taken).
+    expect(h.askAssistant).toHaveBeenNthCalledWith(2, 'แล้วเดือนก่อนหน้าล่ะ', 'live-token', [
+      { role: 'user', text: 'เดือนที่แล้วจ่ายเท่าไหร่' },
+      { role: 'assistant', text: 'เดือนที่แล้วจ่าย ฿2,000' },
+    ])
+  })
+
+  it('each history turn sent carries ONLY role + text (never extra fields)', async () => {
+    // ⚠️ DOCUMENTATION, NOT A SAFETY NET. While `ChatMessage` has exactly the two
+    // fields {role, text}, this assertion stays green whether AiPage maps
+    // field-by-field OR passes `messages` through — so it CANNOT catch a future
+    // regression on its own. The real guard is the `: ChatTurn[]` annotation in
+    // AiPage.send() (compile-time excess-property check). This test just records
+    // the wire contract: the Worker's parseHistory is an allowlist and rejects any
+    // turn with extra keys. (No `as any` to forge a fake field — convention 12.)
+    h.askAssistant.mockResolvedValueOnce('เดือนที่แล้วจ่าย ฿2,000')
+    h.askAssistant.mockResolvedValueOnce('ตอบสอง')
+    renderAt()
+
+    const box = screen.getByLabelText('พิมพ์คำถาม')
+    const btn = screen.getByLabelText('ส่งคำถาม')
+
+    fireEvent.change(box, { target: { value: 'q1' } })
+    fireEvent.click(btn)
+    expect(await screen.findByText('เดือนที่แล้วจ่าย ฿2,000')).toBeTruthy()
+
+    fireEvent.change(box, { target: { value: 'q2' } })
+    fireEvent.click(btn)
+    expect(await screen.findByText('ตอบสอง')).toBeTruthy()
+
+    const history = h.askAssistant.mock.calls[1][2] as Array<Record<string, unknown>>
+    expect(history.length).toBeGreaterThan(0)
+    for (const turn of history) {
+      expect(Object.keys(turn).sort()).toEqual(['role', 'text'])
+    }
   })
 })
 

@@ -25,6 +25,24 @@
  * caller turns into a visible Thai message.
  */
 
+/**
+ * One prior conversation turn, sent back with the next question so the assistant
+ * has context (multi-turn). Structurally identical to the Worker's `HistoryTurn`
+ * — the type is declared HERE (client tsconfig) and imported by the Worker via a
+ * relative path (`worker/history.ts` → `../lib/aiChat`), never the other way, so
+ * the Worker bundle never pulls in client-only code (convention 24). This file
+ * imports nothing, which is what makes that safe.
+ *
+ * ONLY `{ role, text }` with a plain-string `text` — never a `tool_use` /
+ * `tool_result` / content-block shape. The Worker enforces that allowlist on the
+ * wire (see worker/history.ts for why it is load-bearing); this type just keeps
+ * the client honest about what it sends.
+ */
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  text: string
+}
+
 /** An HTTP-level failure from `/api/ai`, tagged with the real status so the mapping
  *  in errors.ts is status-driven. `message` is the Worker's Thai `error` string
  *  when present (passed through by translateError), or '' for a non-JSON edge body
@@ -38,10 +56,15 @@ export class AiHttpError extends Error {
   }
 }
 
-/** Ask the assistant one question. Resolves to the Thai reply text, or rejects with
- *  an `AiHttpError` (HTTP failure) / the raw fetch rejection (offline) — both of
- *  which `translateError` turns into a Thai message for the user. */
-export async function askAssistant(question: string, accessToken: string): Promise<string> {
+/** Ask the assistant one question, optionally with the prior conversation so it has
+ *  context (multi-turn). Resolves to the Thai reply text, or rejects with an
+ *  `AiHttpError` (HTTP failure) / the raw fetch rejection (offline) — both of which
+ *  `translateError` turns into a Thai message for the user. */
+export async function askAssistant(
+  question: string,
+  accessToken: string,
+  history: ChatTurn[] = [],
+): Promise<string> {
   // A network error (offline / DNS / TLS) rejects here with a fetch TypeError that
   // carries no status; let it propagate untouched so translateError.isConnectFailure
   // recognises it. Everything after this line is an HTTP response we DID receive.
@@ -53,7 +76,11 @@ export async function askAssistant(question: string, accessToken: string): Promi
       // reads it from useAuth at send time.
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ message: question }),
+    // Identity is still taken ONLY from the token; the body carries the question
+    // and, when there is one, the prior transcript — nothing that names a user.
+    // Send `history` only when non-empty so an old client / fresh chat stays
+    // byte-for-byte the old `{ message }` shape.
+    body: JSON.stringify(history.length ? { message: question, history } : { message: question }),
   })
 
   if (!res.ok) {
