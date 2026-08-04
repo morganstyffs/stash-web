@@ -35,6 +35,11 @@ export type Profile = Tables<'profiles'>
 export type FriendConnection = Tables<'friend_connections'>
 export type Debt = Tables<'debts'>
 export type DebtEvent = Tables<'debt_events'>
+/** One consent row — whether the user agreed to send data to the AI provider
+ *  (0029). single-owner (RLS `auth.uid()=user_id`); "no row" means never chosen,
+ *  which behaves like consent=false everywhere. The server is the source of
+ *  truth — a client flag is never trusted (design §3.5). */
+export type AiSettings = Tables<'ai_settings'>
 
 // ── RPC arg / result shapes ────────────────────────────────────────────────
 type Fns = Database['public']['Functions']
