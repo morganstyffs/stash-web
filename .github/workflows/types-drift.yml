@@ -76,7 +76,7 @@ jobs:
         # The CLI version doesn't change the output here (the types are generated
         # server-side by the Management API), so tracking the action's latest CLI
         # is safe and keeps the command interface current.
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v3
 
       - name: Regenerate database.types.ts from the live database
         env:
