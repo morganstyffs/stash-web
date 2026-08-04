@@ -19,6 +19,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { AI_MAX_QUESTION_CHARS } from '../lib/aiLimits'
 import type { Database } from '../lib/database.types'
 import { AI_MAX_HISTORY_CHARS, AI_MAX_HISTORY_TURNS, AnthropicError, runAssistant } from './anthropic'
 import { parseHistory, sanitizeHistory, type HistoryTurn } from './history'
@@ -39,13 +40,9 @@ const LONG_QUESTION = 'คำถามยาวเกินไป กรุณ�
 const BAD_HISTORY = 'ข้อมูลการสนทนาไม่ถูกต้อง เริ่มแชทใหม่อีกครั้ง'
 const ASSISTANT_UNAVAILABLE = 'ผู้ช่วยไม่พร้อมใช้งานชั่วคราว ลองใหม่อีกครั้ง'
 
-/**
- * Max characters allowed in one question. Same family as the history caps in
- * anthropic.ts (AI_MAX_HISTORY_*): a cost ceiling. Capping the re-sent history
- * without capping the question would just move the input-cost hole, not close
- * it — an oversized single question is just as unbounded.
- */
-export const AI_MAX_QUESTION_CHARS = 2000
+// AI_MAX_QUESTION_CHARS (the per-question cost ceiling — same family as the history
+// caps in anthropic.ts) is defined in ../lib/aiLimits and imported above, so this
+// enforcing side and the client that truncates a deep-linked ?q= share ONE number.
 
 /** Reads a bearer token from the Authorization header. Null when absent or
  *  malformed (→ treated as "no session" → 401). */
