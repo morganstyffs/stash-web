@@ -72,6 +72,16 @@ export const AI_TOOLS = [
     },
   },
   {
+    name: 'stock_intake',
+    description: 'รายการที่ซื้อเข้าสต็อกในเดือน: ชื่อสินค้า/จำนวนที่รับเข้า/ราคาต่อหน่วย (สูงสุด 50)',
+    input_schema: {
+      type: 'object',
+      properties: { offset: OFFSET_PROP },
+      required: ['offset'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'stale_stock',
     description: 'ของค้างในสต็อก: ค้างนานสุดกี่วัน จำนวนที่ค้างนาน และทุนจม ไม่รับพารามิเตอร์',
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
@@ -145,6 +155,8 @@ export async function runTool(
       return homeSummary(input, ctx)
     case 'stock_sales':
       return stockSales(input, ctx)
+    case 'stock_intake':
+      return stockIntake(input, ctx)
     case 'stale_stock':
       return staleStock(ctx)
     default:
@@ -274,6 +286,34 @@ async function stockSales(input: unknown, ctx: ToolContext): Promise<ToolOutcome
     profit: s ? s.profit : 0, // ถัง1 − ถัง2 from the RPC — never spread per item
     qty_sold: s ? s.qty_sold : 0,
     sale_count: s ? s.sale_count : 0,
+  })
+}
+
+async function stockIntake(input: unknown, ctx: ToolContext): Promise<ToolOutcome> {
+  const offset = readOffset(input)
+  const month = addMonthsToKey(monthKey(ctx.nowDate), offset)
+  const b = monthBoundsFromKey(month) // start inclusive, next exclusive — [from, to)
+  const { data, error } = await ctx.supabase.rpc('stock_intake_list', {
+    p_from: b.start,
+    p_to: b.next,
+    p_limit: ctx.rowCap, // itemised list is capped…
+  })
+  if (error) return fail('ดึงรายการรับเข้าสต็อกไม่สำเร็จ')
+
+  const rows = data ?? []
+  // total_count = count(*) over () — the true set size computed BEFORE limit, so
+  // `count`/`capped` stay correct even when the itemised list is truncated (§4.1).
+  const totalCount = rows[0] ? rows[0].total_count : 0
+  const items = rows.map((r) => ({
+    name: r.name,
+    qty: r.qty_total,
+    cost_per_unit: r.cost_per_unit, // straight from the RPC — never recompute (§4-14)
+  }))
+  return ok({
+    month,
+    count: totalCount,
+    items,
+    capped: totalCount > items.length,
   })
 }
 

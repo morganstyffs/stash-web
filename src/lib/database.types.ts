@@ -1002,6 +1002,15 @@ export type Database = {
           transaction_id: string
         }[]
       }
+      stock_intake_list: {
+        Args: { p_from: string; p_limit: number; p_to: string }
+        Returns: {
+          cost_per_unit: number
+          name: string
+          qty_total: number
+          total_count: number
+        }[]
+      }
       stock_item_delete: { Args: { p_item_id: string }; Returns: undefined }
       stock_sale_create: {
         Args: {
