@@ -22,6 +22,17 @@ export interface Env {
    * or the Cloudflare dashboard. NEVER exposed to the client.
    */
   ANTHROPIC_API_KEY?: string
+  /**
+   * Supabase project URL + anon (public) key, needed so /api/ai can verify the
+   * caller's JWT (`auth.getUser`) and read their data UNDER RLS with a
+   * per-request client (see worker/ai.ts). Set as plain runtime vars via the
+   * Cloudflare dashboard (or `wrangler secret put`) — the same server-side
+   * binding pattern as ANTHROPIC_API_KEY, so they are NOT hardcoded and NOT in
+   * wrangler.jsonc. The anon key is safe to hold here because every table
+   * enforces RLS (auth.uid() = user_id); service_role is NEVER used.
+   */
+  SUPABASE_URL?: string
+  SUPABASE_ANON_KEY?: string
 }
 
 export default {
