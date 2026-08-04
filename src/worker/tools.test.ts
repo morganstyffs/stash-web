@@ -151,6 +151,37 @@ describe('month_spending — category resolution feeds the answer, ambiguity sto
   })
 })
 
+describe('month_spending — deep link into the matching history view (§ AI-5a)', () => {
+  it('with a resolved category → link carries the month AND the category id AND the filter', async () => {
+    seedCategories()
+    const out = await parse('month_spending', { offset: 0, category: 'ค่าอาหาร' }) // NOW = 2026-01
+    expect(out.link).toBe('/history?m=2026-01&cat=c-food&filter=expense')
+  })
+
+  it('no category → link carries the month only (still useful), with no cat key', async () => {
+    const out = await parse('month_spending', { offset: -1 }) // 2025-12
+    expect(out.link).toBe('/history?m=2025-12&filter=expense')
+  })
+
+  it('carries the requested filter so the list matches the figure the answer quotes', async () => {
+    const out = await parse('month_spending', { offset: 0, filter: 'income' })
+    expect(out.link).toBe('/history?m=2026-01&filter=income')
+  })
+
+  it("period='all' → no single month to filter → link is null", async () => {
+    const out = await parse('month_spending', { period: 'all' })
+    expect(out.link).toBeNull()
+  })
+
+  it('the link is a ROOT-RELATIVE path — never an absolute URL / origin (the worker never emits a host)', async () => {
+    const out = await parse('month_spending', { offset: 0 })
+    expect(typeof out.link).toBe('string')
+    expect(out.link as string).toMatch(/^\/history\?/)
+    expect(out.link as string).not.toMatch(/^https?:/)
+    expect(out.link as string).not.toMatch(/\/\//) // no scheme-relative // either
+  })
+})
+
 describe('month_spending — row cap (design §4.1): total from aggregate, not row-sum', () => {
   it('caps items at rowCap, flags capped, and totals come from match_* (correct even when capped)', async () => {
     // 50 rows returned (= rowCap), but the true count is 120 and the true expense

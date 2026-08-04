@@ -266,6 +266,29 @@ function monthWindow(key: string): { from: string; to: string } {
   return { from: b.start, to: b.next }
 }
 
+/**
+ * A ROOT-RELATIVE deep link into the history screen for this month_spending
+ * result (§ AI-5a — "คำตอบพาไปหน้าจอจริงได้"). The keys mirror exactly what
+ * HistoryPage reads (?m / ?cat / ?filter), and `filter` is carried so the list
+ * lands on the same slice the answer's number came from (an income figure would
+ * be wrong under the page's default 'all' view). Built with URLSearchParams so
+ * the id/month are encoded, same as lib/categoryFilter's donut link.
+ *
+ * Relative path ONLY — no origin, no scheme. The worker doesn't know the host it
+ * runs behind, and an absolute URL would let a bad value point off-app; the
+ * client re-validates the path against a route allowlist before it ever
+ * navigates. A stale category id / month is not our problem to guard here:
+ * HistoryPage validates ?m/?cat/?filter itself and degrades a bad value to
+ * "no filter" rather than erroring.
+ */
+function historyLink(month: string, categoryId: string, filter: TxFilter): string {
+  const params = new URLSearchParams()
+  params.set('m', month) // 'YYYY-MM'; period='all' never reaches here (no single month)
+  if (categoryId) params.set('cat', categoryId) // omit when all categories
+  params.set('filter', filter)
+  return `/history?${params.toString()}`
+}
+
 async function monthSpending(input: unknown, ctx: ToolContext): Promise<ToolOutcome> {
   const period = readPeriod(input)
   const month = addMonthsToKey(monthKey(ctx.nowDate), readOffset(input))
@@ -318,6 +341,11 @@ async function monthSpending(input: unknown, ctx: ToolContext): Promise<ToolOutc
     count: totalCount,
     items,
     capped: totalCount > items.length,
+    // Deep link into the matching history view (§ AI-5a). period='all' has no
+    // single month to filter on, so there's nothing to point at → null. The model
+    // only PASSES THIS THROUGH; it never composes the URL (it can't see the
+    // category uuid and must not invent one — see SYSTEM_PROMPT).
+    link: period === 'all' ? null : historyLink(month, categoryId, filter),
   })
 }
 

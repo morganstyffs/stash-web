@@ -225,6 +225,80 @@ describe('bubble renders **bold** only (no raw markdown on screen)', () => {
   })
 })
 
+describe('answers can deep-link into a real screen (§ AI-5a)', () => {
+  // A route table that also has /history, so a click can actually land somewhere.
+  function renderWithHistory() {
+    return render(
+      <MemoryRouter initialEntries={['/ai']}>
+        <Routes>
+          <Route path="/ai" element={<AiPage />} />
+          <Route path="/settings" element={<div>หน้าตั้งค่า</div>} />
+          <Route path="/history" element={<div>หน้าประวัติ</div>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+  async function send(reply: string) {
+    h.askAssistant.mockResolvedValueOnce(reply)
+    renderWithHistory()
+    fireEvent.change(screen.getByLabelText('พิมพ์คำถาม'), { target: { value: 'q' } })
+    fireEvent.click(screen.getByLabelText('ส่งคำถาม'))
+  }
+  // The marker the Worker SYSTEM_PROMPT tells the model to append.
+  const OK_MARKER = '{{link:/history?m=2026-07&cat=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa&filter=expense}}'
+
+  it('a valid marker becomes a human-labelled button; the raw marker is never shown', async () => {
+    await send(`เดือนกรกฎาคม 2569 จ่ายค่าอาหาร ฿4,000 ครับ\n${OK_MARKER}`)
+    // the spoken answer stays…
+    expect(await screen.findByText('เดือนกรกฎาคม 2569 จ่ายค่าอาหาร ฿4,000 ครับ')).toBeTruthy()
+    // …as a button with human text, not a URL…
+    expect(screen.getByRole('button', { name: 'ดูรายการทั้งหมด' })).toBeTruthy()
+    // …and the raw {{link:…}} line never reaches the screen. `content` is the
+    // element's own direct text (not its subtree), so this matches at most the
+    // one bubble that would hold the marker — never its ancestors.
+    expect(screen.queryByText((content) => content.includes('{{link:'))).toBeNull()
+  })
+
+  it('clicking the button navigates in-app (react-router), no <a href> that leaves the app', async () => {
+    await send(`จ่าย ฿4,000 ครับ\n{{link:/history?m=2026-07&filter=expense}}`)
+    fireEvent.click(await screen.findByRole('button', { name: 'ดูรายการทั้งหมด' }))
+    expect(await screen.findByText('หน้าประวัติ')).toBeTruthy()
+  })
+
+  it('a malformed marker is left as raw text (visible signal), never dropped, and makes no button', async () => {
+    await send('จ่าย ฿4,000 ครับ\n{{link:}}')
+    // the broken marker survives on screen…
+    const bubble = await screen.findByText((content) => content.includes('{{link:}}'))
+    expect(bubble).toBeTruthy()
+    // …and no button was produced.
+    expect(screen.queryByRole('button', { name: 'ดูรายการทั้งหมด' })).toBeNull()
+  })
+
+  it('a path OUTSIDE the route allowlist is refused — no button (security: path is model text)', async () => {
+    await send('ไปที่ตั้งค่า\n{{link:/settings?x=1}}')
+    expect(screen.queryByRole('button', { name: 'ดูรายการทั้งหมด' })).toBeNull()
+    // it certainly never navigated there
+    expect(screen.queryByText('หน้าตั้งค่า')).toBeNull()
+  })
+
+  it('a protocol-relative path (off-site) is refused — never navigated', async () => {
+    await send('ดูเพิ่ม\n{{link://evil.example.com/history}}')
+    expect(screen.queryByRole('button', { name: 'ดูรายการทั้งหมด' })).toBeNull()
+  })
+
+  it('a user message that literally contains a marker never becomes a button', async () => {
+    // Only assistant replies are parsed for the marker. The user's own text is shown verbatim.
+    h.askAssistant.mockReturnValue(new Promise<string>(() => {})) // keep it pending; we only care about the echoed user turn
+    renderWithHistory()
+    fireEvent.change(screen.getByLabelText('พิมพ์คำถาม'), {
+      target: { value: '{{link:/history?m=2026-07&filter=expense}}' },
+    })
+    fireEvent.click(screen.getByLabelText('ส่งคำถาม'))
+    expect(await screen.findByText((content) => content.includes('{{link:/history'))).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'ดูรายการทั้งหมด' })).toBeNull()
+  })
+})
+
 describe('structural guarantees', () => {
   it('takes NO hideBalance prop (structural, like WalletTransferSheet — §5)', () => {
     // @ts-expect-error — the chat accepts no props at all; a hideBalance prop must
