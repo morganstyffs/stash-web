@@ -19,7 +19,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
-import { computePace } from '../lib/budgetPace'
+import { computePace, computePaceStatic } from '../lib/budgetPace'
 import { addMonthsToKey, allTimeBounds, daysSince, monthAnchorFromKey, monthBoundsFromKey, monthKey } from '../lib/dates'
 import { formatMonthLong } from '../lib/format'
 import { computeHomeSummary } from '../lib/homeSummary'
@@ -468,12 +468,27 @@ async function budgetStatus(input: unknown, ctx: ToolContext): Promise<ToolOutco
     usedById.set(id, (usedById.get(id) ?? 0) + (Number(r.amount) || 0))
   }
 
+  // A closed (past) month has no days left to be ahead or behind of, so the
+  // elapsed-fraction 'fast' verdict is meaningless there — computePace with
+  // today's date would grade a finished month against THIS month's progress and
+  // brand nearly every past category 'fast'. Only the CURRENT month gets the
+  // date-aware computePace; every other month uses computePaceStatic (no 'fast').
+  // Decide on the resolved 'YYYY-MM' key vs monthKey(now) as plain strings —
+  // never re-parse to Date (convention 11: a "month" is the string, not a Date).
+  // We phrase this as "not the current month → static", NOT "offset < 0 →
+  // static", so it never leans on readOffset's <= 0 clamp (which could change).
+  // BudgetPage.tsx:354 makes the SAME split (editable ? computePace :
+  // computePaceStatic) — keep them parallel; do not "simplify" this back into a
+  // single computePace call.
+  const isCurrentMonth = month === monthKey(ctx.nowDate)
   let totalBudget = 0
   let totalUsed = 0
   const categories = budgets.map((row) => {
     const budget = Number(row.amount) || 0
     const used = usedById.get(row.category_id) ?? 0
-    const pace = computePace(used, budget, ctx.nowDate) // remaining/over NOT clamped (§4-13)
+    const pace = isCurrentMonth
+      ? computePace(used, budget, ctx.nowDate) // remaining/over NOT clamped (§4-13)
+      : computePaceStatic(used, budget) // past month: same figures, no 'fast'
     totalBudget += budget
     totalUsed += used
     return {
