@@ -61,8 +61,20 @@ declare
   v_c2food numeric; v_c2travel numeric; v_c2bill numeric; v_c2cogs numeric;
   v_nullcat int;
 begin
-  if v_me = '00000000-0000-0000-0000-000000000000' then
-    raise exception 'ยังไม่ได้กรอก uid จริง — แก้ v_me / v_friend ก่อนรัน';
+  -- ── ตรวจ uid: "มีอยู่จริงใน auth.users" ไม่ใช่ "เทียบกับค่าตัวอย่าง" ──────────
+  --   🔴 เคยเกิดจริง: กรอก uid ด้วย find-replace ทั้งไฟล์ → ค่าตัวอย่างในเงื่อนไข
+  --      (00000000-… / 11111111-…) ถูกแทนไปด้วย กลายเป็น `if v_me = v_me` ซึ่งจริง
+  --      เสมอ → raise ทุกครั้งทั้งที่กรอกถูก เสียเวลาไล่หาสาเหตุ · วิธี not exists นี้
+  --      ทน find-replace และยังจับ uid ที่พิมพ์ผิด/ไม่มีบัญชีได้ด้วย (ของเดิมจับไม่ได้)
+  --      ⛔ ห้ามแก้กลับไปเทียบกับค่าตัวอย่าง · เพิ่ม v_friend ด้วย (assert หนี้ใช้มัน)
+  if not exists (select 1 from auth.users where id = v_me) then
+    raise exception 'ไม่พบ v_me (%) ใน auth.users — กรอก uid แล้วหรือยัง / uid ผิดหรือเปล่า', v_me;
+  end if;
+  if not exists (select 1 from auth.users where id = v_friend) then
+    raise exception 'ไม่พบ v_friend (%) ใน auth.users — กรอก uid แล้วหรือยัง / uid ผิดหรือเปล่า', v_friend;
+  end if;
+  if v_me = v_friend then
+    raise exception 'v_me กับ v_friend ต้องเป็นคนละบัญชี';
   end if;
 
   v_m0 := date_trunc('month', v_today)::date;
