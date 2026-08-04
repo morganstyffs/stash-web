@@ -21,7 +21,8 @@
 --
 -- ── ขอบเขต: เฉพาะ "กลุ่ม ก" (คงที่ทุกวัน) เท่านั้นในนี้ ─────────────────────
 --   คงเหลือกระเป๋า · ยอดขายเดือนที่ปิด · จำนวนชิ้นรับเข้าต่อเดือน · headline เดือน
---   ที่ปิด · ยอดหนี้ shared สุทธิ · ทั้งหมดไม่ขึ้นกับ "วันนี้วันที่เท่าไหร่"
+--   ที่ปิด · จ่ายแยกหมวด (เดือน -1/-2 ผ่าน p_category_id จริง) · ต้องไม่มี
+--   category_id=null · ยอดหนี้ shared สุทธิ · ทั้งหมดไม่ขึ้นกับ "วันนี้วันที่เท่าไหร่"
 --   ค่า "กลุ่ม ข" (days_left / daily_allowance / oldest_in_stock_days) พิสูจน์
 --   อัตโนมัติไม่ได้ → อยู่เป็น "สูตร" ใน expected-answers.md ไม่อยู่ในนี้
 --   ⚠️ ข้อสมมติเดียว: รัน verify "ในเดือนเดียวกับที่ seed" (คงเหลือกระเป๋าไม่สนใจ
@@ -51,6 +52,14 @@ declare
   v_in2 int; v_in3 int; v_in0 int;
   v_exp_m1 numeric; v_exp_m2 numeric; v_inc_m2 numeric;
   v_snet numeric; v_they numeric; v_iowe numeric; v_pnet numeric;
+
+  -- id หมวด (เก็บเป็น text เพื่อส่งให้ transactions_search.p_category_id ตรง ๆ)
+  v_cat_food text; v_cat_travel text; v_cat_shop text; v_cat_fun text;
+  v_cat_bill text; v_cat_cogs text;
+  -- จ่ายแยกหมวด (window aggregate match_expense จาก RPC) + จำนวน category_id null
+  v_c1food numeric; v_c1travel numeric; v_c1shop numeric; v_c1fun numeric;
+  v_c2food numeric; v_c2travel numeric; v_c2bill numeric; v_c2cogs numeric;
+  v_nullcat int;
 begin
   if v_me = '00000000-0000-0000-0000-000000000000' then
     raise exception 'ยังไม่ได้กรอก uid จริง — แก้ v_me / v_friend ก่อนรัน';
@@ -105,6 +114,46 @@ begin
     into v_snet, v_they, v_iowe, v_pnet
     from public.friend_debts_summary() fds where fds.friend_id = v_friend;
 
+  -- (G) จ่ายแยกหมวด — ผ่าน transactions_search + p_category_id "จริง" (uuid ของหมวด)
+  --     ไม่ใช่ query ตาราง เพื่อพิสูจน์ว่า "ตัวกรองหมวดของ RPC ทำงาน" ไม่ใช่แค่
+  --     ข้อมูลในตารางถูก · match_expense เป็น window aggregate เหนือทั้ง match set
+  --     (หมวด+เดือน+expense) ทุกแถวจึงได้เลขเดียวกัน → เอาแถวแรกพอ
+  --     🔴 เดิม verify ตรวจแต่ "ยอดรวมทั้งเดือน" จึงจับบั๊ก category_id=null (ใบ 1b)
+  --        ไม่ได้ — assert รายหมวดข้างล่างจับได้ตรง (หมวดที่ตกหล่นจะขาดยอด)
+  --     RLS จำกัด categories เป็นของ v_me อยู่แล้ว จึงไม่ต้องใส่ user_id
+  select id::text into v_cat_food   from public.categories where name = 'อาหาร' and kind = 'expense';
+  select id::text into v_cat_travel from public.categories where name = 'เดินทาง';
+  select id::text into v_cat_shop   from public.categories where name = 'ช้อปปิ้ง';
+  select id::text into v_cat_fun    from public.categories where name = 'บันเทิง';
+  select id::text into v_cat_bill   from public.categories where name = 'บิล/ค่าบ้าน';
+  select id::text into v_cat_cogs   from public.categories where system_key = 'stock_cogs';
+
+  -- เดือน -1: อาหาร 4,000 · เดินทาง 2,000 · ช้อปปิ้ง 3,000 · บันเทิง 1,000 (Σ = headline 10,000)
+  --   coalesce(...,'') → ถ้าหมวดหาย (id null) p_category_id ว่าง = "ทุกหมวด" → ยอดไม่ตรง = FAILED
+  select ts.match_expense into v_c1food from public.transactions_search(
+    p_filter := 'expense', p_q := '', p_month := to_char(v_m1,'YYYY-MM'), p_category_id := coalesce(v_cat_food,''),   p_limit := 200, p_offset := 0) ts limit 1;
+  select ts.match_expense into v_c1travel from public.transactions_search(
+    p_filter := 'expense', p_q := '', p_month := to_char(v_m1,'YYYY-MM'), p_category_id := coalesce(v_cat_travel,''), p_limit := 200, p_offset := 0) ts limit 1;
+  select ts.match_expense into v_c1shop from public.transactions_search(
+    p_filter := 'expense', p_q := '', p_month := to_char(v_m1,'YYYY-MM'), p_category_id := coalesce(v_cat_shop,''),   p_limit := 200, p_offset := 0) ts limit 1;
+  select ts.match_expense into v_c1fun from public.transactions_search(
+    p_filter := 'expense', p_q := '', p_month := to_char(v_m1,'YYYY-MM'), p_category_id := coalesce(v_cat_fun,''),    p_limit := 200, p_offset := 0) ts limit 1;
+
+  -- เดือน -2: อาหาร 2,000 · เดินทาง 1,000 · บิล/ค่าบ้าน 3,000 · ต้นทุนขายสต็อก(COGS) 3,000 (Σ = headline 9,000)
+  select ts.match_expense into v_c2food from public.transactions_search(
+    p_filter := 'expense', p_q := '', p_month := to_char(v_m2,'YYYY-MM'), p_category_id := coalesce(v_cat_food,''),   p_limit := 200, p_offset := 0) ts limit 1;
+  select ts.match_expense into v_c2travel from public.transactions_search(
+    p_filter := 'expense', p_q := '', p_month := to_char(v_m2,'YYYY-MM'), p_category_id := coalesce(v_cat_travel,''), p_limit := 200, p_offset := 0) ts limit 1;
+  select ts.match_expense into v_c2bill from public.transactions_search(
+    p_filter := 'expense', p_q := '', p_month := to_char(v_m2,'YYYY-MM'), p_category_id := coalesce(v_cat_bill,''),   p_limit := 200, p_offset := 0) ts limit 1;
+  select ts.match_expense into v_c2cogs from public.transactions_search(
+    p_filter := 'expense', p_q := '', p_month := to_char(v_m2,'YYYY-MM'), p_category_id := coalesce(v_cat_cogs,''),   p_limit := 200, p_offset := 0) ts limit 1;
+
+  -- (H) จับบั๊กใบ 1b ตรง ๆ: seed ต้อง insert "ทุกแถวมีหมวด" · ถ้ามี category_id=null
+  --     แม้แถวเดียว = seed lookup หมวดไม่เจอแล้วยอมเงียบ (บั๊กเดิม) → ต้องได้ 0
+  --     อ่านตรงจากตาราง (ตรวจ "โครงสร้างข้อมูล" ไม่ใช่พฤติกรรม RPC) · RLS = ของ v_me
+  select count(*) into v_nullcat from public.transactions where category_id is null;
+
   -- ── กลับเป็น owner แล้วบันทึกผล (temp table เป็นของ owner) ──
   perform set_config('role', v_owner, true);
 
@@ -127,7 +176,18 @@ begin
     (16, 'หนี้ shared สุทธิ (เราค้างเขา 300)', '-300', coalesce(v_snet::text,'(null)'), case when v_snet = -300 then 'PROVEN' else 'FAILED' end),
     (17, 'หนี้ shared · เขาค้างเรา',   '500',    coalesce(v_they::text,'(null)'),   case when v_they   = 500   then 'PROVEN' else 'FAILED' end),
     (18, 'หนี้ shared · เราค้างเขา',   '800',    coalesce(v_iowe::text,'(null)'),   case when v_iowe   = 800   then 'PROVEN' else 'FAILED' end),
-    (19, 'หนี้ private สุทธิ (จดเอง -200)', '-200', coalesce(v_pnet::text,'(null)'), case when v_pnet = -200 then 'PROVEN' else 'FAILED' end);
+    (19, 'หนี้ private สุทธิ (จดเอง -200)', '-200', coalesce(v_pnet::text,'(null)'), case when v_pnet = -200 then 'PROVEN' else 'FAILED' end),
+    -- ── จ่ายแยกหมวด ผ่าน RPC transactions_search (p_category_id จริง) — ใบ 1b ──
+    (20, 'จ่าย -1 · หมวดอาหาร',            '4000', coalesce(v_c1food::text,'(null)'),   case when v_c1food   = 4000 then 'PROVEN' else 'FAILED' end),
+    (21, 'จ่าย -1 · หมวดเดินทาง',          '2000', coalesce(v_c1travel::text,'(null)'), case when v_c1travel = 2000 then 'PROVEN' else 'FAILED' end),
+    (22, 'จ่าย -1 · หมวดช้อปปิ้ง',         '3000', coalesce(v_c1shop::text,'(null)'),   case when v_c1shop   = 3000 then 'PROVEN' else 'FAILED' end),
+    (23, 'จ่าย -1 · หมวดบันเทิง',          '1000', coalesce(v_c1fun::text,'(null)'),    case when v_c1fun    = 1000 then 'PROVEN' else 'FAILED' end),
+    (24, 'จ่าย -2 · หมวดอาหาร',            '2000', coalesce(v_c2food::text,'(null)'),   case when v_c2food   = 2000 then 'PROVEN' else 'FAILED' end),
+    (25, 'จ่าย -2 · หมวดเดินทาง',          '1000', coalesce(v_c2travel::text,'(null)'), case when v_c2travel = 1000 then 'PROVEN' else 'FAILED' end),
+    (26, 'จ่าย -2 · หมวดบิล/ค่าบ้าน',      '3000', coalesce(v_c2bill::text,'(null)'),   case when v_c2bill   = 3000 then 'PROVEN' else 'FAILED' end),
+    (27, 'จ่าย -2 · หมวดต้นทุนขายสต็อก (COGS)', '3000', coalesce(v_c2cogs::text,'(null)'), case when v_c2cogs = 3000 then 'PROVEN' else 'FAILED' end),
+    -- ── จับบั๊กใบ 1b ตรง ๆ: ต้องไม่มี transaction ที่ category_id เป็น null ──
+    (28, 'ไม่มี transaction category_id null (ใบ 1b)', '0', coalesce(v_nullcat::text,'(null)'), case when v_nullcat = 0 then 'PROVEN' else 'FAILED' end);
 end $$;
 
 -- ── ผลลัพธ์ + แถวสรุป ──
