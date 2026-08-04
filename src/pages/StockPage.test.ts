@@ -2,13 +2,11 @@ import { describe, it, expect } from 'vitest'
 import {
   ageTier,
   computeCounts,
-  computeSunkCost,
   selectStockItems,
   emptyMessage,
-  AGE_FRESH_MAX,
-  AGE_OLD_MAX,
   type StockFilter,
 } from '@/pages/StockPage'
+import { computeSunkCost, AGE_FRESH_MAX, AGE_OLD_MAX } from '@/lib/stockAge'
 import type { StockItem } from '@/lib/db'
 
 // Fixed "now" so every age below is deterministic (Asia/Bangkok calendar).

@@ -1,4 +1,4 @@
-import type { DonutSlice } from '@/hooks/useHome'
+import type { DonutSlice } from '@/lib/homeSummary'
 import { catColorVar } from '@/lib/catColor'
 import { formatBaht, MASKED_BAHT } from '@/lib/format'
 

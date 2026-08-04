@@ -13,6 +13,8 @@ vi.mock('@/hooks/useAttention', () => ({
 vi.mock('@/hooks/useHome', () => ({
   useMonthTransactions: () => ({ data: [], isLoading: false }),
   useRecentTransactions: () => ({ data: [], isLoading: false }),
+}))
+vi.mock('@/lib/homeSummary', () => ({
   computeHomeSummary: () => ({
     safeToSpend: 0,
     daysLeft: 0,

@@ -81,7 +81,7 @@ export interface StockHero {
  * Hero aggregate over items still in stock (in_stock / partial): the total cost
  * tied up on the rack. (The "รอขาย/กำไรคาดการณ์" figure it used to also compute
  * was dropped in 0027 — it multiplied a hoped-for target_price, not real money.
- * The sunk-cost figure that replaced it lives in StockPage.computeSunkCost,
+ * The sunk-cost figure that replaced it lives in lib/stockAge.ts (computeSunkCost),
  * co-located with the age boundary it shares with the "ค้างนาน" chip.)
  */
 export function computeStockHero(items: StockItem[]): StockHero {
