@@ -359,6 +359,46 @@ describe('budget_status — the ceiling the user set per category, NOT budget_sp
     expect(food.remaining).toBe(3000)
     expect(food.status).toBe('on_track')
   })
+
+  // The pace LABEL must switch by month. The CURRENT month is graded against how
+  // far into it we are (computePace → can be 'fast'); a CLOSED month has no days
+  // left to outrun, so it uses computePaceStatic (never 'fast'). Same split as
+  // BudgetPage.tsx:354. The two cases below share the EXACT same figures and
+  // differ ONLY in offset — if budgetStatus ever collapses back to a single
+  // computePace, the past-month case flips to 'fast' and this pair fails.
+  it('current month: spend outrunning the elapsed days → "fast" (proves computePace is still used)', async () => {
+    seedBudgets()
+    state.tables.transactions = {
+      // NOW = 2026-01-15 → 15/31 of Jan elapsed (~0.48); 3000/4000 = 0.75 outruns it.
+      data: [tx({ amount: 3000, category_id: 'c-food' })],
+      error: null,
+    }
+    const out = await parse('budget_status', { offset: 0 })
+    const food = (out.categories as Array<Record<string, unknown>>).find((c) => c.name === 'อาหาร')!
+    expect(food.status).toBe('fast')
+    expect(food.budget).toBe(4000)
+    expect(food.used).toBe(3000)
+    expect(food.remaining).toBe(1000)
+    expect(food.over).toBe(0)
+  })
+
+  it('past month: the SAME numbers are NOT "fast" (closed month → computePaceStatic) — the regression this fix targets', async () => {
+    seedBudgets()
+    state.tables.transactions = {
+      // Identical spend to the offset-0 case above; only the month differs.
+      data: [tx({ amount: 3000, category_id: 'c-food' })],
+      error: null,
+    }
+    const out = await parse('budget_status', { offset: -1 }) // 2025-12, a closed month
+    const food = (out.categories as Array<Record<string, unknown>>).find((c) => c.name === 'อาหาร')!
+    expect(food.status).not.toBe('fast') // was wrongly 'fast' before the fix
+    expect(food.status).toBe('on_track')
+    // Every figure matches the current-month case — ONLY the status label differs.
+    expect(food.budget).toBe(4000)
+    expect(food.used).toBe(3000)
+    expect(food.remaining).toBe(1000)
+    expect(food.over).toBe(0)
+  })
 })
 
 describe('tool schemas — offset is an integer, never a date string', () => {
