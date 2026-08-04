@@ -59,9 +59,17 @@ declare
   v_friend uuid := '11111111-1111-1111-1111-111111111111';   -- ← uid เพื่อน (คู่หนี้ shared)
   v_uids   uuid[];
 begin
-  if v_me = '00000000-0000-0000-0000-000000000000'
-     or v_friend = '11111111-1111-1111-1111-111111111111' then
-    raise exception 'ยังไม่ได้กรอก uid จริง — แก้ v_me / v_friend ก่อนรัน';
+  -- ── ตรวจ uid: "มีอยู่จริงใน auth.users" ไม่ใช่ "เทียบกับค่าตัวอย่าง" ──────────
+  --   🔴 เคยเกิดจริง: กรอก uid ด้วย find-replace ทั้งไฟล์ → ค่าตัวอย่างในเงื่อนไข
+  --      (00000000-… / 11111111-…) ถูกแทนไปด้วย กลายเป็น `if v_me = v_me` ซึ่งจริง
+  --      เสมอ → raise ทุกครั้งทั้งที่กรอกถูก เสียเวลาไล่หาสาเหตุ · วิธี not exists นี้
+  --      ทน find-replace และยังจับ uid ที่พิมพ์ผิด/ไม่มีบัญชีได้ด้วย (ของเดิมจับไม่ได้)
+  --      ⛔ ห้ามแก้กลับไปเทียบกับค่าตัวอย่าง · reset ลบข้อมูลจริง uid ผิด = ล้างผิดบัญชี
+  if not exists (select 1 from auth.users where id = v_me) then
+    raise exception 'ไม่พบ v_me (%) ใน auth.users — กรอก uid แล้วหรือยัง / uid ผิดหรือเปล่า', v_me;
+  end if;
+  if not exists (select 1 from auth.users where id = v_friend) then
+    raise exception 'ไม่พบ v_friend (%) ใน auth.users — กรอก uid แล้วหรือยัง / uid ผิดหรือเปล่า', v_friend;
   end if;
   if v_me = v_friend then
     raise exception 'v_me กับ v_friend ต้องเป็นคนละบัญชี';

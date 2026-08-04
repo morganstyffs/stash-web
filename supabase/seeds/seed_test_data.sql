@@ -67,19 +67,28 @@ declare
 
   -- หนี้
   v_d1 uuid; v_d2 uuid; v_d3 uuid; v_d4 uuid; v_d5 uuid;
+
+  -- รวมชื่อกระเป๋า/หมวดที่ lookup ไม่เจอ เพื่อ raise ทีเดียว (ดู guard §1.9)
+  v_missing text[] := '{}';
 begin
   ------------------------------------------------------------------------------
   -- 0) PRE-FLIGHT บังคับ
   ------------------------------------------------------------------------------
-  if v_me = '00000000-0000-0000-0000-000000000000'
-     or v_friend = '11111111-1111-1111-1111-111111111111' then
-    raise exception 'ยังไม่ได้กรอก uid จริง — แก้ v_me / v_friend ก่อนรัน';
-  end if;
-  if v_me = v_friend then raise exception 'v_me กับ v_friend ต้องคนละบัญชี'; end if;
+  -- ── ตรวจ uid: "มีอยู่จริงใน auth.users" ไม่ใช่ "เทียบกับค่าตัวอย่าง" ──────────
+  --   🔴 เคยเกิดจริง: กรอก uid ด้วย find-replace ทั้งไฟล์ → ค่าตัวอย่างในเงื่อนไข
+  --      (00000000-… / 11111111-…) ถูกแทนไปด้วย กลายเป็น `if v_me = v_me` ซึ่งจริง
+  --      เสมอ → raise ทุกครั้งทั้งที่กรอกถูก เสียเวลาไล่หาสาเหตุ · วิธี not exists นี้
+  --      ทน find-replace และยังจับ uid ที่พิมพ์ผิด/ไม่มีบัญชีได้ด้วย (ของเดิมจับไม่ได้)
+  --      ⛔ ห้ามแก้กลับไปเทียบกับค่าตัวอย่าง
   if not exists (select 1 from auth.users where id = v_me) then
-    raise exception 'ไม่พบ v_me (%) ใน auth.users', v_me; end if;
+    raise exception 'ไม่พบ v_me (%) ใน auth.users — กรอก uid แล้วหรือยัง / uid ผิดหรือเปล่า', v_me;
+  end if;
   if not exists (select 1 from auth.users where id = v_friend) then
-    raise exception 'ไม่พบ v_friend (%) ใน auth.users', v_friend; end if;
+    raise exception 'ไม่พบ v_friend (%) ใน auth.users — กรอก uid แล้วหรือยัง / uid ผิดหรือเปล่า', v_friend;
+  end if;
+  if v_me = v_friend then
+    raise exception 'v_me กับ v_friend ต้องเป็นคนละบัญชี';
+  end if;
 
   -- วันนี้ต้อง >= 5: เดือนปัจจุบันต้องมีที่ว่างให้วางรายการวันที่ 1-4 ได้เสมอ
   -- โดยไม่มีรายการ "วันในอนาคต" (จะทำให้ยอด/วันเหลืออ่านยาก และ wallet_transfer
@@ -136,8 +145,36 @@ begin
   select id into v_c_fun    from public.categories where user_id = v_me and name = 'บันเทิง';
   select id into v_c_pet    from public.categories where user_id = v_me and name = 'อาหารสัตว์';
   select id into v_c_stock  from public.categories where user_id = v_me and name = 'เสื้อเข้าร้าน';
-  if v_w_cash is null or v_c_food is null or v_c_stock is null then
-    raise exception 'ไม่พบกระเป๋า/หมวด default ของ v_me — บัญชีนี้ seed ครบหรือยัง?';
+
+  ------------------------------------------------------------------------------
+  -- 1.9) 🔴 NULL GUARD ครบทุกตัว (กระเป๋า 3 + หมวดทุกตัวที่ §2 ใช้จริง)
+  --      รายงาน "ทุกชื่อที่หาไม่เจอในครั้งเดียว" ไม่หยุดที่ตัวแรก — เจ้าของแก้รวดเดียว
+  --
+  -- ── เคยเกิดจริง (ใบ 1b) · ห้ามลบ guard นี้ ──────────────────────────────────
+  --   guard เดิมตรวจแค่ v_w_cash / v_c_food / v_c_stock → บัญชีทดสอบที่ "ไม่มีหมวด
+  --   บันเทิง" ทำให้ v_c_fun เป็น null แล้วรายการ 'หนัง' 1,000 ของเดือน -1 ถูก
+  --   insert ด้วย category_id = null เงียบ ๆ → AI รายงานว่า "อื่นๆ" (ถูกตามข้อมูล
+  --   แต่ไม่ตรง expected-answers.md) เสียเวลาไล่หาสาเหตุนาน · verify_test_data.sql
+  --   ตอนนั้นตรวจแต่ยอดรวมจึงยังผ่าน ปิดบั๊กนี้ไว้ (ดู assert ระดับหมวด + assert
+  --   "ไม่มี category_id null" ที่เพิ่มคู่กันในไฟล์ verify)
+  --
+  -- ⛔ ห้าม self-heal (สร้าง/rename หมวดที่หายให้อัตโนมัติ) — การเงียบ ๆ ซ่อมให้คือ
+  --    กลไกที่ซ่อนบั๊กนี้มาแต่แรก · ให้ล้มพร้อมรายชื่อชัด ๆ แล้วเจ้าของตัดสินใจเอง
+  ------------------------------------------------------------------------------
+  if v_w_cash   is null then v_missing := v_missing || 'กระเป๋า:เงินสด'::text;      end if;
+  if v_w_bank   is null then v_missing := v_missing || 'กระเป๋า:ธนาคาร'::text;      end if;
+  if v_w_pp     is null then v_missing := v_missing || 'กระเป๋า:พร้อมเพย์'::text;    end if;
+  if v_c_salary is null then v_missing := v_missing || 'หมวด:เงินเดือน'::text;       end if;
+  if v_c_food   is null then v_missing := v_missing || 'หมวด:อาหาร (expense)'::text; end if;
+  if v_c_travel is null then v_missing := v_missing || 'หมวด:เดินทาง'::text;         end if;
+  if v_c_shop   is null then v_missing := v_missing || 'หมวด:ช้อปปิ้ง'::text;        end if;
+  if v_c_bill   is null then v_missing := v_missing || 'หมวด:บิล/ค่าบ้าน'::text;     end if;
+  if v_c_fun    is null then v_missing := v_missing || 'หมวด:บันเทิง'::text;         end if;   -- ← ตัวที่เคยหลุด
+  if v_c_pet    is null then v_missing := v_missing || 'หมวด:อาหารสัตว์'::text;      end if;
+  if v_c_stock  is null then v_missing := v_missing || 'หมวด:เสื้อเข้าร้าน'::text;    end if;
+  if array_length(v_missing, 1) is not null then
+    raise exception E'บัญชี v_me (%) ขาดกระเป๋า/หมวดต่อไปนี้ %รายการ — สร้าง/rename ให้ครบเองแล้วรันใหม่ (ห้ามให้สคริปต์สร้างให้):\n  %',
+      v_me, array_length(v_missing, 1), array_to_string(v_missing, E'\n  ');
   end if;
 
   ------------------------------------------------------------------------------
