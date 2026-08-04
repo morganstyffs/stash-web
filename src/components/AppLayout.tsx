@@ -12,6 +12,7 @@ import {
 import type { Icon } from '@tabler/icons-react'
 import { useRunRecurringOnLoad } from '@/hooks/useRecurring'
 import { useDebtsBadgeCount } from '@/hooks/useFriends'
+import { useConsent } from '@/hooks/useAiSettings'
 import { BrandMark } from '@/components/BrandMark'
 
 interface Tab {
@@ -120,24 +121,26 @@ function BottomTab({ tab, badge }: { tab: Tab; badge: boolean }) {
  * in its own flex-1 cell so the five cells are equal and the button lands on the
  * exact centre (verified by AppLayout.visual.test.tsx).
  */
-export function BottomNav({ hasBadge }: { hasBadge: boolean }) {
+export function BottomNav({ hasBadge, aiEnabled = false }: { hasBadge: boolean; aiEnabled?: boolean }) {
   const navigate = useNavigate()
   return (
     <div className="fixed inset-x-0 bottom-0 z-20 sm:hidden">
       <div className="relative mx-auto max-w-3xl">
-        {/* ถาม AI floating pill — AI ยังไม่เปิดใช้ (ทำให้ดู disabled + บอก "เร็วๆ นี้") */}
-        <button
-          disabled
-          aria-label="ถาม AI (เร็วๆ นี้)"
-          title="เร็วๆ นี้"
-          className="absolute -top-[52px] right-4 flex cursor-not-allowed items-center gap-1.5 rounded-pill bg-brand-deep/60 px-3.5 py-2 shadow-card"
-        >
-          <IconSparkles size={16} className="text-white" />
-          <span className="text-xs font-medium text-white">ถาม AI</span>
-          <span className="rounded-pill bg-white/25 px-1.5 py-px text-[9px] font-medium text-white">
-            เร็วๆ นี้
-          </span>
-        </button>
+        {/* ถาม AI floating pill — shown ONLY when the assistant is enabled
+            (consent = 'on', passed down from AppLayout). Absolutely positioned above
+            the bar, so it is NOT one of the five bar slots and doesn't shift the FAB
+            centre (AppLayout.visual.test.tsx). min-h-11 keeps it a ≥44px touch target
+            now that it's a real button. */}
+        {aiEnabled && (
+          <button
+            aria-label="ถาม AI"
+            onClick={() => navigate('/ai')}
+            className="absolute -top-[52px] right-4 flex min-h-11 items-center gap-1.5 rounded-pill bg-brand-deep px-3.5 py-2 shadow-card"
+          >
+            <IconSparkles size={16} className="text-white" />
+            <span className="text-xs font-medium text-white">ถาม AI</span>
+          </button>
+        )}
 
         <div
           data-testid="bottom-nav-bar"
@@ -174,6 +177,11 @@ export function AppLayout() {
   // Single source for the ยอดค้าง badge count (convention 10).
   const hasBadge = (useDebtsBadgeCount().data ?? 0) > 0
 
+  // The "ถาม AI" entry point appears ONLY when the user has enabled the assistant
+  // (server-side consent = 'on', §3.5). never_chosen / off / still-loading → hidden,
+  // so nobody is sent to a chat that would only 403 (design §5 / task §1).
+  const aiEnabled = useConsent().data === 'on'
+
   return (
     <div className="mx-auto flex min-h-full max-w-3xl bg-surface sm:my-4 sm:min-h-0 sm:rounded-[22px] sm:border-[0.5px] sm:border-hairline sm:shadow-card">
       {/* Nav rail — tablet/desktop only */}
@@ -196,14 +204,17 @@ export function AppLayout() {
             <IconPlus size={22} className="text-white" />
           </button>
         </div>
-        <button
-          disabled
-          aria-label="ถาม AI (เร็วๆ นี้)"
-          title="เร็วๆ นี้"
-          className="flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-[13px] bg-brand-tint opacity-50"
-        >
-          <IconSparkles size={20} className="text-brand-deep" />
-        </button>
+        {/* ถาม AI — desktop rail entry, same consent gate as the mobile pill. Matches
+            the rail's add-button geometry (h-10 w-10). */}
+        {aiEnabled && (
+          <button
+            aria-label="ถาม AI"
+            onClick={() => navigate('/ai')}
+            className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-brand-tint"
+          >
+            <IconSparkles size={20} className="text-brand-deep" />
+          </button>
+        )}
       </nav>
 
       {/* Screen content */}
@@ -212,7 +223,7 @@ export function AppLayout() {
       </div>
 
       {/* Bottom nav — mobile only */}
-      <BottomNav hasBadge={hasBadge} />
+      <BottomNav hasBadge={hasBadge} aiEnabled={aiEnabled} />
     </div>
   )
 }
