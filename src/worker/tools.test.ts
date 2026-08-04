@@ -174,6 +174,55 @@ describe('month_spending — row cap (design §4.1): total from aggregate, not r
   })
 })
 
+describe('stock_intake — offset→[p_from,p_to) via monthBoundsFromKey (worker computes the range)', () => {
+  it('offset 0 → this-month bounds, limit = rowCap', async () => {
+    await parse('stock_intake', { offset: 0 })
+    const args = state.rpcArgs.stock_intake_list as { p_from: string; p_to: string; p_limit: number }
+    expect(args.p_from).toBe('2026-01-01')
+    expect(args.p_to).toBe('2026-02-01') // half-open: next month, exclusive
+    expect(args.p_limit).toBe(50)
+  })
+
+  it('offset -1 → previous month, crossing the year', async () => {
+    await parse('stock_intake', { offset: -1 })
+    const args = state.rpcArgs.stock_intake_list as { p_from: string; p_to: string }
+    expect(args.p_from).toBe('2025-12-01')
+    expect(args.p_to).toBe('2026-01-01')
+  })
+})
+
+describe('stock_intake — row cap (§4.1): count from total_count window, not row length', () => {
+  it('caps items at rowCap, flags capped, count = RPC total_count', async () => {
+    // 50 rows returned (= rowCap) but the true set is 137. A row-count would say
+    // 50 — wrong. total_count (count(*) over ()) is right even when capped.
+    const rows = Array.from({ length: 50 }, (_, i) => ({
+      name: `ของ ${i}`,
+      qty_total: 2,
+      cost_per_unit: 100,
+      total_count: 137,
+    }))
+    state.rpcResults.stock_intake_list = { data: rows, error: null }
+    const out = await parse('stock_intake', { offset: -1 })
+    expect((out.items as unknown[]).length).toBe(50)
+    expect(out.count).toBe(137)
+    expect(out.capped).toBe(true)
+    // items carry the RPC's raw fields (never recomputed)
+    expect((out.items as Array<Record<string, unknown>>)[0]).toEqual({
+      name: 'ของ 0',
+      qty: 2,
+      cost_per_unit: 100,
+    })
+  })
+
+  it('empty month → count 0, no items, not capped', async () => {
+    state.rpcResults.stock_intake_list = { data: [], error: null }
+    const out = await parse('stock_intake', { offset: 0 })
+    expect(out.count).toBe(0)
+    expect((out.items as unknown[]).length).toBe(0)
+    expect(out.capped).toBe(false)
+  })
+})
+
 describe('wallet_balances — real wallet names, not "wallet 2"', () => {
   it('joins names from the wallets table', async () => {
     state.rpcResults.wallet_balances = { data: [{ wallet_id: 'w1', balance: 250 }], error: null }
@@ -193,7 +242,7 @@ describe('stock tools — thresholds come from lib, not hardcoded', () => {
 
 describe('tool schemas — offset is an integer, never a date string', () => {
   it('month-based tools declare offset as integer and take no date field', () => {
-    for (const name of ['month_spending', 'home_summary', 'stock_sales']) {
+    for (const name of ['month_spending', 'home_summary', 'stock_sales', 'stock_intake']) {
       const tool = AI_TOOLS.find((t) => t.name === name)
       expect(tool).toBeTruthy()
       const props = tool!.input_schema.properties as Record<string, { type?: string }>
