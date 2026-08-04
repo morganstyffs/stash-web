@@ -107,7 +107,7 @@ jobs:
 
       - name: Open a PR with the regenerated types
         if: steps.drift.outputs.drift == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           # Prefer a PAT so ci.yml runs on the PR (see the header note); fall back
           # to GITHUB_TOKEN so the PR still opens without extra setup.
