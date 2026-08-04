@@ -1,3 +1,20 @@
+/**
+ * Budget-pace logic — the single place that decides a category's spending STATE
+ * (over / fast / unused / on_track). The wording for each state lives elsewhere,
+ * in lib/budgetNote's paceNote — state and words are kept apart on purpose, so
+ * never fold the phrasing back in here (convention 3: one rule, one place).
+ *
+ * Lives in `lib/` (not the useBudgets hook) so a non-React caller — the AI
+ * worker — can import it too. Same pattern as homeSummary.ts / stockAge.ts.
+ *
+ * lib/ เดินทางเดียว ห้าม import จาก hooks/ (§11/12): imports MUST stay relative
+ * (`./dates`), never `@/lib/dates`. tsconfig.worker.json has no `paths` and
+ * wrangler's esbuild doesn't read them either, so a `@/` import breaks the
+ * worker build — do NOT "tidy" these back to the alias.
+ *
+ * (computePaceStatic drops the 'fast' state on purpose — the reason is on the
+ * function itself; not repeated here.)
+ */
 import { dayOfMonthISO, monthBounds, todayISO } from './dates'
 
 export type PaceState = 'over' | 'fast' | 'unused' | 'on_track'
