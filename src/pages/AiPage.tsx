@@ -272,20 +272,104 @@ function renderBold(text: string): ReactNode[] {
   return nodes
 }
 
+/**
+ * Screens the assistant is allowed to deep-link into (§ AI-5a), mapped to the
+ * human label its button shows. An ALLOWLIST, never a denylist: the path arrives
+ * INSIDE the model's text, which can echo whatever the user typed, so only an
+ * exact known route ever becomes a button. The label is read from HERE, never
+ * from the model — so no user/model text is ever reflected onto the control.
+ * The query string rides along untouched; HistoryPage validates ?m/?cat/?filter
+ * itself, degrading a bad value to "no filter" there.
+ */
+const LINK_ROUTES: Record<string, string> = {
+  '/history': 'ดูรายการทั้งหมด',
+}
+
+/** The one-line marker the model appends when a tool result carried a `link`
+ *  (see the Worker SYSTEM_PROMPT). Whole-line match; group 1 is the raw path. */
+const LINK_LINE_RE = /^\s*\{\{link:(\S+)\}\}\s*$/
+
+interface AssistantLink {
+  path: string
+  label: string
+}
+
+/**
+ * A model-supplied path → a button descriptor, or null when it is not a known,
+ * root-relative, in-app route. The threat model: `raw` is model text and can
+ * reflect the user's input, so it is NEVER handed to navigate() unchecked. It
+ * must be root-relative ('/…') and NOT protocol-relative ('//host', which the URL
+ * parser reads as another origin → off-site), and its pathname must be an exact
+ * key of LINK_ROUTES.
+ */
+function validateLinkPath(raw: string): AssistantLink | null {
+  if (!raw.startsWith('/') || raw.startsWith('//')) return null
+  let pathname: string
+  try {
+    // Throwaway origin, only to split path from query safely. `raw` already
+    // starts with a single '/', so this base can't be overridden (no scheme, no
+    // '//host'); '/a/../settings'-style tricks normalise and then fail the map.
+    pathname = new URL(raw, 'http://localhost').pathname
+  } catch {
+    return null
+  }
+  const label = LINK_ROUTES[pathname]
+  return label ? { path: raw, label } : null
+}
+
+/**
+ * Split an assistant message into its spoken text and an optional deep-link
+ * button. The marker (if any) is the last non-empty line; it is removed from the
+ * body ONLY when it holds a known, well-formed path. A marker that is malformed
+ * OR points outside the allowlist is left in the body as raw text — never
+ * silently dropped (the visible raw syntax is the signal the contract was
+ * broken, same stance as renderBold) and never turned into a button.
+ */
+function parseAssistantMessage(text: string): { body: string; link: AssistantLink | null } {
+  const lines = text.split('\n')
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].trim() === '') continue // skip trailing blank lines
+    const m = LINK_LINE_RE.exec(lines[i])
+    if (!m) break // last non-empty line isn't a marker → nothing to extract
+    const link = validateLinkPath(m[1])
+    if (!link) break // malformed / disallowed → leave the line as raw text
+    lines.splice(i, 1)
+    return { body: lines.join('\n').trimEnd(), link }
+  }
+  return { body: text, link: null }
+}
+
 /** One chat bubble. User messages sit on the right in brand tint; assistant replies
  *  on the left in the neutral fill. Always shows the real text (no hideBalance).
- *  `**bold**` renders as <strong>; whitespace-pre-wrap keeps the assistant's newlines. */
+ *  `**bold**` renders as <strong>; whitespace-pre-wrap keeps the assistant's newlines.
+ *  An assistant reply may carry a trailing {{link:…}} marker (§ AI-5a), rendered as
+ *  a react-router navigation button — never an <a href> that could leave the app. */
 function Bubble({ role, text }: { role: 'user' | 'assistant'; text: string }) {
   const mine = role === 'user'
+  const navigate = useNavigate()
+  // Only the assistant emits the {{link:…}} marker; a user message is shown verbatim
+  // (a user who types "{{link:…}}" must never get a live button out of it).
+  const { body, link } = mine ? { body: text, link: null } : parseAssistantMessage(text)
   return (
-    <div
-      className={`max-w-[85%] whitespace-pre-wrap px-3.5 py-2.5 text-[13px] leading-relaxed ${
-        mine
-          ? 'self-end rounded-[16px] rounded-br-[4px] bg-brand-tint text-brand-ink'
-          : 'self-start rounded-[16px] rounded-bl-[4px] bg-fill text-ink'
-      }`}
-    >
-      {renderBold(text)}
+    <div className={`flex max-w-[85%] flex-col gap-1.5 ${mine ? 'items-end self-end' : 'items-start self-start'}`}>
+      <div
+        className={`whitespace-pre-wrap px-3.5 py-2.5 text-[13px] leading-relaxed ${
+          mine
+            ? 'rounded-[16px] rounded-br-[4px] bg-brand-tint text-brand-ink'
+            : 'rounded-[16px] rounded-bl-[4px] bg-fill text-ink'
+        }`}
+      >
+        {renderBold(body)}
+      </div>
+      {link && (
+        <button
+          type="button"
+          onClick={() => navigate(link.path)}
+          className="rounded-input bg-brand-tint px-3 py-1.5 text-[12.5px] font-medium text-brand-ink"
+        >
+          {link.label}
+        </button>
+      )}
     </div>
   )
 }
