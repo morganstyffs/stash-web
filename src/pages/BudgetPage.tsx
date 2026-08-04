@@ -31,6 +31,7 @@ import { isBudgetableCategory } from '@/lib/budgetable'
 import { overBudgetNote, paceNote } from '@/lib/budgetNote'
 import { translateError } from '@/lib/errors'
 import { useDialogA11y } from '@/lib/useDialogA11y'
+import { AskAiButton } from '@/components/AskAiButton'
 
 const RING_C = 2 * Math.PI * 17 // ≈ 107
 
@@ -210,6 +211,11 @@ export function BudgetPage() {
           )}
         </div>
       </div>
+
+      {/* ถาม AI เรื่องงบ — jumps to the chat with "งบเดือนนี้เหลือเท่าไหร่" prefilled
+          (answerable via budget_status — see expected-answers.md / battery B4). Self-
+          gates on consent = 'on'; renders nothing otherwise, so no empty row is left. */}
+      <AskAiButton question="งบเดือนนี้เหลือเท่าไหร่" className="mx-4 mb-3" />
 
       {/* off-budget spend — its own strip so it never drags the hero red (B5).
           It's a shortcut into "set a budget for this category", so it only shows on

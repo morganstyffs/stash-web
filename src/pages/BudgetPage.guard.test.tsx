@@ -88,6 +88,11 @@ vi.mock('@/hooks/useHideBalance', () => ({
   useHideBalance: () => ({ hideBalance, toggleHideBalance }),
 }))
 vi.mock('@/components/Toast', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
+// BudgetPage now embeds <AskAiButton>, which reads consent via useConsent (a
+// react-query hook). This suite renders the page without a QueryClientProvider, so
+// the real hook would throw — mock it to 'off' (the ถาม AI button hides), keeping
+// these budget assertions about exactly what they were before.
+vi.mock('@/hooks/useAiSettings', () => ({ useConsent: () => ({ data: 'off' }) }))
 
 const { BudgetPage } = await import('@/pages/BudgetPage')
 

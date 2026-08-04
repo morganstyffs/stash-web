@@ -18,6 +18,7 @@ import { computeStockHero, useStockItems } from '@/hooks/useStock'
 import { useHideBalance } from '@/hooks/useHideBalance'
 import { StockEditSheet } from '@/components/StockEditSheet'
 import { ShopProfitCard } from '@/components/ShopProfitCard'
+import { AskAiButton } from '@/components/AskAiButton'
 import { formatBaht, MASKED_BAHT } from '@/lib/format'
 import { loadStockView, saveStockView, type StockView } from '@/lib/prefs'
 import { daysSince } from '@/lib/dates'
@@ -335,6 +336,11 @@ export function StockPage() {
       {/* shop P&L — gross (stock_sales) minus operating (is_shop_operating) = net.
           Replaces the old "ขายเดือนนี้" card, which showed a subset of this. */}
       <ShopProfitCard hideBalance={hideBalance} now={now} />
+
+      {/* ถาม AI เรื่องสต็อก — jumps to the chat with "ของในสต็อกค้างนานสุดกี่วัน"
+          prefilled (answerable via stale_stock — the aging/ทุนจม this screen shows).
+          Self-gates on consent = 'on'; renders nothing otherwise. */}
+      <AskAiButton question="ของในสต็อกค้างนานสุดกี่วัน" className="mx-4 mb-3" />
 
       {/* queue banner (unchanged) */}
       {queueCount > 0 && (

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { IconArrowLeft, IconSend, IconSparkles } from '@tabler/icons-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useConsent } from '@/hooks/useAiSettings'
 import { useToast } from '@/components/Toast'
 import { askAssistant, type ChatTurn } from '@/lib/aiChat'
+import { AI_MAX_QUESTION_CHARS } from '@/lib/aiLimits'
 import { translateError } from '@/lib/errors'
 
 /**
@@ -46,6 +47,7 @@ const EXAMPLES = [
 
 export function AiPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const toast = useToast()
   const { session } = useAuth()
   const { data: consent, isLoading: consentLoading } = useConsent()
@@ -53,7 +55,17 @@ export function AiPage() {
   // In-memory transcript — deliberately NOT persisted (§8). Reloading the page
   // clears it, which is the intended v1 behaviour.
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState('')
+  // Deep-link prefill: another screen can send the user here with a question ready
+  // to send via /ai?q=… (the ถาม AI buttons on the budget / stock screens). We seed
+  // the composer ONCE at mount and STOP — we never call send() for it. Every request
+  // is real money and quota, so a page open / refresh / back-forward must not fire a
+  // paid request the user didn't press for; the user still taps ส่ง themselves. `q`
+  // is untrusted URL input, so it's clamped to AI_MAX_QUESTION_CHARS (the Worker's
+  // own limit) — an over-long link is truncated, never allowed to break the page.
+  // No `q` → '' → the empty state (examples + note) is byte-for-byte unchanged.
+  const [input, setInput] = useState(() =>
+    (searchParams.get('q') ?? '').slice(0, AI_MAX_QUESTION_CHARS),
+  )
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
