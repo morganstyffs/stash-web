@@ -12,6 +12,7 @@
 
 import { handleAi } from './ai'
 import { json } from './json'
+import type { RateLimitStore } from './rateLimit'
 import { withSecurityHeaders } from './security'
 
 export interface Env {
@@ -33,6 +34,14 @@ export interface Env {
    */
   SUPABASE_URL?: string
   SUPABASE_ANON_KEY?: string
+  /**
+   * KV namespace for the /api/ai rate limit (counters keyed by verified uid).
+   * Bound in wrangler.jsonc (binding "AI_RATE_LIMIT") — at runtime this is a
+   * Cloudflare KVNamespace, typed here as the minimal RateLimitStore slice the
+   * worker actually uses (get/put). Optional so a missing binding fails closed
+   * (503) rather than skipping the limit and reaching Anthropic uncapped.
+   */
+  AI_RATE_LIMIT?: RateLimitStore
 }
 
 export default {
