@@ -45,6 +45,46 @@ describe('bottom nav touch targets at 390px (real browser)', () => {
   )
 
   it(
+    'the "ถาม AI" pill (consent on) is NOT a bar slot and does not shift the FAB centre',
+    async (ctx) => {
+      // PR-5 turns the disabled placeholder pill into a real, consent-gated button.
+      // It floats above the bar (absolute), so it must neither become a 6th slot nor
+      // move the FAB off centre. Render the ENABLED state and re-assert both guards.
+      const markup = renderToStaticMarkup(
+        createElement(
+          MemoryRouter,
+          null,
+          createElement(BottomNav, { hasBadge: true, aiEnabled: true }),
+        ),
+      )
+      await runVisualTest(ctx, { name: 'bottom-nav-ai-enabled', markup }, async (page) => {
+        const slots = await page.$$eval(
+          '#stage a, #stage button[aria-label="เพิ่มรายการ"]',
+          (els) => els.length,
+        )
+        expect(slots, 'still exactly 5 bar slots with the pill enabled').toBe(5)
+
+        const geom = await page.evaluate(() => {
+          const bar = document.querySelector('[data-testid="bottom-nav-bar"]')
+          const fab = document.querySelector('button[aria-label="เพิ่มรายการ"]')
+          if (!bar || !fab) return null
+          const b = bar.getBoundingClientRect()
+          const f = fab.getBoundingClientRect()
+          return { barCentre: b.left + b.width / 2, fabCentre: f.left + f.width / 2 }
+        })
+        expect(geom, 'bar + FAB must both be in the DOM').not.toBeNull()
+        const offset = Math.abs(geom!.fabCentre - geom!.barCentre)
+        expect(offset, `FAB is ${offset.toFixed(1)}px off the bar centre`).toBeLessThanOrEqual(1)
+
+        // and the pill itself is present and reachable (the consent-on state)
+        const pill = await page.$$eval('#stage button[aria-label="ถาม AI"]', (els) => els.length)
+        expect(pill, 'the ถาม AI pill is rendered when enabled').toBe(1)
+      })
+    },
+    20_000,
+  )
+
+  it(
     'the add FAB sits on the true horizontal centre of the bar',
     async (ctx) => {
       const markup = renderToStaticMarkup(

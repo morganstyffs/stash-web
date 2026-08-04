@@ -3,10 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-// AppLayout owns two data hooks (recurring backfill + the ยอดค้าง badge count);
-// stub both so this stays a pure routing/structure test with no data layer.
+// AppLayout owns three data hooks (recurring backfill, the ยอดค้าง badge count, and
+// the AI-consent read that gates the "ถาม AI" entry); stub all so this stays a pure
+// routing/structure test with no data layer. Consent defaults to undefined here (the
+// AI entry hidden) — its show/hide behaviour is covered by AppLayout.consent.test.tsx.
 vi.mock('@/hooks/useRecurring', () => ({ useRunRecurringOnLoad: () => {} }))
 vi.mock('@/hooks/useFriends', () => ({ useDebtsBadgeCount: () => ({ data: 0 }) }))
+vi.mock('@/hooks/useAiSettings', () => ({ useConsent: () => ({ data: undefined }) }))
 
 import { AppLayout, BottomNav } from '@/components/AppLayout'
 

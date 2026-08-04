@@ -14,6 +14,7 @@ import { BudgetPage } from './pages/BudgetPage'
 import { DebtsPage } from './pages/DebtsPage'
 import { FriendHistoryPage } from './pages/FriendHistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { AiPage } from './pages/AiPage'
 
 /**
  * Routes for the 10 screens. Tabbed screens live under <AppLayout> (bottom nav
@@ -43,6 +44,10 @@ export const router = createBrowserRouter([
       },
       // full-screen flows (no bottom nav)
       { path: '/add', element: <AddPage /> },
+      // ผู้ช่วย AI chat — full-screen so the browser Back button works and the
+      // composer pins to the bottom. Reachable only with consent 'on'; AiPage
+      // itself redirects a not-enabled visitor to /settings (PR-5).
+      { path: '/ai', element: <AiPage /> },
       { path: '/stock/intake', element: <StockIntakePage /> },
       { path: '/stock/queue', element: <StockQueuePage /> },
     ],
