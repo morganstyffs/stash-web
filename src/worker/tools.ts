@@ -20,7 +20,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
 import { computePace } from '../lib/budgetPace'
-import { addMonthsToKey, daysSince, monthAnchorFromKey, monthBoundsFromKey, monthKey } from '../lib/dates'
+import { addMonthsToKey, allTimeBounds, daysSince, monthAnchorFromKey, monthBoundsFromKey, monthKey } from '../lib/dates'
 import { formatMonthLong } from '../lib/format'
 import { computeHomeSummary } from '../lib/homeSummary'
 import { isBudgetSpendingRow } from '../lib/ledger'
@@ -31,6 +31,12 @@ import { resolveCategory } from './categories'
 const OFFSET_PROP = {
   type: 'integer',
   description: 'เดือนแบบ offset จำนวนเต็ม: 0=เดือนนี้ -1=เดือนที่แล้ว (ห้ามส่งวันที่)',
+} as const
+
+const PERIOD_PROP = {
+  type: 'string',
+  enum: ['month', 'all'],
+  description: "ค่าเริ่มต้น month · 'all'=รวมทุกเดือน",
 } as const
 
 export const AI_TOOLS = [
@@ -46,11 +52,11 @@ export const AI_TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
+        period: PERIOD_PROP,
         offset: OFFSET_PROP,
         category: { type: 'string', description: 'ชื่อหมวดที่ผู้ใช้พูด เช่น "ค่าอาหาร" (จะให้ระบบหาหมวดให้)' },
         filter: { type: 'string', enum: ['all', 'income', 'expense', 'stock'], description: 'ค่าเริ่มต้น expense' },
       },
-      required: ['offset'],
       additionalProperties: false,
     },
   },
@@ -69,8 +75,7 @@ export const AI_TOOLS = [
     description: 'ยอดขายสต็อกของเดือน: รายได้/ต้นทุนขาย/กำไร/จำนวนชิ้น',
     input_schema: {
       type: 'object',
-      properties: { offset: OFFSET_PROP },
-      required: ['offset'],
+      properties: { period: PERIOD_PROP, offset: OFFSET_PROP },
       additionalProperties: false,
     },
   },
@@ -79,8 +84,7 @@ export const AI_TOOLS = [
     description: 'รายการที่ซื้อเข้าสต็อกในเดือน: ชื่อสินค้า/จำนวนที่รับเข้า/ราคาต่อหน่วย (สูงสุด 50)',
     input_schema: {
       type: 'object',
-      properties: { offset: OFFSET_PROP },
-      required: ['offset'],
+      properties: { period: PERIOD_PROP, offset: OFFSET_PROP },
       additionalProperties: false,
     },
   },
@@ -147,6 +151,14 @@ function readFilter(input: unknown): TxFilter {
   return 'expense'
 }
 
+type Period = 'month' | 'all'
+
+/** Time span for a month/all tool. Allowlist like readFilter: only 'all' opts
+ *  into all-time; anything else (missing / unknown value) means 'month'. */
+function readPeriod(input: unknown): Period {
+  return asObject(input).period === 'all' ? 'all' : 'month'
+}
+
 function readCategory(input: unknown): string {
   const v = asObject(input).category
   return typeof v === 'string' ? v.trim() : ''
@@ -207,9 +219,37 @@ function monthLabel(key: string): string {
   return formatMonthLong(monthAnchorFromKey(key))
 }
 
+/** Human phrase the model speaks for an all-time answer (period='all'). */
+const ALL_TIME_LABEL = 'ทั้งหมดตั้งแต่เริ่มใช้'
+
+/**
+ * The span descriptor every month/all tool puts in its payload so the model can
+ * always state which range the numbers cover (SYSTEM_PROMPT: "บอกที่มาเสมอ").
+ * period='all' → month/month_label are null, never left as the current month —
+ * otherwise the model reports the wrong span while the figure is right, and the
+ * user can't catch it. `range_label` is the human phrase it says out loud.
+ */
+function rangeFields(
+  period: Period,
+  monthKeyResolved: string,
+): { period: Period; month: string | null; month_label: string | null; range_label: string } {
+  if (period === 'all') {
+    return { period, month: null, month_label: null, range_label: ALL_TIME_LABEL }
+  }
+  const label = monthLabel(monthKeyResolved)
+  return { period, month: monthKeyResolved, month_label: label, range_label: label }
+}
+
+/** One month's [from, to) in the same {from, to} shape as allTimeBounds, so the
+ *  range tools pick a window by period without reshaping either result. */
+function monthWindow(key: string): { from: string; to: string } {
+  const b = monthBoundsFromKey(key) // start inclusive, next exclusive
+  return { from: b.start, to: b.next }
+}
+
 async function monthSpending(input: unknown, ctx: ToolContext): Promise<ToolOutcome> {
-  const offset = readOffset(input)
-  const month = addMonthsToKey(monthKey(ctx.nowDate), offset)
+  const period = readPeriod(input)
+  const month = addMonthsToKey(monthKey(ctx.nowDate), readOffset(input))
   const filter = readFilter(input)
   const rawCategory = readCategory(input)
 
@@ -231,7 +271,7 @@ async function monthSpending(input: unknown, ctx: ToolContext): Promise<ToolOutc
   const { data, error } = await ctx.supabase.rpc('transactions_search', {
     p_filter: filter,
     p_q: '',
-    p_month: month,
+    p_month: period === 'all' ? '' : month, // '' → every month (0024); else the one month
     p_category_id: categoryId,
     p_limit: ctx.rowCap, // itemised list is capped…
     p_offset: 0,
@@ -251,8 +291,7 @@ async function monthSpending(input: unknown, ctx: ToolContext): Promise<ToolOutc
     type: r.type,
   }))
   return ok({
-    month,
-    month_label: monthLabel(month), // human label the model shows; raw key stays too
+    ...rangeFields(period, month), // period + month/month_label (null when all) + range_label
     category: categoryName, // resolved name, or null = all categories
     filter,
     total_income: agg ? agg.match_income : 0,
@@ -299,18 +338,19 @@ async function homeSummary(input: unknown, ctx: ToolContext): Promise<ToolOutcom
 }
 
 async function stockSales(input: unknown, ctx: ToolContext): Promise<ToolOutcome> {
-  const offset = readOffset(input)
-  const month = addMonthsToKey(monthKey(ctx.nowDate), offset)
-  const b = monthBoundsFromKey(month) // start inclusive, next exclusive
+  const period = readPeriod(input)
+  const month = addMonthsToKey(monthKey(ctx.nowDate), readOffset(input))
+  // [from, to): one month, or the whole history (all-time floor → tomorrow ICT).
+  // The range comes from dates.ts — the worker never reckons the days itself.
+  const { from, to } = period === 'all' ? allTimeBounds(ctx.nowDate) : monthWindow(month)
   const { data, error } = await ctx.supabase.rpc('stock_sales_summary', {
-    p_from: b.start,
-    p_to: b.next,
+    p_from: from,
+    p_to: to,
   })
   if (error) return fail('ดึงยอดขายไม่สำเร็จ')
   const s = (data ?? [])[0]
   return ok({
-    month,
-    month_label: monthLabel(month), // human label the model shows; raw key stays too
+    ...rangeFields(period, month), // period + month/month_label (null when all) + range_label
     revenue: s ? s.revenue : 0,
     cogs: s ? s.cogs : 0,
     profit: s ? s.profit : 0, // ถัง1 − ถัง2 from the RPC — never spread per item
@@ -320,12 +360,14 @@ async function stockSales(input: unknown, ctx: ToolContext): Promise<ToolOutcome
 }
 
 async function stockIntake(input: unknown, ctx: ToolContext): Promise<ToolOutcome> {
-  const offset = readOffset(input)
-  const month = addMonthsToKey(monthKey(ctx.nowDate), offset)
-  const b = monthBoundsFromKey(month) // start inclusive, next exclusive — [from, to)
+  const period = readPeriod(input)
+  const month = addMonthsToKey(monthKey(ctx.nowDate), readOffset(input))
+  // [from, to): one month, or the whole history (all-time floor → tomorrow ICT).
+  // The range comes from dates.ts — the worker never reckons the days itself.
+  const { from, to } = period === 'all' ? allTimeBounds(ctx.nowDate) : monthWindow(month)
   const { data, error } = await ctx.supabase.rpc('stock_intake_list', {
-    p_from: b.start,
-    p_to: b.next,
+    p_from: from,
+    p_to: to,
     p_limit: ctx.rowCap, // itemised list is capped…
   })
   if (error) return fail('ดึงรายการรับเข้าสต็อกไม่สำเร็จ')
@@ -340,8 +382,7 @@ async function stockIntake(input: unknown, ctx: ToolContext): Promise<ToolOutcom
     cost_per_unit: r.cost_per_unit, // straight from the RPC — never recompute (§4-14)
   }))
   return ok({
-    month,
-    month_label: monthLabel(month), // human label the model shows; raw key stays too
+    ...rangeFields(period, month), // period + month/month_label (null when all) + range_label
     count: totalCount,
     items,
     capped: totalCount > items.length,

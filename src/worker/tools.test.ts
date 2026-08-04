@@ -54,6 +54,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
 import { runTool, AI_TOOLS, type ToolContext } from './tools'
 import { resolveCategory } from './categories'
+import { allTimeBounds } from '../lib/dates'
 
 // A Jan-15 instant → Bangkok month 2026-01, so offset -1 crosses the year.
 const NOW = new Date('2026-01-15T05:00:00Z')
@@ -369,5 +370,65 @@ describe('tool schemas — offset is an integer, never a date string', () => {
       expect(props.offset?.type).toBe('integer')
       for (const key of Object.keys(props)) expect(key).not.toMatch(/date|month|from|to/i)
     }
+  })
+})
+
+describe('period="all" — every-month / all-time span, not just one month', () => {
+  it('month_spending period=all → p_month "" (0024: empty = every month)', async () => {
+    await parse('month_spending', { period: 'all' })
+    expect((state.rpcArgs.transactions_search as { p_month: string }).p_month).toBe('')
+  })
+
+  it('stock_sales period=all → p_from/p_to straight from allTimeBounds (floor → tomorrow ICT)', async () => {
+    await parse('stock_sales', { period: 'all' })
+    // exactly the helper's window — the worker never reckons the all-time days itself
+    const { from, to } = allTimeBounds(NOW)
+    expect(state.rpcArgs.stock_sales_summary).toEqual({ p_from: from, p_to: to })
+  })
+
+  it('stock_intake period=all → p_from/p_to from allTimeBounds, limit = rowCap', async () => {
+    await parse('stock_intake', { period: 'all' })
+    const args = state.rpcArgs.stock_intake_list as { p_from: string; p_to: string; p_limit: number }
+    const { from, to } = allTimeBounds(NOW)
+    expect(args.p_from).toBe(from)
+    expect(args.p_to).toBe(to)
+    expect(args.p_limit).toBe(50)
+  })
+
+  it('period=all → month and month_label are null (never the current month), with a human range_label', async () => {
+    for (const name of ['month_spending', 'stock_sales', 'stock_intake']) {
+      const out = await parse(name, { period: 'all' })
+      expect(out.month).toBeNull()
+      expect(out.month_label).toBeNull()
+      expect(out.period).toBe('all')
+      expect(out.range_label).toBe('ทั้งหมดตั้งแต่เริ่มใช้')
+    }
+  })
+
+  it('an unknown period value falls back to "month" (allowlist, like filter)', async () => {
+    await parse('month_spending', { period: 'year' })
+    expect((state.rpcArgs.transactions_search as { p_month: string }).p_month).toBe('2026-01')
+    const out = await parse('stock_intake', { period: 'ทั้งปี', offset: 0 })
+    const args = state.rpcArgs.stock_intake_list as { p_from: string; p_to: string }
+    expect(args.p_from).toBe('2026-01-01')
+    expect(args.p_to).toBe('2026-02-01')
+    expect(out.month).toBe('2026-01')
+    expect(out.period).toBe('month')
+  })
+
+  it('omitting period keeps the exact month behaviour — offset still applies', async () => {
+    await parse('stock_sales', { offset: -1 })
+    const args = state.rpcArgs.stock_sales_summary as { p_from: string; p_to: string }
+    expect(args.p_from).toBe('2025-12-01')
+    expect(args.p_to).toBe('2026-01-01')
+    const out = await parse('month_spending', { offset: 0 })
+    expect(out.month).toBe('2026-01')
+    expect(out.period).toBe('month')
+  })
+
+  it('period=all ignores any offset sent alongside it (all-time, not a month)', async () => {
+    await parse('stock_sales', { period: 'all', offset: -3 })
+    const { from, to } = allTimeBounds(NOW)
+    expect(state.rpcArgs.stock_sales_summary).toEqual({ p_from: from, p_to: to })
   })
 })
