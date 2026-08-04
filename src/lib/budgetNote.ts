@@ -1,4 +1,4 @@
-import type { PaceState } from '@/hooks/useBudgets'
+import type { PaceState } from './budgetPace'
 
 /**
  * The wording for a category's budget note — kept in ONE place so the per-category

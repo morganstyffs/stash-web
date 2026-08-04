@@ -2,10 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   budgetableRows,
   computeBudgetSummary,
-  computePace,
-  computePaceStatic,
   type BudgetRow,
 } from '@/hooks/useBudgets'
+import { computePace, computePaceStatic } from '@/lib/budgetPace'
 import { isBudgetSpendingRow, type LedgerRow } from '@/lib/ledger'
 
 describe('computePace — over budget', () => {

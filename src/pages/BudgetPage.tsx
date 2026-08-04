@@ -12,8 +12,6 @@ import {
 } from '@tabler/icons-react'
 import {
   computeBudgetSummary,
-  computePace,
-  computePaceStatic,
   budgetableRows,
   useBudgets,
   useDeleteBudget,
@@ -21,6 +19,7 @@ import {
   useUpsertBudget,
   type BudgetRow,
 } from '@/hooks/useBudgets'
+import { computePace, computePaceStatic } from '@/lib/budgetPace'
 import { useCategories } from '@/hooks/useLookups'
 import { useHideBalance } from '@/hooks/useHideBalance'
 import { useToast } from '@/components/Toast'
