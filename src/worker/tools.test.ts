@@ -54,7 +54,6 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
 import { runTool, AI_TOOLS, type ToolContext } from './tools'
 import { resolveCategory } from './categories'
-import { AGE_OLD_MAX } from '../lib/stockAge'
 
 // A Jan-15 instant → Bangkok month 2026-01, so offset -1 crosses the year.
 const NOW = new Date('2026-01-15T05:00:00Z')
@@ -232,11 +231,37 @@ describe('wallet_balances — real wallet names, not "wallet 2"', () => {
   })
 })
 
-describe('stock tools — thresholds come from lib, not hardcoded', () => {
-  it('stale_stock reports the AGE_OLD_MAX threshold from lib/stockAge', async () => {
+describe('stale_stock — the guessed age cap is NOT surfaced to the user', () => {
+  it('drops stale_threshold_days (an admitted guess) but keeps the facts', async () => {
     state.tables.stock_items = { data: [], error: null }
     const out = await parse('stale_stock', undefined)
-    expect(out.stale_threshold_days).toBe(AGE_OLD_MAX)
+    // the cap (AGE_OLD_MAX) is presentation-false-precision → must not leak
+    expect(out).not.toHaveProperty('stale_threshold_days')
+    // facts stay: how many items, how much money, and the oldest age
+    expect(out).toHaveProperty('stale_count')
+    expect(out).toHaveProperty('sunk_cost')
+    expect(out).toHaveProperty('oldest_in_stock_days')
+  })
+})
+
+describe('month tools — carry a human month label AND keep the raw key', () => {
+  it('month_spending returns month_label (Buddhist-era Thai) alongside the raw month key', async () => {
+    const out = await parse('month_spending', { offset: 0 }) // NOW = 2026-01
+    expect(out.month).toBe('2026-01') // raw key kept — model may compare months
+    expect(out.month_label).toBe('มกราคม 2569') // human label the model shows the user
+  })
+
+  it('the label follows the resolved month (offset -1 crosses the year)', async () => {
+    const out = await parse('stock_intake', { offset: -1 }) // → 2025-12
+    expect(out.month).toBe('2025-12')
+    expect(out.month_label).toBe('ธันวาคม 2568')
+  })
+
+  it('home_summary and stock_sales carry month_label too', async () => {
+    const home = await parse('home_summary', { offset: 0 })
+    expect(home.month_label).toBe('มกราคม 2569')
+    const sales = await parse('stock_sales', { offset: 0 })
+    expect(sales.month_label).toBe('มกราคม 2569')
   })
 })
 

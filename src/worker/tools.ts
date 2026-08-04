@@ -19,9 +19,10 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
-import { addMonthsToKey, daysSince, monthBoundsFromKey, monthKey } from '../lib/dates'
+import { addMonthsToKey, daysSince, monthAnchorFromKey, monthBoundsFromKey, monthKey } from '../lib/dates'
+import { formatMonthLong } from '../lib/format'
 import { computeHomeSummary } from '../lib/homeSummary'
-import { AGE_OLD_MAX, computeSunkCost, inStock, isStale } from '../lib/stockAge'
+import { computeSunkCost, inStock, isStale } from '../lib/stockAge'
 import { resolveCategory } from './categories'
 
 // ── tool definitions (sent verbatim as the Anthropic `tools` array) ──────────
@@ -180,6 +181,18 @@ async function walletBalances(ctx: ToolContext): Promise<ToolOutcome> {
   return ok({ wallets: rows })
 }
 
+/**
+ * Human-readable Buddhist-era month label for a 'YYYY-MM' key, e.g. "กรกฎาคม 2569".
+ * The model shows THIS to the user (never the raw key). We keep the raw `month`
+ * key in the payload too — the model may need it to compare months internally.
+ * Goes through lib/format's formatMonthLong (one source of truth for the Thai
+ * month name — convention 11) and monthAnchorFromKey, never `new Date('YYYY-MM-01')`
+ * which parses as UTC and can shift the month (convention 17).
+ */
+function monthLabel(key: string): string {
+  return formatMonthLong(monthAnchorFromKey(key))
+}
+
 async function monthSpending(input: unknown, ctx: ToolContext): Promise<ToolOutcome> {
   const offset = readOffset(input)
   const month = addMonthsToKey(monthKey(ctx.nowDate), offset)
@@ -225,6 +238,7 @@ async function monthSpending(input: unknown, ctx: ToolContext): Promise<ToolOutc
   }))
   return ok({
     month,
+    month_label: monthLabel(month), // human label the model shows; raw key stays too
     category: categoryName, // resolved name, or null = all categories
     filter,
     total_income: agg ? agg.match_income : 0,
@@ -249,7 +263,7 @@ async function homeSummary(input: unknown, ctx: ToolContext): Promise<ToolOutcom
   if (error) return fail('ดึงข้อมูลสรุปไม่สำเร็จ')
   if ((rows ?? []).length >= RAW_ROW_MAX) {
     // Would aggregate an incomplete set → refuse rather than under-report (§9).
-    return ok({ month, too_many_transactions: true })
+    return ok({ month, month_label: monthLabel(month), too_many_transactions: true })
   }
 
   const { data: cats, error: cErr } = await ctx.supabase.from('categories').select('*')
@@ -259,6 +273,7 @@ async function homeSummary(input: unknown, ctx: ToolContext): Promise<ToolOutcom
   const s = computeHomeSummary(rows ?? [], cats ?? [], month, ctx.nowDate)
   return ok({
     month,
+    month_label: monthLabel(month), // human label the model shows; raw key stays too
     income: s.income,
     expense_headline: s.expense, // cash out (isSpendingRow)
     budget_spending: s.budgetSpending, // ยอดที่นับในงบ (COGS/settlement/shop-op excluded)
@@ -281,6 +296,7 @@ async function stockSales(input: unknown, ctx: ToolContext): Promise<ToolOutcome
   const s = (data ?? [])[0]
   return ok({
     month,
+    month_label: monthLabel(month), // human label the model shows; raw key stays too
     revenue: s ? s.revenue : 0,
     cogs: s ? s.cogs : 0,
     profit: s ? s.profit : 0, // ถัง1 − ถัง2 from the RPC — never spread per item
@@ -311,6 +327,7 @@ async function stockIntake(input: unknown, ctx: ToolContext): Promise<ToolOutcom
   }))
   return ok({
     month,
+    month_label: monthLabel(month), // human label the model shows; raw key stays too
     count: totalCount,
     items,
     capped: totalCount > items.length,
@@ -323,14 +340,17 @@ async function staleStock(ctx: ToolContext): Promise<ToolOutcome> {
   const list = items ?? []
   if (list.length >= RAW_ROW_MAX) return ok({ too_many_items: true })
 
-  // All age/sunk-cost logic comes from lib/stockAge (AGE_OLD_MAX lives there —
+  // All age/sunk-cost logic comes from lib/stockAge (the age cap lives there —
   // never hardcode 60 again). daysSince/isStale/computeSunkCost share one age cap.
+  // We deliberately DON'T surface that cap to the user: stockAge.ts admits it's an
+  // "educated guess … not measured", so presenting "60 วัน" as a meaningful
+  // threshold would be false precision. stale_count/sunk_cost are facts (how many
+  // items, how much money) and stay; the model describes them as "ค้างนานผิดปกติ".
   const oldestInStockDays = list
     .filter(inStock)
     .reduce((max, it) => Math.max(max, daysSince(it.created_at, ctx.nowDate)), 0)
   return ok({
     oldest_in_stock_days: oldestInStockDays,
-    stale_threshold_days: AGE_OLD_MAX,
     stale_count: list.filter((it) => isStale(it, ctx.nowDate)).length,
     sunk_cost: computeSunkCost(list, ctx.nowDate),
   })
