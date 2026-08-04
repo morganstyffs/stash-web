@@ -20,11 +20,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
 import { computePace, computePaceStatic } from '../lib/budgetPace'
-import { addMonthsToKey, allTimeBounds, daysSince, monthAnchorFromKey, monthBoundsFromKey, monthKey } from '../lib/dates'
+import { addMonthsToKey, allTimeBounds, daysSince, monthAnchorFromKey, monthBounds, monthBoundsFromKey, monthKey } from '../lib/dates'
 import { formatMonthLong } from '../lib/format'
 import { computeHomeSummary } from '../lib/homeSummary'
 import { isBudgetSpendingRow } from '../lib/ledger'
 import { computeSunkCost, inStock, isStale } from '../lib/stockAge'
+import { collectMonthOccurrences } from '../lib/upcomingBills'
 import { resolveCategory } from './categories'
 
 // ── tool definitions (sent verbatim as the Anthropic `tools` array) ──────────
@@ -102,6 +103,11 @@ export const AI_TOOLS = [
       required: ['offset'],
       additionalProperties: false,
     },
+  },
+  {
+    name: 'upcoming_bills',
+    description: 'บิลประจำที่ยังรอจ่ายในเดือนนี้ (รายการ+ยอดรวม) ไม่รับพารามิเตอร์',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
 ] as const
 
@@ -186,6 +192,8 @@ export async function runTool(
       return staleStock(ctx)
     case 'budget_status':
       return budgetStatus(input, ctx)
+    case 'upcoming_bills':
+      return upcomingBills(ctx)
     default:
       return fail(`ไม่รู้จักเครื่องมือ: ${name}`)
   }
@@ -510,4 +518,92 @@ async function budgetStatus(input: unknown, ctx: ToolContext): Promise<ToolOutco
     total_used: totalUsed, // spend that counts in the BUDGETED categories, not the whole month
     total_remaining: totalBudget - totalUsed, // negative when over overall (never clamped)
   })
+}
+
+/**
+ * Cap on active expense rules read for the "รอจ่าย" answer. On the home screen
+ * useUpcomingBills runs under React Query and can wait as long as it likes; here
+ * the same work runs under the shared AI_REQUEST_DEADLINE_MS (45s spanning EVERY
+ * round of the tool loop), so an unbounded rule count could starve the rest of a
+ * mixed question and 504. See upcomingBills() for why the enumeration is an N+M
+ * round-trip. Set far above a real person's handful of recurring bills; reaching
+ * it means something is off, so we surface too_many_rules rather than aggregate
+ * an incomplete set (§9 — Supabase returns rows already limited, and a silent
+ * under-report of pending money is exactly the trap we must not fall into).
+ */
+const MAX_RECURRING_RULES = 100
+
+/**
+ * Recurring EXPENSE bills still due THIS month — the "รอจ่าย" strip already on
+ * the home screen, made answerable. A worker-side mirror of the useUpcomingBills
+ * hook (same collectMonthOccurrences + recurring_next_date), minus React and
+ * minus the icon/color_index fields (those draw the screen; the model reasons
+ * over date/label/amount only).
+ *
+ * "Now" ONLY — no offset/period, unlike the month tools. useUpcomingBills is
+ * deliberately month-less (§11.4-21): last month's unpaid bills don't exist
+ * (recurring_run_due already materialized them into `expense`), and next month's
+ * aren't "pending" yet. An offset here would let the model ask for a month whose
+ * number can't be interpreted, so the schema takes no parameters — same shape as
+ * wallet_balances / stale_stock.
+ *
+ * COST — this is an N+M round-trip, NOT one query, and that is deliberate. One
+ * read of `recurring`, then collectMonthOccurrences walks each rule's schedule by
+ * calling the recurring_next_date RPC once PER STEP (one HTTP round-trip to
+ * PostgREST each): a monthly rule costs ~1–2 steps, a daily one up to
+ * MAX_OCCURRENCES_PER_RULE (40). We accept it because the schedule arithmetic is
+ * the DB's — the worker must never re-derive a date (§4-14) — and the scale is
+ * tiny (a few users, a few rules). MAX_RECURRING_RULES bounds the rule count so a
+ * burst can't exhaust the request budget; recurring_next_date is confirmed
+ * callable from the worker under the user's JWT (migration 0008: grant execute to
+ * authenticated, immutable, security invoker).
+ */
+async function upcomingBills(ctx: ToolContext): Promise<ToolOutcome> {
+  const { data, error } = await ctx.supabase
+    .from('recurring')
+    .select('id, label, amount, schedule, next_run')
+    .eq('active', true)
+    .eq('type', 'expense') // RLS already scopes rows to the caller; active expense rules only
+    .limit(MAX_RECURRING_RULES)
+  if (error) return fail('ดึงรายการรอจ่ายไม่สำเร็จ')
+
+  const rules = data ?? []
+  // Hit the read cap → we can't be sure we have every rule, so refuse rather
+  // than under-report the pending total (§9). Distinct from has_rules:false.
+  if (rules.length >= MAX_RECURRING_RULES) {
+    return ok({ too_many_rules: true })
+  }
+
+  const bounds = monthBounds(ctx.nowDate) // this-month [start, next); "now" only, never an offset
+  try {
+    const items: Array<{ date: string; label: string; amount: number }> = []
+    for (const r of rules) {
+      if (!r.next_run) continue
+      // Schedule arithmetic stays in the DB (recurring_next_date) — the worker
+      // never parses a schedule string (§4-14). One round-trip per step.
+      const dates = await collectMonthOccurrences(r.next_run, bounds, async (from) => {
+        const { data: nd, error: ndErr } = await ctx.supabase.rpc('recurring_next_date', {
+          p_from: from,
+          p_schedule: r.schedule,
+        })
+        if (ndErr) throw ndErr
+        return nd
+      })
+      for (const d of dates) {
+        items.push({ date: d, label: r.label, amount: Number(r.amount) || 0 })
+      }
+    }
+    items.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    const total = items.reduce((s, x) => s + x.amount, 0)
+    // has_rules:false = no active expense rule at all (never set one up) — NOT the
+    // same as "set up but everything's already been charged this month"
+    // (has_rules:true + empty items). The model must tell these apart, so it never
+    // says "ไม่มีบิล" when the truth is "ยังไม่ได้ตั้งรายการประจำ".
+    return ok({ items, total, has_rules: rules.length > 0 })
+  } catch {
+    // collectMonthOccurrences throws on the per-rule occurrence cap, and the
+    // nextDate callback throws on an RPC error — report rather than crash the
+    // turn (a null next date is handled inside the lib and does NOT throw).
+    return fail('คำนวณรายการรอจ่ายไม่สำเร็จ')
+  }
 }
