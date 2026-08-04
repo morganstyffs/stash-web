@@ -11,7 +11,8 @@ import {
   type RecentRow,
 } from '@/hooks/useHome'
 import { computeHomeSummary, type DonutSlice } from '@/lib/homeSummary'
-import { useUpcomingBills, type PendingItem } from '@/hooks/useUpcomingBills'
+import { useUpcomingBills } from '@/hooks/useUpcomingBills'
+import { type PendingItem } from '@/lib/upcomingBills'
 import { Donut } from '@/components/charts'
 import { WovenHero } from '@/components/WovenHero'
 import { MonthSwitcher } from '@/components/MonthSwitcher'

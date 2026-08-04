@@ -11,7 +11,7 @@
  * so the headline shows two gross figures, never one blended net (that number
  * answers nothing you can act on; see the PR brief).
  */
-import type { Debt, FriendDebtsSummary } from '@/lib/db'
+import type { Debt, FriendDebtsSummary } from './db'
 
 export interface DebtsHeadline {
   /** SHARED only: total others owe me — Σ of each friend's positive net. */

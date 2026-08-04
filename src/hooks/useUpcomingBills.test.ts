@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectMonthOccurrences } from '@/hooks/useUpcomingBills'
+import { collectMonthOccurrences } from '@/lib/upcomingBills'
 
 // August 2026 window: [start, next).
 const AUG = { start: '2026-08-01', next: '2026-09-01' }

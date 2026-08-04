@@ -1,4 +1,4 @@
-import type { CategoryKind } from '@/lib/db'
+import type { CategoryKind } from './db'
 
 /**
  * The ONE rule for "can this category carry a monthly budget?" — a single pure
