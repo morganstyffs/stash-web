@@ -10,10 +10,11 @@
  * ── Cost ceilings (the four numbers that bound spend per request) ────────────
  * If any of these is missing the endpoint becomes an unbounded money sink, so
  * they are all enforced:
- *   ANTHROPIC_MODEL     — which model (price tier)
- *   AI_MAX_TOKENS       — max output tokens per call
- *   AI_MAX_MODEL_CALLS  — max calls per request (caps the tool-use loop)
- *   AI_TIMEOUT_MS       — per-call wall-clock ceiling (AbortSignal.timeout)
+ *   ANTHROPIC_MODEL        — which model (price tier)
+ *   AI_MAX_TOKENS          — max output tokens per call
+ *   AI_MAX_MODEL_CALLS     — max calls per request (caps the tool-use loop)
+ *   AI_TIMEOUT_MS          — per-call wall-clock ceiling (AbortSignal.timeout)
+ *   AI_REQUEST_DEADLINE_MS — total wall-clock ceiling for the whole request
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -37,8 +38,23 @@ export const AI_MAX_TOKENS = 1024
  *  can never loop tools forever and burn money. Normal flow uses 2 (one to
  *  pick a tool, one to answer). */
 export const AI_MAX_MODEL_CALLS = 3
-/** Per-call wall-clock ceiling. A hung upstream can't pin the request open. */
+/** Per-call wall-clock ceiling. A hung upstream can't pin one call open. */
 export const AI_TIMEOUT_MS = 30_000
+/**
+ * Total wall-clock ceiling for the WHOLE request (all calls combined). This is
+ * NOT redundant with AI_TIMEOUT_MS: the per-call timeout bounds one call, but
+ * AI_MAX_MODEL_CALLS of them back-to-back could still pin the user's request
+ * open for ~AI_MAX_MODEL_CALLS × AI_TIMEOUT_MS (~90s) — far too long for
+ * someone waiting on screen. This is the shared budget across all calls; do NOT
+ * delete it as a duplicate of the per-call timeout, they bound different things.
+ */
+export const AI_REQUEST_DEADLINE_MS = 45_000
+/**
+ * If less than this remains of the shared budget, stop instead of firing a call
+ * that almost certainly can't finish a model turn in time — it would only waste
+ * a round-trip and delay the 504.
+ */
+const AI_MIN_CALL_BUDGET_MS = 2_000
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const ANTHROPIC_VERSION = '2023-06-01'
@@ -89,12 +105,20 @@ export async function runAssistant(opts: {
   question: string
   apiKey: string
   supabase: SupabaseClient<Database>
+  /** Injectable clock (ms). Defaults to Date.now; tests pass a fake so the
+   *  shared-deadline path is deterministic. */
+  now?: () => number
 }): Promise<string> {
   const { question, apiKey, supabase } = opts
+  const now = opts.now ?? Date.now
+  // Capture the shared deadline ONCE, up front — every call this request makes
+  // must finish before it (see AI_REQUEST_DEADLINE_MS above for why per-call
+  // timeouts aren't enough).
+  const deadlineAt = now() + AI_REQUEST_DEADLINE_MS
   const messages: Turn[] = [{ role: 'user', content: question }]
 
   for (let call = 0; call < AI_MAX_MODEL_CALLS; call++) {
-    const res = await callAnthropic(apiKey, messages)
+    const res = await callAnthropic(apiKey, messages, deadlineAt, now)
     const content = res.content ?? []
 
     if (res.stop_reason !== 'tool_use') {
@@ -122,7 +146,20 @@ export async function runAssistant(opts: {
   return FALLBACK_REPLY
 }
 
-async function callAnthropic(apiKey: string, messages: Turn[]): Promise<AnthropicMessage> {
+async function callAnthropic(
+  apiKey: string,
+  messages: Turn[],
+  deadlineAt: number,
+  now: () => number,
+): Promise<AnthropicMessage> {
+  // Stop before firing a call the shared budget can't afford. Mapped to 504.
+  const remaining = deadlineAt - now()
+  if (remaining < AI_MIN_CALL_BUDGET_MS) {
+    throw new AnthropicError('timeout')
+  }
+  // This call gets whichever is smaller: its own per-call ceiling, or whatever
+  // is left of the shared request budget.
+  const timeoutMs = Math.min(AI_TIMEOUT_MS, remaining)
   let res: Response
   try {
     res = await fetch(ANTHROPIC_URL, {
@@ -139,7 +176,7 @@ async function callAnthropic(apiKey: string, messages: Turn[]): Promise<Anthropi
         messages,
         tools: AI_TOOLS,
       }),
-      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     })
   } catch (err) {
     // AbortSignal.timeout aborts with a TimeoutError DOMException; a dropped

@@ -44,7 +44,10 @@ vi.mock('@supabase/supabase-js', () => ({
   },
 }))
 
+import { createClient } from '@supabase/supabase-js'
 import { handleAi } from './ai'
+import { AnthropicError, runAssistant } from './anthropic'
+import type { Database } from '../lib/database.types'
 import type { Env } from './index'
 import { AI_TOOLS } from './tools'
 import { RL_PER_MINUTE, RL_PER_DAY, type RateLimitStore } from './rateLimit'
@@ -58,6 +61,10 @@ const NO_CONSENT = 'ยังไม่ได้เปิดใช้ผู้ช
 const fetchState = vi.hoisted(() => ({
   calls: 0,
   queue: [] as Array<{ status?: number; body?: unknown; throwName?: string }>,
+  // Fake clock (ms). Each fetch advances it by advancePerCallMs, so a test can
+  // make an Anthropic call "take" long enough to blow the shared deadline.
+  clockMs: 0,
+  advancePerCallMs: 0,
 }))
 
 function anthropicText(text: string) {
@@ -81,11 +88,14 @@ beforeEach(() => {
   state.rpcCalls = []
   fetchState.calls = 0
   fetchState.queue = []
+  fetchState.clockMs = 0
+  fetchState.advancePerCallMs = 0
 
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => {
       fetchState.calls++
+      fetchState.clockMs += fetchState.advancePerCallMs
       const next = fetchState.queue.shift()
       if (!next) throw new Error('no scripted Anthropic response')
       if (next.throwName) {
@@ -290,6 +300,43 @@ describe('handleAi — happy path + tool loop', () => {
     expect(res.status).toBe(200)
     // 3 = AI_MAX_MODEL_CALLS — the loop stopped rather than draining the queue.
     expect(fetchState.calls).toBe(3)
+  })
+})
+
+describe('runAssistant — shared request deadline (total, not just per-call)', () => {
+  it('stops before firing a doomed call once the budget is exhausted → timeout', async () => {
+    state.rpc = { data: [], error: null }
+    // First Anthropic call "takes" 44s, leaving < AI_MIN_CALL_BUDGET before the
+    // second. The loop must NOT fire that second call.
+    fetchState.advancePerCallMs = 44_000
+    fetchState.queue = [anthropicToolUse('tu_1', 'wallet_balances'), anthropicText('should never run')]
+
+    // Mock client from the mocked createClient (typed, no cast).
+    const supabase = createClient<Database>('https://project.supabase.co', 'anon-key')
+    const now = () => fetchState.clockMs
+
+    const err = await runAssistant({ question: 'เงินเหลือเท่าไหร่', apiKey: 'sk-test', supabase, now }).catch(
+      (e) => e,
+    )
+    expect(err).toBeInstanceOf(AnthropicError)
+    expect(err.kind).toBe('timeout') // caller maps this to 504
+    // Only the first call fired; the second was skipped as un-affordable.
+    expect(fetchState.calls).toBe(1)
+  })
+
+  it('does not trip the deadline on a normal fast turn (calls complete instantly)', async () => {
+    state.rpc = { data: [], error: null }
+    fetchState.advancePerCallMs = 0 // instant calls
+    fetchState.queue = [anthropicToolUse('tu_1', 'wallet_balances'), anthropicText('เหลือ ฿0')]
+    const supabase = createClient<Database>('https://project.supabase.co', 'anon-key')
+    const reply = await runAssistant({
+      question: 'เงินเหลือเท่าไหร่',
+      apiKey: 'sk-test',
+      supabase,
+      now: () => fetchState.clockMs,
+    })
+    expect(reply).toBe('เหลือ ฿0')
+    expect(fetchState.calls).toBe(2)
   })
 })
 
