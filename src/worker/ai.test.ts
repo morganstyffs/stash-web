@@ -514,7 +514,7 @@ describe('handleAi — upstream errors map to Thai 502/504 without leaking', () 
 
 describe('AI_TOOLS registry — safe by construction (design §3.4 / §6)', () => {
   const IDENTITY_KEY = /user_id|wallet_id|account|owner|uid/i
-  const FORBIDDEN_NAME = /debt|profile|friend/i
+  const CROSS_USER_NAME = /debt|profile|friend/i
 
   it('no tool schema exposes an identity field, and all lock additionalProperties', () => {
     for (const tool of AI_TOOLS) {
@@ -525,9 +525,14 @@ describe('AI_TOOLS registry — safe by construction (design §3.4 / §6)', () =
     }
   })
 
-  it('no registered tool touches debts / friends / profiles (v1 excludes cross-user)', () => {
-    for (const tool of AI_TOOLS) {
-      expect(tool.name).not.toMatch(FORBIDDEN_NAME)
-    }
+  it('the ONLY cross-user (debts/friends/profiles) tool is debts_summary, and it takes no input', () => {
+    // §6 kept the whole friends/debts group out of v1; ticket 4b reopened exactly
+    // ONE slice — a zero-arg, headline-only debts tool. Nothing else in this family
+    // is allowed (no per-friend / profile tool), and debts_summary must stay
+    // parameterless so the model can never name whose data to read.
+    const crossUser = AI_TOOLS.filter((t) => CROSS_USER_NAME.test(t.name))
+    expect(crossUser.map((t) => t.name)).toEqual(['debts_summary'])
+    expect(crossUser[0].input_schema.properties).toEqual({})
+    expect(crossUser[0].input_schema.additionalProperties).toBe(false)
   })
 })

@@ -1,7 +1,10 @@
 /**
  * Read-only tools exposed to the model, plus their execution under the user's
  * RLS-scoped client. Everything here is READ-ONLY — nothing writes/updates/
- * deletes, and nothing touches debts/friends/profiles (design §6).
+ * deletes. The friends/debts group (design §6 kept it out of v1) is now touched
+ * by exactly ONE tool, `debts_summary`, and ONLY at the headline level: three
+ * aggregate numbers, no friend names / ids / per-item detail, no private notes.
+ * See that function for why the narrow scope is safe.
  *
  * Two hard rules (design §3.4 / §4):
  *  - A tool's schema must NOT let the model name whose data to read. RPCs are
@@ -20,6 +23,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
 import { computePace, computePaceStatic } from '../lib/budgetPace'
+import { computeDebtsHeadline } from '../lib/debtsSummary'
 import { addMonthsToKey, allTimeBounds, daysSince, monthAnchorFromKey, monthBounds, monthBoundsFromKey, monthKey } from '../lib/dates'
 import { formatMonthLong } from '../lib/format'
 import { computeHomeSummary } from '../lib/homeSummary'
@@ -109,6 +113,11 @@ export const AI_TOOLS = [
     description: 'บิลประจำที่ยังรอจ่ายในเดือนนี้ (รายการ+ยอดรวม) ไม่รับพารามิเตอร์',
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
+  {
+    name: 'debts_summary',
+    description: 'ยอดค้างเพื่อนแบบยอดรวม: เพื่อนค้างเรารวม/เราค้างเพื่อนรวม/จำนวนเพื่อน ไม่รับพารามิเตอร์',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
 ] as const
 
 export interface ToolContext {
@@ -194,6 +203,8 @@ export async function runTool(
       return budgetStatus(input, ctx)
     case 'upcoming_bills':
       return upcomingBills(ctx)
+    case 'debts_summary':
+      return debtsSummary(ctx)
     default:
       return fail(`ไม่รู้จักเครื่องมือ: ${name}`)
   }
@@ -606,4 +617,36 @@ async function upcomingBills(ctx: ToolContext): Promise<ToolOutcome> {
     // turn (a null next date is handled inside the lib and does NOT throw).
     return fail('คำนวณรายการรอจ่ายไม่สำเร็จ')
   }
+}
+
+/**
+ * Friend outstanding balances — HEADLINE ONLY (design §6 kept the whole
+ * friends/debts group out of v1; this reopens it at the narrowest slice after the
+ * read-only pattern proved out). The scope here is deliberately the smallest that
+ * answers "มียอดค้างเพื่อนมั้ย" and nothing wider:
+ *  - `friend_debts_summary()` is 0-arg + INVOKER, so RLS scopes it to the caller —
+ *    the model never names whose data to read (same identity rule as every tool).
+ *  - computeDebtsHeadline (lib/debtsSummary) is the ONE place these totals are
+ *    summed (convention 11); we never add amounts here. It reads only `shared_net`,
+ *    so PRIVATE ("จดไว้เอง") balances are excluded by construction — they can't
+ *    reach the payload even by accident.
+ *  - Two GROSS figures, never one blended net: across friends they don't cancel
+ *    (one friend owing me doesn't pay what I owe another), so a single number would
+ *    answer nothing — see the comment in debtsSummary.ts.
+ *  - We return ONLY the three headline numbers + a has_friends flag. `display_name`
+ *    / `friend_id` and every `private_*` column are NEVER put in the payload:
+ *    display_name is free text the OTHER party set (a cross-user prompt-injection
+ *    surface, §6), and private notes must not leak. Per-friend / per-item detail
+ *    lives in the app's ยอดค้าง tab, not here.
+ */
+async function debtsSummary(ctx: ToolContext): Promise<ToolOutcome> {
+  const { data, error } = await ctx.supabase.rpc('friend_debts_summary')
+  if (error) return fail('ดึงยอดค้างไม่สำเร็จ')
+  const h = computeDebtsHeadline(data ?? [])
+  return ok({
+    they_owe_me: h.theyOweMe, // Σ of each friend's positive net (shared only)
+    i_owe_them: h.iOweThem, // Σ of each friend's |negative net| (shared only)
+    friend_count: h.friendCount, // accepted friends, cleared or not
+    has_friends: h.friendCount > 0, // false → "ยังไม่มีเพื่อน", not "ยอดค้าง ฿0"
+  })
 }

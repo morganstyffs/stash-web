@@ -560,3 +560,97 @@ describe('upcoming_bills — recurring expense bills still due THIS month (now-o
     expect(tool!.input_schema).not.toHaveProperty('required')
   })
 })
+
+describe('debts_summary — headline only (design §6, revised): two gross totals, no names, no private', () => {
+  // Mirror the shape friend_debts_summary() actually returns, so a case can seed
+  // the fields that MUST NOT leak (display_name / friend_id / private_*) and prove
+  // they never reach the payload. computeDebtsHeadline reads only shared_net.
+  function debtRow(over: Record<string, unknown>) {
+    return {
+      friend_id: 'f-id',
+      display_name: 'สมชาย',
+      shared_they_owe_me: 0,
+      shared_i_owe_them: 0,
+      shared_net: 0,
+      private_they_owe_me: 0,
+      private_i_owe_them: 0,
+      private_net: 0,
+      ...over,
+    }
+  }
+
+  it('no params: schema takes no input at all', () => {
+    const tool = AI_TOOLS.find((t) => t.name === 'debts_summary')!
+    expect(tool.input_schema.properties).toEqual({})
+    expect(tool.input_schema.additionalProperties).toBe(false)
+  })
+
+  it('mixed — one friend owes me, another I owe: the two totals stay SEPARATE (never blended)', async () => {
+    state.rpcResults.friend_debts_summary = {
+      data: [debtRow({ shared_net: 500 }), debtRow({ shared_net: -800 })],
+      error: null,
+    }
+    const out = await parse('debts_summary', undefined)
+    expect(out.they_owe_me).toBe(500)
+    expect(out.i_owe_them).toBe(800) // NOT netted to a single 300
+    expect(out.friend_count).toBe(2)
+    expect(out.has_friends).toBe(true)
+  })
+
+  it('one friend nets within: gross columns are ignored, only shared_net counts (mirrors the seed)', async () => {
+    // Seed's single friend: they_owe_me 500, i_owe_them 800 → shared_net -300.
+    state.rpcResults.friend_debts_summary = {
+      data: [debtRow({ shared_they_owe_me: 500, shared_i_owe_them: 800, shared_net: -300 })],
+      error: null,
+    }
+    const out = await parse('debts_summary', undefined)
+    expect(out.they_owe_me).toBe(0) // within one friend it nets — not 500
+    expect(out.i_owe_them).toBe(300) // the net, not the gross 800
+    expect(out.friend_count).toBe(1)
+  })
+
+  it('no friends yet → has_friends:false with zero totals (model must say "ยังไม่มีเพื่อน", not "฿0")', async () => {
+    state.rpcResults.friend_debts_summary = { data: [], error: null }
+    const out = await parse('debts_summary', undefined)
+    expect(out.has_friends).toBe(false)
+    expect(out.friend_count).toBe(0)
+    expect(out.they_owe_me).toBe(0)
+    expect(out.i_owe_them).toBe(0)
+  })
+
+  // The scope guard: this asserts the PAYLOAD SHAPE, not just the numbers, so that
+  // a future change widening the tool (adding a name, a per-friend row, a private
+  // figure) fails here instead of silently leaking. §6: display_name / friend_id
+  // are cross-user free text; private_* is a note the other side never sees.
+  it('payload is EXACTLY the three numbers + flag — no name/id/private ever leaks', async () => {
+    state.rpcResults.friend_debts_summary = {
+      data: [
+        debtRow({
+          friend_id: 'SHOULD-NOT-LEAK',
+          display_name: 'ชื่อห้ามหลุด',
+          shared_net: 100,
+          private_net: 9999,
+          private_they_owe_me: 9999,
+          private_i_owe_them: 9999,
+        }),
+      ],
+      error: null,
+    }
+    const out = await parse('debts_summary', undefined)
+    expect(Object.keys(out).sort()).toEqual(['friend_count', 'has_friends', 'i_owe_them', 'they_owe_me'])
+    // private columns never enter the numbers (they_owe_me comes only from shared_net)
+    expect(out.they_owe_me).toBe(100)
+    expect(out.i_owe_them).toBe(0)
+    // and none of the forbidden fields appear under any key
+    const serialised = JSON.stringify(out)
+    expect(serialised).not.toContain('SHOULD-NOT-LEAK')
+    expect(serialised).not.toContain('ชื่อห้ามหลุด')
+    expect(serialised).not.toContain('9999')
+  })
+
+  it('RPC error → is_error so the model degrades gracefully', async () => {
+    state.rpcResults.friend_debts_summary = { data: null, error: { message: 'boom' } }
+    const outcome = await runTool('debts_summary', undefined, ctx())
+    expect(outcome.isError).toBe(true)
+  })
+})
