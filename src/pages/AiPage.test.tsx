@@ -198,6 +198,33 @@ describe('errors reach the user', () => {
   })
 })
 
+describe('bubble renders **bold** only (no raw markdown on screen)', () => {
+  async function sendAndGetReply(reply: string) {
+    h.askAssistant.mockResolvedValueOnce(reply)
+    renderAt()
+    fireEvent.change(screen.getByLabelText('พิมพ์คำถาม'), { target: { value: 'q' } })
+    fireEvent.click(screen.getByLabelText('ส่งคำถาม'))
+  }
+
+  it('**text** renders as <strong> with the asterisks gone', async () => {
+    await sendAndGetReply('จ่าย **฿9,000** ครับ')
+    const strong = await screen.findByText('฿9,000')
+    expect(strong.tagName).toBe('STRONG')
+    // the surrounding bubble shows no literal asterisks
+    expect(strong.parentElement?.textContent).toBe('จ่าย ฿9,000 ครับ')
+  })
+
+  it('an unmatched ** is left literal (visible signal the prompt was violated) — no crash', async () => {
+    await sendAndGetReply('ยอด ** ยังไม่ปิด')
+    expect(await screen.findByText('ยอด ** ยังไม่ปิด')).toBeTruthy()
+  })
+
+  it('plain text is unchanged', async () => {
+    await sendAndGetReply('เหลือ ฿100 ครับ')
+    expect(await screen.findByText('เหลือ ฿100 ครับ')).toBeTruthy()
+  })
+})
+
 describe('structural guarantees', () => {
   it('takes NO hideBalance prop (structural, like WalletTransferSheet — §5)', () => {
     // @ts-expect-error — the chat accepts no props at all; a hideBalance prop must

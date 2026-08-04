@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { IconArrowLeft, IconSend, IconSparkles } from '@tabler/icons-react'
 import { useAuth } from '@/hooks/useAuth'
@@ -235,8 +235,34 @@ export function AiPage() {
   )
 }
 
+/**
+ * Render `**bold**` spans as real <strong>, everything else as plain text.
+ *
+ * We support ONLY paired `**…**` (the one markdown the assistant is allowed to
+ * emit — see SYSTEM_PROMPT). Any other markdown (#, |, ```, []()) and a lone or
+ * unmatched `**` are left as literal characters ON PURPOSE: seeing raw syntax on
+ * screen is the visible signal that the prompt was violated. We build React nodes
+ * (never dangerouslySetInnerHTML): the text is model output that can echo what the
+ * user typed, so turning it into raw HTML would open XSS for no benefit.
+ */
+function renderBold(text: string): ReactNode[] {
+  const nodes: ReactNode[] = []
+  const re = /\*\*(.+?)\*\*/g // non-greedy; `.` excludes newlines, so bold never spans lines
+  let last = 0
+  let key = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) nodes.push(text.slice(last, m.index))
+    nodes.push(<strong key={key++}>{m[1]}</strong>)
+    last = m.index + m[0].length
+  }
+  if (last < text.length) nodes.push(text.slice(last))
+  return nodes
+}
+
 /** One chat bubble. User messages sit on the right in brand tint; assistant replies
- *  on the left in the neutral fill. Always shows the real text (no hideBalance). */
+ *  on the left in the neutral fill. Always shows the real text (no hideBalance).
+ *  `**bold**` renders as <strong>; whitespace-pre-wrap keeps the assistant's newlines. */
 function Bubble({ role, text }: { role: 'user' | 'assistant'; text: string }) {
   const mine = role === 'user'
   return (
@@ -247,7 +273,7 @@ function Bubble({ role, text }: { role: 'user' | 'assistant'; text: string }) {
           : 'self-start rounded-[16px] rounded-bl-[4px] bg-fill text-ink'
       }`}
     >
-      {text}
+      {renderBold(text)}
     </div>
   )
 }
