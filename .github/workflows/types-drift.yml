@@ -51,7 +51,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Fail loudly and helpfully if the secrets aren't set, rather than letting
       # the CLI die with an opaque auth error further down.
