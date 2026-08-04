@@ -7,9 +7,9 @@
  * (`HomeSummaryRow`) แทน ไม่ต้องรู้จัก `MonthRow` ใน useHome.ts. `MonthRow[]` ของ
  * hook satisfies โครงนี้อยู่แล้ว (โครงสร้าง identical) จึงส่งเข้ามาได้ตรง ๆ.
  */
-import { daysLeftInMonthKey, monthBoundsFromKey, monthKey } from '@/lib/dates'
-import { isBudgetSpendingRow, isIncomeRow, isSpendingRow } from '@/lib/ledger'
-import type { Category, TransactionType } from '@/lib/db'
+import { daysLeftInMonthKey, monthBoundsFromKey, monthKey } from './dates'
+import { isBudgetSpendingRow, isIncomeRow, isSpendingRow } from './ledger'
+import type { Category, TransactionType } from './db'
 
 /** Minimal transaction shape the home aggregates read — the structural echo of
  *  useHome's `MonthRow`, kept here so lib/ never has to import the hook. */

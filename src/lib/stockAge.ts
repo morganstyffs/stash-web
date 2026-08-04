@@ -6,8 +6,8 @@
  * lib/ เดินทางเดียว ห้าม import จาก hooks/ หรือ pages/ (§3) → รับ "รูปร่างขั้นต่ำ"
  * structural แทน. ตัวจับเวลา ("วันนี้") ฉีดผ่านพารามิเตอร์ `now` ทุกตัว.
  */
-import { daysSince } from '@/lib/dates'
-import type { StockItem } from '@/lib/db'
+import { daysSince } from './dates'
+import type { StockItem } from './db'
 
 // ── stock-age thresholds — the single source of truth (spec §อายุสต็อก) ───────
 // Tune here and here only: ≤30 days = fresh (grey spine, no flag), 31–60 =
