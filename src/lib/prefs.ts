@@ -1,7 +1,17 @@
 /**
- * Local-only user preferences (no server round-trip yet). The AI assistant is
- * not wired up in this slice — these toggles just persist the user's choice so
- * the setting sticks, per the brief ("เก็บ preference ไว้ก่อน").
+ * Local-only UI preferences.
+ *
+ * `assistant` USED to be the source of truth for the "ใช้ผู้ช่วย AI" toggle, but
+ * consent now lives server-side (the ai_settings table, read/written via
+ * useAiSettings) because the server is the only source that can be trusted — a
+ * client flag is no more trustworthy than a user_id from a request body (§3.5).
+ * This field is kept only as a vestigial UI mirror and no longer decides
+ * anything; nothing reads it today. (Removing it outright is a candidate for a
+ * later cleanup — flagged, not done here, since AiPrefs still carries
+ * `autoCategory`.)
+ *
+ * `autoCategory` is a separate, still-local placeholder — a different feature
+ * (guessing a category while typing, §5), unrelated to the AI chat.
  */
 export interface AiPrefs {
   assistant: boolean
