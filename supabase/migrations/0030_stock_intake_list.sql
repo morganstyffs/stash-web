@@ -72,16 +72,24 @@
 --     end if;
 --     select id into v_other from auth.users where id <> v_me order by id limit 1;
 --
---     -- seed ตอนเป็น owner (bypass RLS) · created_at เป็นเวลาไทย (+07) รอบขอบเดือน มิ.ย. 2026
---     insert into public.stock_items (user_id, name, qty_total, cost_per_unit, created_at) values
---       (v_me, 'มิ.ย.-กลางเดือน', 2, 100, '2026-06-15 12:00:00+07'),
---       (v_me, 'มิ.ย.-ต้นเดือน',  3,  50, '2026-06-01 00:30:00+07'),   -- Bangkok 06-01 (อยู่ในช่วง)
---       (v_me, 'มิ.ย.-ปลายเดือน', 5,  20, '2026-06-30 23:30:00+07'),   -- Bangkok 06-30 (อยู่ในช่วง)
---       (v_me, 'พ.ค.-ท้ายเดือน',  9,   1, '2026-05-31 22:00:00+07'),   -- Bangkok 05-31 (นอกช่วง ก่อน from)
---       (v_me, 'ก.ค.-วันแรก',     9,   1, '2026-07-01 05:00:00+07');   -- Bangkok 07-01 (นอกช่วง = to ตัดออก)
+--     -- ⚠️ ใช้ "เดือนที่การันตีว่าว่าง" (มิ.ย. 2020) ไม่ใช่เดือนปัจจุบัน: assertion (1)/(3) นับ
+--     --    แบบแน่นอน (count=3) — ถ้าเลือกเดือนที่เจ้าของมีสินค้ารับเข้าจริง ของจริงจะถูกนับรวม
+--     --    → FAIL ทั้งที่ RPC ถูก · บทเรียน: assert ค่าแน่นอนบนตารางที่มีข้อมูลจริง ต้องเลือกช่วง
+--     --    ที่การันตีว่าว่าง (หรือ assert แบบสัมพัทธ์ = นับส่วนต่าง)
+--     -- ⚠️ ต้องระบุ sku เอง: stock_items.sku เป็น NOT NULL ไม่มี default (0011) + unique(user_id,sku)
+--     --    → ถ้าไม่ใส่ seed ล้มด้วย 23502 ตั้งแต่แรก ยังไม่ทันเรียก RPC · ใช้ ZZZ-90xx การันตีไม่ชน
+--     --    ของจริง (sku จริงขึ้นต้น STZ-) และไม่ชนกันเอง · บทเรียน (คู่ §8-6): อ่าน NOT-NULL ของ
+--     --    ทั้งตารางก่อนเขียน smoke test ที่ insert ลงตารางจริง ไม่ใช่แค่คอลัมน์ที่คิดว่าจะใช้
+--     -- seed ตอนเป็น owner (bypass RLS) · created_at เป็นเวลาไทย (+07) รอบขอบเดือน มิ.ย. 2020
+--     insert into public.stock_items (user_id, name, sku, qty_total, cost_per_unit, created_at) values
+--       (v_me, 'มิ.ย.-กลางเดือน', 'ZZZ-9001', 2, 100, '2020-06-15 12:00:00+07'),
+--       (v_me, 'มิ.ย.-ต้นเดือน',  'ZZZ-9002', 3,  50, '2020-06-01 00:30:00+07'),   -- Bangkok 06-01 (อยู่ในช่วง)
+--       (v_me, 'มิ.ย.-ปลายเดือน', 'ZZZ-9003', 5,  20, '2020-06-30 23:30:00+07'),   -- Bangkok 06-30 (อยู่ในช่วง)
+--       (v_me, 'พ.ค.-ท้ายเดือน',  'ZZZ-9004', 9,   1, '2020-05-31 22:00:00+07'),   -- Bangkok 05-31 (นอกช่วง ก่อน from)
+--       (v_me, 'ก.ค.-วันแรก',     'ZZZ-9005', 9,   1, '2020-07-01 05:00:00+07');   -- Bangkok 07-01 (นอกช่วง = to ตัดออก)
 --     if v_other is not null then
---       insert into public.stock_items (user_id, name, qty_total, cost_per_unit, created_at) values
---         (v_other, 'ของผู้ใช้ B', 7, 999, '2026-06-10 12:00:00+07');
+--       insert into public.stock_items (user_id, name, sku, qty_total, cost_per_unit, created_at) values
+--         (v_other, 'ของผู้ใช้ B', 'ZZZ-9006', 7, 999, '2020-06-10 12:00:00+07');
 --     end if;
 --
 --     -- ── สลับเป็นผู้ใช้ A (RLS มีผลตั้งแต่บรรทัดนี้; RPC เป็น invoker วิ่งด้วยสิทธิ์ A) ──
@@ -89,24 +97,24 @@
 --     perform set_config('role', 'authenticated', true);
 --
 --     -- (1) A เห็นเฉพาะ 3 รายการในเดือน มิ.ย. (ขอบเดือนตัด พ.ค./ก.ค.)
---     select count(*) into v_cnt from public.stock_intake_list('2026-06-01', '2026-07-01', 100);
+--     select count(*) into v_cnt from public.stock_intake_list('2020-06-01', '2020-07-01', 100);
 --     if v_cnt <> 3 then raise exception 'FAIL 1: ควรได้ 3 รายการในเดือน แต่ได้ %', v_cnt; end if;
 --
 --     -- (2) ของนอกช่วง (พ.ค. ก่อน from · ก.ค. = to) ต้องไม่ติดมา
---     perform 1 from public.stock_intake_list('2026-06-01', '2026-07-01', 100)
+--     perform 1 from public.stock_intake_list('2020-06-01', '2020-07-01', 100)
 --       where name in ('พ.ค.-ท้ายเดือน', 'ก.ค.-วันแรก');
 --     if found then raise exception 'FAIL 2: มีของนอกช่วงเดือนติดมา (ขอบเดือนผิด)'; end if;
 --
 --     -- (3) count จริงทั้งชุดแม้ p_limit ตัดแถว: limit 1 → 1 แถว แต่ total_count = 3
---     select count(*) into v_cnt from public.stock_intake_list('2026-06-01', '2026-07-01', 1);
+--     select count(*) into v_cnt from public.stock_intake_list('2020-06-01', '2020-07-01', 1);
 --     if v_cnt <> 1 then raise exception 'FAIL 3a: limit 1 ควรได้ 1 แถว แต่ได้ %', v_cnt; end if;
 --     select il.total_count into v_total
---       from public.stock_intake_list('2026-06-01', '2026-07-01', 1) il limit 1;
+--       from public.stock_intake_list('2020-06-01', '2020-07-01', 1) il limit 1;
 --     if v_total <> 3 then raise exception 'FAIL 3b: total_count ควร=3 แม้ limit 1 แต่ได้ %', v_total; end if;
 --
 --     -- (4) ของผู้ใช้ B ต้องไม่โผล่ให้ A เห็น (RLS ผ่าน invoker)
 --     if v_other is not null then
---       select count(*) into v_cnt from public.stock_intake_list('2026-06-01', '2026-07-01', 100)
+--       select count(*) into v_cnt from public.stock_intake_list('2020-06-01', '2020-07-01', 100)
 --         where name = 'ของผู้ใช้ B';
 --       if v_cnt <> 0 then raise exception 'FAIL 4: A เห็นของผู้ใช้ B (RLS รั่ว) — % แถว', v_cnt; end if;
 --       v_cross := true;
