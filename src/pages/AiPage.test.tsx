@@ -131,7 +131,7 @@ describe('errors reach the user', () => {
     expect(screen.getByText('q')).toBeTruthy()
   })
 
-  it('a successful send renders the assistant reply', async () => {
+  it('a successful send renders the assistant reply (first send carries empty history)', async () => {
     h.askAssistant.mockResolvedValue('เดือนนี้จ่าย ฿1,200 (จากสรุปเดือน)')
     renderAt()
 
@@ -139,7 +139,32 @@ describe('errors reach the user', () => {
     fireEvent.click(screen.getByLabelText('ส่งคำถาม'))
 
     expect(await screen.findByText('เดือนนี้จ่าย ฿1,200 (จากสรุปเดือน)')).toBeTruthy()
-    expect(h.askAssistant).toHaveBeenCalledWith('จ่ายเท่าไหร่', 'live-token')
+    // The transcript is empty on the first send, so history is [].
+    expect(h.askAssistant).toHaveBeenCalledWith('จ่ายเท่าไหร่', 'live-token', [])
+  })
+
+  it('a follow-up send passes the prior transcript (multi-turn) as of send time', async () => {
+    h.askAssistant.mockResolvedValueOnce('เดือนที่แล้วจ่าย ฿2,000')
+    h.askAssistant.mockResolvedValueOnce('เดือนก่อนหน้าจ่าย ฿1,500')
+    renderAt()
+
+    const box = screen.getByLabelText('พิมพ์คำถาม')
+    const btn = screen.getByLabelText('ส่งคำถาม')
+
+    fireEvent.change(box, { target: { value: 'เดือนที่แล้วจ่ายเท่าไหร่' } })
+    fireEvent.click(btn)
+    expect(await screen.findByText('เดือนที่แล้วจ่าย ฿2,000')).toBeTruthy()
+
+    fireEvent.change(box, { target: { value: 'แล้วเดือนก่อนหน้าล่ะ' } })
+    fireEvent.click(btn)
+    expect(await screen.findByText('เดือนก่อนหน้าจ่าย ฿1,500')).toBeTruthy()
+
+    // The 2nd call carries the transcript AS OF that send: the prior Q + its reply,
+    // not yet the new question (which is appended after the snapshot is taken).
+    expect(h.askAssistant).toHaveBeenNthCalledWith(2, 'แล้วเดือนก่อนหน้าล่ะ', 'live-token', [
+      { role: 'user', text: 'เดือนที่แล้วจ่ายเท่าไหร่' },
+      { role: 'assistant', text: 'เดือนที่แล้วจ่าย ฿2,000' },
+    ])
   })
 })
 

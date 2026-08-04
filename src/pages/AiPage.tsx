@@ -98,12 +98,20 @@ export function AiPage() {
     // with its own Thai line instead of us inventing one.
     const token = session?.access_token ?? ''
 
+    // Snapshot the transcript AS OF this send — the render-closure `messages`,
+    // i.e. everything BEFORE this question is optimistically appended below. Read
+    // from the closure (NOT a setter callback) so it's the pre-append history.
+    // `ChatMessage` is structurally `ChatTurn`, so it passes straight through; a
+    // failed earlier question can leave a trailing `user` here, which the Worker's
+    // sanitizeHistory is built to handle. Still ephemeral: nothing is persisted.
+    const history = messages
+
     setMessages((m) => [...m, { role: 'user', text: question }])
     setInput('')
     setError(null)
     setPending(true)
     try {
-      const reply = await askAssistant(question, token)
+      const reply = await askAssistant(question, token, history)
       setMessages((m) => [...m, { role: 'assistant', text: reply }])
     } catch (e) {
       // Error must reach the user (convention 15) — mapped by errors.ts, keyed on

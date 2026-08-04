@@ -20,7 +20,8 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../lib/database.types'
-import { AnthropicError, runAssistant } from './anthropic'
+import { AI_MAX_HISTORY_CHARS, AI_MAX_HISTORY_TURNS, AnthropicError, runAssistant } from './anthropic'
+import { parseHistory, sanitizeHistory, type HistoryTurn } from './history'
 import type { Env } from './index'
 import { json } from './json'
 import { checkRateLimit } from './rateLimit'
@@ -34,7 +35,17 @@ const SERVICE_UNAVAILABLE = 'ผู้ช่วย AI ไม่พร้อม�
 const RATE_LIMIT_MINUTE = 'ใช้ผู้ช่วยบ่อยเกินไป รอสักครู่แล้วลองใหม่'
 const RATE_LIMIT_DAY = 'ใช้ผู้ช่วยครบโควตาของวันนี้แล้ว ลองใหม่พรุ่งนี้'
 const BAD_QUESTION = 'กรุณาพิมพ์คำถามก่อน'
+const LONG_QUESTION = 'คำถามยาวเกินไป กรุณาย่อให้สั้นลง'
+const BAD_HISTORY = 'ข้อมูลการสนทนาไม่ถูกต้อง เริ่มแชทใหม่อีกครั้ง'
 const ASSISTANT_UNAVAILABLE = 'ผู้ช่วยไม่พร้อมใช้งานชั่วคราว ลองใหม่อีกครั้ง'
+
+/**
+ * Max characters allowed in one question. Same family as the history caps in
+ * anthropic.ts (AI_MAX_HISTORY_*): a cost ceiling. Capping the re-sent history
+ * without capping the question would just move the input-cost hole, not close
+ * it — an oversized single question is just as unbounded.
+ */
+export const AI_MAX_QUESTION_CHARS = 2000
 
 /** Reads a bearer token from the Authorization header. Null when absent or
  *  malformed (→ treated as "no session" → 401). */
@@ -46,21 +57,48 @@ function readBearerToken(request: Request): string | null {
   return token ? token : null
 }
 
-/** Extracts a non-empty question string from the JSON body. Returns null when
- *  the body isn't the expected shape — identity is NOT taken from the body, so
- *  only `message` is read. */
-async function readQuestion(request: Request): Promise<string | null> {
+/**
+ * Result of reading the request body. Either a valid `{ question, history }` or a
+ * ready-to-send Thai error line (already mapped to the right 400 wording). A
+ * `Request` body can be read ONLY ONCE, so this reads it a single time and pulls
+ * both fields out — never call `request.json()` twice.
+ *
+ * Identity is NOT taken from the body: only `message` and `history` are read, and
+ * `history` is passed through the parseHistory allowlist (worker/history.ts) so a
+ * forged `tool_use` / `tool_result` block can never reach the model.
+ */
+type ReadBody = { ok: true; question: string; history: HistoryTurn[] } | { ok: false; error: string }
+
+async function readBody(request: Request): Promise<ReadBody> {
   let body: unknown
   try {
     body = await request.json()
   } catch {
-    return null
+    return { ok: false, error: BAD_QUESTION }
   }
-  if (!body || typeof body !== 'object') return null
+  if (!body || typeof body !== 'object') return { ok: false, error: BAD_QUESTION }
+
+  // Question is the first body gate: an empty question 400s before we even look
+  // at the history.
   const message = (body as { message?: unknown }).message
-  if (typeof message !== 'string') return null
-  const trimmed = message.trim()
-  return trimmed ? trimmed : null
+  if (typeof message !== 'string') return { ok: false, error: BAD_QUESTION }
+  const question = message.trim()
+  if (!question) return { ok: false, error: BAD_QUESTION }
+  if (question.length > AI_MAX_QUESTION_CHARS) return { ok: false, error: LONG_QUESTION }
+
+  // History is optional and comes from the client. parseHistory returns [] for a
+  // missing/empty history, or null for a malformed one → 400 (a malformed history
+  // is our own client's bug, so it surfaces rather than being skipped). Then
+  // sanitize (trim / fix role order / apply the cost caps) HERE, so runAssistant
+  // receives already-clean data and the same logic never runs in two places.
+  const parsed = parseHistory((body as { history?: unknown }).history)
+  if (parsed === null) return { ok: false, error: BAD_HISTORY }
+  const history = sanitizeHistory(parsed, {
+    maxTurns: AI_MAX_HISTORY_TURNS,
+    maxChars: AI_MAX_HISTORY_CHARS,
+  })
+
+  return { ok: true, question, history }
 }
 
 export async function handleAi(request: Request, env: Env): Promise<Response> {
@@ -127,11 +165,16 @@ export async function handleAi(request: Request, env: Env): Promise<Response> {
     return json({ error: 'AI ยังไม่ได้ตั้งค่า (ไม่มี ANTHROPIC_API_KEY ฝั่ง server)' }, 503)
   }
 
-  // Read the question up front so a malformed body 400s without spending quota.
-  const question = await readQuestion(request)
-  if (!question) {
-    return json({ error: BAD_QUESTION }, 400)
+  // Read + validate the body up front so a malformed body 400s WITHOUT spending
+  // quota. Question first (empty → 400), then the optional client history (an
+  // off-shape history — e.g. a forged tool_use block — is a client bug → 400,
+  // see BAD_HISTORY / worker/history.ts). This sits before Gate 3 on purpose: a
+  // bad body must not consume the rate limit or reach Anthropic.
+  const parsed = await readBody(request)
+  if (!parsed.ok) {
+    return json({ error: parsed.error }, 400)
   }
+  const { question, history } = parsed
 
   // ── Gate 3 · rate limit, keyed to the verified uid (design §3.1 / §5) ─────
   // Missing KV binding → can't enforce the limit → fail closed (503) rather
@@ -146,7 +189,7 @@ export async function handleAi(request: Request, env: Env): Promise<Response> {
 
   // ── Gate 4 · Anthropic (server-to-server, tools under the user's JWT) ─────
   try {
-    const reply = await runAssistant({ question, apiKey: env.ANTHROPIC_API_KEY, supabase })
+    const reply = await runAssistant({ question, history, apiKey: env.ANTHROPIC_API_KEY, supabase })
     return json({ reply }, 200)
   } catch (err) {
     if (err instanceof AnthropicError) {
