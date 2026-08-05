@@ -12,7 +12,9 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
  *    flight and a second click can't fire a second (paid) request.
  *  • errors reach the user — a failed send surfaces the Thai line via errors.ts.
  *  • no hideBalance prop — structural, like WalletTransferSheet (§5).
- *  • ephemeral only — the source writes no localStorage / DB for the transcript (§8).
+ *  • persistence (task 7) — the transcript survives a remount via localStorage (owned
+ *    by prefs.ts), is masked on reload under hideBalance, and is wiped by the clear
+ *    button / consent-off; never the DB. Proven in the "persistence (task 7)" block.
  */
 
 const h = vi.hoisted(() => ({
@@ -47,6 +49,9 @@ vi.mock('@/lib/aiChat', () => ({
 
 import { AiPage } from '@/pages/AiPage'
 import { AiHttpError } from '@/lib/aiChat'
+// The REAL prefs.ts (not mocked) drives persistence against jsdom's localStorage —
+// seeding via these helpers is exactly what a prior session / another screen would do.
+import { loadChatHistory, saveChatHistory, saveHideBalance } from '@/lib/prefs'
 
 function renderAt() {
   return render(
@@ -65,8 +70,14 @@ beforeEach(() => {
   h.askAssistant.mockReset()
   h.toastError.mockReset()
   h.toastSuccess.mockReset()
+  // The transcript now persists to localStorage (task 7); clear it between tests so
+  // one test's messages can't reload into the next and skew "first send" / bubble counts.
+  localStorage.clear()
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  localStorage.clear()
+})
 
 describe('consent gate', () => {
   it("consent 'on' → shows the chat (title + example prompts + own-money note)", () => {
@@ -307,17 +318,150 @@ describe('structural guarantees', () => {
     expect(el).toBeTruthy()
   })
 
-  it('never persists the transcript to localStorage or the DB (§8, ephemeral)', () => {
-    // grep the shipped source — the transcript lives in useState only.
+  it('persists ONLY via prefs.ts — never touches localStorage / the DB directly (task 7)', () => {
+    // Persistence is real now (task 7), but it must funnel through prefs.ts (the one
+    // owner of every `stash.*` key), never raw storage in the page or the network
+    // layer, and never the DB. grep the shipped source to hold that line.
     const page = readFileSync('src/pages/AiPage.tsx', 'utf8')
     const net = readFileSync('src/lib/aiChat.ts', 'utf8')
     for (const src of [page, net]) {
-      // match actual access (localStorage.setItem / localStorage[…]), not the prose
-      // in the comments that explains we deliberately don't touch it.
+      // no direct storage access — it goes through prefs.ts's load/save/clear helpers.
       expect(src).not.toMatch(/localStorage\s*[.[]/)
       expect(src).not.toMatch(/sessionStorage\s*[.[]/)
       expect(src).not.toMatch(/supabase/) // no Supabase client in the chat path
-      expect(src).not.toMatch(/\.from\(/) // no PostgREST table access
+      expect(src).not.toMatch(/\.from\(/) // no PostgREST table access — never the DB
     }
+  })
+})
+
+describe('persistence (task 7)', () => {
+  const box = () => screen.getByLabelText('พิมพ์คำถาม')
+  const sendBtn = () => screen.getByLabelText('ส่งคำถาม')
+
+  it('a sent transcript survives a remount (reload) and is shown again', async () => {
+    h.askAssistant.mockResolvedValueOnce('เดือนที่แล้วจ่าย ฿2,000')
+    const { unmount } = renderAt()
+    fireEvent.change(box(), { target: { value: 'เดือนที่แล้วจ่ายเท่าไหร่' } })
+    fireEvent.click(sendBtn())
+    expect(await screen.findByText('เดือนที่แล้วจ่าย ฿2,000')).toBeTruthy()
+    // it reached storage…
+    expect(loadChatHistory()).toEqual([
+      { role: 'user', text: 'เดือนที่แล้วจ่ายเท่าไหร่' },
+      { role: 'assistant', text: 'เดือนที่แล้วจ่าย ฿2,000' },
+    ])
+
+    // …and a fresh mount (= a reload) shows it again, no request needed.
+    unmount()
+    renderAt()
+    expect(await screen.findByText('เดือนที่แล้วจ่ายเท่าไหร่')).toBeTruthy()
+    expect(screen.getByText('เดือนที่แล้วจ่าย ฿2,000')).toBeTruthy()
+  })
+
+  it('a reloaded transcript sent as history to askAssistant carries ONLY role + text', async () => {
+    // Seed a saved transcript (the `persisted` flag is added on load, in memory only).
+    saveChatHistory([
+      { role: 'user', text: 'เดือนที่แล้วจ่ายเท่าไหร่' },
+      { role: 'assistant', text: 'จ่าย ฿2,000' },
+    ])
+    h.askAssistant.mockResolvedValueOnce('เดือนก่อนหน้าจ่าย ฿1,500')
+    renderAt()
+    // wait for the reloaded turns to appear before asking again
+    expect(await screen.findByText('จ่าย ฿2,000')).toBeTruthy()
+
+    fireEvent.change(box(), { target: { value: 'แล้วเดือนก่อนหน้าล่ะ' } })
+    fireEvent.click(sendBtn())
+    expect(await screen.findByText('เดือนก่อนหน้าจ่าย ฿1,500')).toBeTruthy()
+
+    const history = h.askAssistant.mock.calls[0][2] as Array<Record<string, unknown>>
+    expect(history).toEqual([
+      { role: 'user', text: 'เดือนที่แล้วจ่ายเท่าไหร่' },
+      { role: 'assistant', text: 'จ่าย ฿2,000' },
+    ])
+    // the render-only `persisted` flag never rides onto the wire
+    for (const turn of history) expect(Object.keys(turn).sort()).toEqual(['role', 'text'])
+  })
+
+  it('the clear button empties both the screen and the store', async () => {
+    h.askAssistant.mockResolvedValueOnce('จ่าย ฿2,000')
+    renderAt()
+    fireEvent.change(box(), { target: { value: 'q1' } })
+    fireEvent.click(sendBtn())
+    expect(await screen.findByText('จ่าย ฿2,000')).toBeTruthy()
+    expect(loadChatHistory()).toHaveLength(2)
+
+    fireEvent.click(screen.getByLabelText('ล้างประวัติแชท'))
+    // screen returns to the empty state…
+    expect(screen.getByText('ถามเรื่องเงินของคุณได้เลย')).toBeTruthy()
+    expect(screen.queryByText('จ่าย ฿2,000')).toBeNull()
+    // …and the store is empty.
+    expect(loadChatHistory()).toEqual([])
+  })
+
+  it('with consent not on, the page neither reads nor overwrites the store (redirects)', () => {
+    // A transcript from when consent WAS on must be left untouched by a visit while
+    // consent is off — the page redirects and writes nothing (§"ห้ามเก็บเมื่อยังไม่ยินยอม").
+    // (Clearing on consent-OFF is Settings' job, proven in SettingsPage's test.)
+    h.consent = 'off'
+    saveChatHistory([{ role: 'user', text: 'ของเก่า' }])
+    renderAt()
+    expect(screen.getByText('หน้าตั้งค่า')).toBeTruthy() // redirected, no chat
+    expect(loadChatHistory()).toEqual([{ role: 'user', text: 'ของเก่า' }])
+  })
+})
+
+describe('hideBalance masks the RELOADED transcript, tap reveals, current round stays open', () => {
+  const box = () => screen.getByLabelText('พิมพ์คำถาม')
+  const sendBtn = () => screen.getByLabelText('ส่งคำถาม')
+  const COVER = 'แตะเพื่อแสดงข้อความที่ซ่อนไว้'
+
+  function seedReloadUnderHideBalance() {
+    saveHideBalance(true)
+    saveChatHistory([
+      { role: 'user', text: 'ยอดเดือนก่อน' },
+      { role: 'assistant', text: 'จ่าย ฿9,999' },
+    ])
+  }
+
+  it('reloaded turns come back covered — the figures are not on screen at a glance', () => {
+    seedReloadUnderHideBalance()
+    renderAt()
+    // both reloaded bubbles are covered; none of their text is readable
+    expect(screen.queryByText('จ่าย ฿9,999')).toBeNull()
+    expect(screen.queryByText('ยอดเดือนก่อน')).toBeNull()
+    expect(screen.getAllByLabelText(COVER)).toHaveLength(2)
+  })
+
+  it('a tap reveals THAT bubble only, one at a time', () => {
+    seedReloadUnderHideBalance()
+    renderAt()
+    const covers = screen.getAllByLabelText(COVER)
+    expect(covers).toHaveLength(2)
+    fireEvent.click(covers[1]) // reveal the assistant figure
+    expect(screen.getByText('จ่าย ฿9,999')).toBeTruthy()
+    // the other bubble is still covered
+    expect(screen.queryByText('ยอดเดือนก่อน')).toBeNull()
+    expect(screen.getAllByLabelText(COVER)).toHaveLength(1)
+  })
+
+  it('the current round (just asked) is never covered', async () => {
+    seedReloadUnderHideBalance()
+    h.askAssistant.mockResolvedValueOnce('เดือนนี้จ่าย ฿5,000')
+    renderAt()
+
+    fireEvent.change(box(), { target: { value: 'เดือนนี้ล่ะ' } })
+    fireEvent.click(sendBtn())
+    // the brand-new question + reply are readable immediately, no cover
+    expect(await screen.findByText('เดือนนี้จ่าย ฿5,000')).toBeTruthy()
+    expect(screen.getByText('เดือนนี้ล่ะ')).toBeTruthy()
+    // the OLD reloaded turns are still covered (only the two seeded ones)
+    expect(screen.getAllByLabelText(COVER)).toHaveLength(2)
+  })
+
+  it('without hideBalance, a reloaded transcript is shown plainly (no cover)', () => {
+    // hideBalance defaults off (store cleared in beforeEach) → reload shows real text.
+    saveChatHistory([{ role: 'assistant', text: 'จ่าย ฿9,999' }])
+    renderAt()
+    expect(screen.getByText('จ่าย ฿9,999')).toBeTruthy()
+    expect(screen.queryByLabelText(COVER)).toBeNull()
   })
 })

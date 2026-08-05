@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { IconArrowLeft, IconSend, IconSparkles } from '@tabler/icons-react'
+import { IconArrowLeft, IconSend, IconSparkles, IconTrash } from '@tabler/icons-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useConsent } from '@/hooks/useAiSettings'
 import { useToast } from '@/components/Toast'
 import { askAssistant, type ChatTurn } from '@/lib/aiChat'
 import { AI_MAX_QUESTION_CHARS } from '@/lib/aiLimits'
 import { translateError } from '@/lib/errors'
+import {
+  clearChatHistory,
+  loadChatHistory,
+  loadHideBalance,
+  saveChatHistory,
+} from '@/lib/prefs'
 
 /**
  * ผู้ช่วย AI — the chat screen (PR-5). A full-screen route (sibling of /add), so the
@@ -17,19 +23,31 @@ import { translateError } from '@/lib/errors'
  *  • Reachable ONLY with consent = 'on'. A direct-URL visitor whose consent isn't on
  *    is redirected to Settings with a plain-language toast — we never render an
  *    unusable chat that would only 403 (§1).
- *  • History is EPHEMERAL, in memory only (useState) — cleared on reload. Nothing is
- *    written to localStorage or the DB (§8); persistence is a later, undecided PR-6.
+ *  • History PERSISTS across reloads via localStorage (task 7), owned by prefs.ts
+ *    (the one file that touches `stash.*`) — but ONLY while consent = 'on'; nothing is
+ *    written without it, and it is wiped on sign-out / consent-off / the clear button.
+ *    Still just `{ role, text }` — never the DB (chat history is convenience, not a
+ *    security store; see prefs.ts for why).
  *  • The auth token is read fresh from the live session per send, never cached (§2).
  *  • Every request is real money (~$0.006–0.008) and rate-limited 10/min, so the
  *    send button is disabled while one is in flight and empty input can't send (§2).
- *  • `hideBalance` does NOT apply to chat — the assistant answers real figures always
- *    (§5). This component takes NO props at all, so a `hideBalance` prop can't even be
- *    passed (structural, like SettleSheet / WalletTransferSheet — §11.4-11).
+ *  • `hideBalance` masks ONLY the turns RELOADED from storage — arriving to a screen
+ *    full of old figures is a full glance the user didn't ask for, so those bubbles
+ *    come back covered and reveal one-by-one on tap (§11.4-11 "hide on a glance, show
+ *    on a decision"). Turns from the CURRENT round (just asked) are never masked — the
+ *    user just chose to ask them. The flag is READ from prefs.ts (like every other
+ *    screen); this component still takes NO props at all, so a `hideBalance` prop
+ *    can't even be passed (structural, like SettleSheet / WalletTransferSheet).
  */
 
 interface ChatMessage {
   role: 'user' | 'assistant'
   text: string
+  // True for a turn RELOADED from storage on mount (task 7). Purely a render hint —
+  // it decides whether hideBalance masks the bubble — and is NEVER stored or sent:
+  // saveChatHistory and send()'s history map both re-project to `{ role, text }`, and
+  // the `: ChatTurn[]` annotation in send() fails the build if it ever tried to leak.
+  persisted?: boolean
 }
 
 // Empty-state examples. They steer the user toward what the assistant can actually
@@ -52,9 +70,18 @@ export function AiPage() {
   const { session } = useAuth()
   const { data: consent, isLoading: consentLoading } = useConsent()
 
-  // In-memory transcript — deliberately NOT persisted (§8). Reloading the page
-  // clears it, which is the intended v1 behaviour.
+  // The transcript. Seeded from localStorage after consent resolves (task 7) and
+  // written back on every change — see the two effects below.
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  // Whether the saved transcript has been read yet. A state flag, NOT a ref, on
+  // purpose: it must re-run the save effect once loading finishes, so the save effect
+  // can bail while it's false and never clobber stored history with the empty mount
+  // value before the load has had its turn.
+  const [loaded, setLoaded] = useState(false)
+  // hideBalance read ONCE at mount from prefs.ts (the same read-once pattern as
+  // useHideBalance), so navigating in re-reads whatever the eye was last set to. AiPage
+  // shows no eye of its own — it only OBEYS the setting when masking reloaded turns.
+  const [hideBalance] = useState(loadHideBalance)
   // Deep-link prefill: another screen can send the user here with a question ready
   // to send via /ai?q=… (the ถาม AI buttons on the budget / stock screens). We seed
   // the composer ONCE at mount and STOP — we never call send() for it. Every request
@@ -78,6 +105,29 @@ export function AiPage() {
       toast.error('เปิดใช้ผู้ช่วย AI ในหน้าตั้งค่าก่อนเริ่มใช้งาน')
     }
   }, [consentLoading, consent, toast])
+
+  // Load the saved transcript ONCE, and only after consent has resolved to 'on' —
+  // reading (like writing) is gated on consent so a session that never consented
+  // shows nothing. Reloaded turns are tagged `persisted` so hideBalance can mask
+  // them; an empty / corrupt store just leaves the empty state (loadChatHistory
+  // never throws). Setting `loaded` last is what releases the save effect below.
+  useEffect(() => {
+    if (loaded || consentLoading || consent !== 'on') return
+    const saved = loadChatHistory()
+    if (saved.length) setMessages(saved.map((m) => ({ ...m, persisted: true })))
+    setLoaded(true)
+  }, [loaded, consentLoading, consent])
+
+  // Write the transcript back whenever it changes. Gated three ways: only after the
+  // load has run (`loaded` — so the empty mount value can't overwrite real history),
+  // and only with consent 'on' (no consent → nothing is ever written; §"ห้ามเก็บ
+  // เมื่อยังไม่ยินยอม"). saveChatHistory itself re-projects to `{ role, text }` and
+  // caps the length, so `persisted` never reaches disk and the store can't grow
+  // unbounded. Clearing (button / send-nothing) writes `[]`, which is the point.
+  useEffect(() => {
+    if (!loaded || consent !== 'on') return
+    saveChatHistory(messages)
+  }, [messages, loaded, consent])
 
   // Keep the newest message / the thinking indicator in view.
   useEffect(() => {
@@ -114,7 +164,8 @@ export function AiPage() {
     // i.e. everything BEFORE this question is optimistically appended below. Read
     // from the closure (NOT a setter callback) so it's the pre-append history. A
     // failed earlier question can leave a trailing `user` here, which the Worker's
-    // sanitizeHistory is built to handle. Still ephemeral: nothing is persisted.
+    // sanitizeHistory is built to handle. Persistence (task 7) is a SEPARATE concern
+    // handled by the save effect — the wire snapshot here is unchanged by it.
     //
     // DELIBERATELY map field-by-field into `ChatTurn`, do NOT pass `messages`
     // through. The Worker (worker/history.ts) is an ALLOWLIST that accepts ONLY
@@ -142,6 +193,16 @@ export function AiPage() {
     }
   }
 
+  // Clear the conversation — from the screen AND from storage. The user must always
+  // be able to delete their own history (task 7); the trash button in the header is
+  // the visible half. Wipe the store directly here too (not only via the save effect)
+  // so the intent is explicit and doesn't ride on effect timing.
+  function clearHistory() {
+    setMessages([])
+    setError(null)
+    clearChatHistory()
+  }
+
   const isEmpty = messages.length === 0 && !pending && !error
 
   return (
@@ -159,6 +220,18 @@ export function AiPage() {
           <IconSparkles size={18} className="text-brand-deep" />
           <p className="text-[16px] font-medium">ผู้ช่วย AI</p>
         </span>
+        {/* Clear the whole conversation. Shown only when there's something to clear,
+            pinned right so it never crowds the title. The user must always be able to
+            delete their own saved history (task 7). */}
+        {messages.length > 0 && (
+          <button
+            aria-label="ล้างประวัติแชท"
+            onClick={clearHistory}
+            className="-m-2 ml-auto flex h-10 w-10 items-center justify-center"
+          >
+            <IconTrash size={19} className="text-muted" />
+          </button>
+        )}
       </div>
 
       {/* Transcript */}
@@ -190,7 +263,14 @@ export function AiPage() {
         ) : (
           <div className="flex flex-col gap-2.5">
             {messages.map((m, i) => (
-              <Bubble key={i} role={m.role} text={m.text} />
+              // Mask ONLY reloaded turns, and only under hideBalance — a current-round
+              // turn the user just asked is never covered (task 7 / §11.4-11).
+              <Bubble
+                key={i}
+                role={m.role}
+                text={m.text}
+                maskable={hideBalance && m.persisted === true}
+              />
             ))}
             {pending && (
               <div className="self-start rounded-[16px] rounded-bl-[4px] bg-fill px-3.5 py-2.5">
@@ -340,13 +420,53 @@ function parseAssistantMessage(text: string): { body: string; link: AssistantLin
 }
 
 /** One chat bubble. User messages sit on the right in brand tint; assistant replies
- *  on the left in the neutral fill. Always shows the real text (no hideBalance).
- *  `**bold**` renders as <strong>; whitespace-pre-wrap keeps the assistant's newlines.
- *  An assistant reply may carry a trailing {{link:…}} marker (§ AI-5a), rendered as
- *  a react-router navigation button — never an <a href> that could leave the app. */
-function Bubble({ role, text }: { role: 'user' | 'assistant'; text: string }) {
+ *  on the left in the neutral fill. `**bold**` renders as <strong>; whitespace-pre-wrap
+ *  keeps the assistant's newlines. An assistant reply may carry a trailing {{link:…}}
+ *  marker (§ AI-5a), rendered as a react-router navigation button — never an <a href>
+ *  that could leave the app.
+ *
+ *  `maskable` (task 7): a turn RELOADED from storage under hideBalance comes back
+ *  COVERED — the whole bubble, never per-digit (finding "which part is a number" is a
+ *  guess, and one wrong guess leaks). A tap reveals THIS bubble only; the reveal is
+ *  local state, so masking a reloaded transcript costs nothing on the current round. */
+function Bubble({
+  role,
+  text,
+  maskable = false,
+}: {
+  role: 'user' | 'assistant'
+  text: string
+  maskable?: boolean
+}) {
   const mine = role === 'user'
   const navigate = useNavigate()
+  const [revealed, setRevealed] = useState(false)
+  const masked = maskable && !revealed
+
+  // Covered state: one tap-target the size of the bubble, no content rendered at all
+  // (so nothing to read past), aligned like the real bubble it stands in for.
+  if (masked) {
+    return (
+      <div
+        className={`flex max-w-[85%] flex-col ${mine ? 'items-end self-end' : 'items-start self-start'}`}
+      >
+        <button
+          type="button"
+          onClick={() => setRevealed(true)}
+          aria-label="แตะเพื่อแสดงข้อความที่ซ่อนไว้"
+          className={`flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] ${
+            mine
+              ? 'rounded-[16px] rounded-br-[4px] bg-brand-tint text-brand-ink'
+              : 'rounded-[16px] rounded-bl-[4px] bg-fill text-muted'
+          }`}
+        >
+          <span aria-hidden>••••••</span>
+          <span className="text-[11px] text-faint">แตะเพื่อดู</span>
+        </button>
+      </div>
+    )
+  }
+
   // Only the assistant emits the {{link:…}} marker; a user message is shown verbatim
   // (a user who types "{{link:…}}" must never get a live button out of it).
   const { body, link } = mine ? { body: text, link: null } : parseAssistantMessage(text)

@@ -33,7 +33,7 @@ import { useSkuConfig } from '@/hooks/useSkuConfig'
 import { useRecurringCount, useWallets } from '@/hooks/useSettings'
 import { useConsent, useSetConsent, type ConsentState } from '@/hooks/useAiSettings'
 import { useTheme } from '@/hooks/useTheme'
-import { loadAiPrefs, saveAiPrefs, type AiPrefs } from '@/lib/prefs'
+import { clearChatHistory, loadAiPrefs, saveAiPrefs, type AiPrefs } from '@/lib/prefs'
 
 export function SettingsPage() {
   const navigate = useNavigate()
@@ -73,6 +73,11 @@ export function SettingsPage() {
   async function onToggleConsent(next: boolean) {
     try {
       await setConsent.mutateAsync(next)
+      // Turning consent OFF must also drop the locally-stored chat history — leaving
+      // it behind after the switch is off would break the promise the switch makes
+      // (task 7). Only on a successful write; on failure the state is unchanged and
+      // there's nothing to clear.
+      if (!next) clearChatHistory()
     } catch (e) {
       // The toggle is bound to the server state, so a failure leaves it on its
       // real value with nothing to undo — but the user must still hear why

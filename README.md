@@ -103,6 +103,6 @@ tailwind.config.ts + src/styles/index.css   แหล่งความจริ
 
 **ทำแล้ว (ยืนยันได้จากโค้ด):** บันทึกรายรับ-รายจ่าย · **กระเป๋าเงินหลายใบครบวงจร** (ยอดตั้งต้น + คงเหลือคำนวณสด + โอนระหว่างกระเป๋า + ประวัติการโอน) · ระบบสต็อก/ขายครบวงจร + SKU (prefix แก้ได้) · บัญชีร้านสองถัง + การ์ดกำไร (`ShopProfitCard`) + ป๊อปอัพค่าส่งขาเข้า · ทุนจม/วันในคลัง · **ระบบยอดค้างกับเพื่อน** cross-user ครบวงจร (เพิ่มเพื่อน/บันทึก/ยืนยัน/เคลียร์/ย้อน) · ค้นหาประวัติ + ตัวกรองเดือน · หน้างบ (เลื่อนดูเดือน, ตัวเลขแทนคำตัดสิน, กันตั้งงบหมวดที่ไม่นับในงบ) · dark mode + guard เบราว์เซอร์จริง · schema types generate จาก DB จริง (workflow) · **ผู้ช่วย AI ตอบคำถามการเงินครบวงจร** (consent ฝั่งเซิร์ฟเวอร์ + หน้าแชท `/ai` + `/api/ai` verify→consent→limit→Anthropic + tool อ่านอย่างเดียว + multi-turn + ปุ่มลัดในคำตอบ — รายละเอียดใน [`docs/STASH_CONTEXT.md`](docs/STASH_CONTEXT.md) §11.9)
 
-**ยังไม่ได้ทำ:** ประวัติแชท AI แบบถาวร (ตอนนี้ ephemeral ในหน่วยความจำ) · offline-first เต็มรูปแบบ · ถังขยะ/สำรองข้อมูล · ยังไม่มี ESLint · **หนี้เทคนิคที่รู้ตัวอื่น ๆ อยู่ใน [`docs/STASH_CONTEXT.md`](docs/STASH_CONTEXT.md) §10**
+**ยังไม่ได้ทำ:** offline-first เต็มรูปแบบ · ถังขยะ/สำรองข้อมูล · ยังไม่มี ESLint · **หนี้เทคนิคที่รู้ตัวอื่น ๆ อยู่ใน [`docs/STASH_CONTEXT.md`](docs/STASH_CONTEXT.md) §10**
 
 > Environment/secrets: client อ่านเฉพาะ `VITE_SUPABASE_*` (anon key ปลอดภัยเพราะ RLS ทุกตาราง) · **ห้ามใส่ secret ในโค้ด client** · AI key เก็บฝั่ง server (Cloudflare) เท่านั้น

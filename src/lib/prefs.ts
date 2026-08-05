@@ -1,3 +1,5 @@
+import type { ChatTurn } from '@/lib/aiChat'
+
 /**
  * Local-only UI preferences.
  *
@@ -111,5 +113,88 @@ export function saveHomeMoments(state: HomeMomentState): void {
     localStorage.setItem(HOME_MOMENTS_KEY, JSON.stringify(state))
   } catch {
     /* ignore quota / privacy-mode errors */
+  }
+}
+
+// ── AI chat history ───────────────────────────────────────────────────────────
+// The ผู้ช่วย AI transcript, kept so a page reload — or a PWA memory-reclaim on a
+// phone — doesn't wipe a conversation the user was in the middle of (task 7). Kept
+// here for the same reason as the toggles above: one file owns every 'stash.*' key,
+// components never touch localStorage directly.
+//
+// DELIBERATELY localStorage, NOT the DB. Chat history is a convenience, not a
+// security mechanism — unlike consent (`ai_settings`), which must live server-side
+// because a client flag is no more trustworthy than a user_id from a request body.
+// Persisting to the DB would mean a new table + RLS + the user's financial questions
+// resting on a server forever, bought only to read the chat across devices — which
+// this user group barely wants. Not worth it; no migration belongs to this feature.
+//
+// We store ONLY `{ role, text }` — byte-identical to `ChatTurn`, the shape already
+// allowed to leave the client on the wire. Nothing else is kept: a field later added
+// to the page's own message type (e.g. a deep-link payload) must not leak onto disk,
+// exactly as it must not leak onto the wire.
+const CHAT_HISTORY_KEY = 'stash.ai.chat'
+
+// localStorage is small (a few MB) and a long transcript buys nothing — the Worker
+// only ever receives a bounded tail of history anyway. So cap the stored turn count
+// and, when a save would exceed it, drop the OLDEST first so the newest conversation
+// always survives. A named constant with this note, never a bare number inline.
+// Exported so the test asserts the exact cap instead of hard-coding the number.
+export const CHAT_HISTORY_MAX = 100
+
+/** A single stored turn is a valid `ChatTurn` only if it's an object with a known
+ *  role and a string text. Anything else (null, array, number, wrong role, missing
+ *  text) is rejected so a corrupt element can't reach the UI as a broken bubble. */
+function isChatTurn(v: unknown): v is ChatTurn {
+  if (!v || typeof v !== 'object') return false
+  const t = v as Record<string, unknown>
+  return (t.role === 'user' || t.role === 'assistant') && typeof t.text === 'string'
+}
+
+/**
+ * Read the saved transcript. Resilient BY CONTRACT: absent key, broken JSON, a
+ * non-array, or any wrong-shaped element all collapse to `[]` and this NEVER throws.
+ * A user must never be unable to open the app because a stored transcript went bad —
+ * an empty chat is the accepted failure. Only `{ role, text }` is carried back
+ * (extra keys on a stored object are dropped), so what's read is exactly the wire
+ * shape, and one bad element doesn't discard the good ones around it.
+ */
+export function loadChatHistory(): ChatTurn[] {
+  try {
+    const raw = localStorage.getItem(CHAT_HISTORY_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(isChatTurn).map(({ role, text }) => ({ role, text }))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Persist the transcript, keeping only the newest `CHAT_HISTORY_MAX` turns (older
+ * ones are dropped). Writes ONLY `{ role, text }`, so a field added to the caller's
+ * message type can't ride along onto disk. Swallows quota / privacy-mode errors like
+ * every other writer here — a failure to save history must never surface as an error.
+ */
+export function saveChatHistory(history: ChatTurn[]): void {
+  try {
+    const tail = history.slice(-CHAT_HISTORY_MAX).map(({ role, text }) => ({ role, text }))
+    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(tail))
+  } catch {
+    /* ignore quota / privacy-mode errors */
+  }
+}
+
+/**
+ * Wipe the saved transcript. Called from the visible clear button, on sign-out, and
+ * when consent is turned off — every place the stored financial conversation must
+ * not outlive the reason it was allowed to be kept.
+ */
+export function clearChatHistory(): void {
+  try {
+    localStorage.removeItem(CHAT_HISTORY_KEY)
+  } catch {
+    /* ignore privacy-mode errors */
   }
 }
