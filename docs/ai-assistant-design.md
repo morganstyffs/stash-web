@@ -211,7 +211,7 @@ toggle ใน localStorage รับประกันอะไรไม่ไ�
 - **ปิด toggle แล้วเกิดอะไร:** (client) ปุ่ม "ถาม AI" หาย + ไม่เรียก `/api/ai` · (server) แม้มีคนยิงตรง
   worker เช็ค consent≠true → **คืน 403 + ข้อความไทย** *"ยังไม่ได้เปิดใช้ผู้ช่วย AI — เปิดได้ในหน้าตั้งค่า"*
   (fail closed · client เป็นแค่ความสะดวก ด่านจริงอยู่ที่ worker)
-- **localStorage `stash.prefs.ai.assistant` เดิม** ลดบทบาทเหลือ *มิเรอร์ UI* (จำสถานะปุ่มระหว่างเฟรม)
+- **localStorage AI-consent flag เดิม (`stash.prefs.ai.assistant`)** ถูกลบทิ้งแล้ว
   **ไม่ใช่แหล่งความจริงของ consent อีกต่อไป** — แหล่งจริง = `ai_settings.consent` · `autoCategory` คงเป็น
   local placeholder (ฟีเจอร์คนละเรื่อง §5)
 

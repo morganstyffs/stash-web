@@ -92,7 +92,7 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 | `src/lib/debtsSummary.ts` | `computeDebtsHeadline` (อ่าน `shared_net`) + `computeFriendLedger` (แยก agreed/private) (§11.6) · **worker `debts_summary` tool เรียก `computeDebtsHeadline` ตัวเดียวกัน** (§11.9) |
 | `src/lib/format.ts` | `formatBaht`/`formatBaht2`/`MASKED_BAHT`/`formatDueDate`/`formatMonthLong`/`sanitizeMoneyInput()` · **worker เรียก `formatMonthLong` ทำป้ายเดือนพุทธศักราชให้โมเดล** (ไม่ประกอบชื่อเดือนเอง) |
 | `src/lib/aiChat.ts` | ฝั่ง client ของ `POST /api/ai` · `askAssistant(question, token, history)` คืน reply · **ประกาศ type `ChatTurn` ที่นี่ (client tsconfig) แล้ว worker import type-only ผ่าน relative** (`worker/history.ts` → `../lib/aiChat`) เพื่อไม่ลากโค้ด client เข้า bundle · โยน `AiHttpError{status, message}` → map ตาม **HTTP status ไม่ใช่ substring** (§11.9) |
-| `src/lib/prefs.ts` | localStorage ทั้งหมด (`stash.*`) · `hideBalance`/`stockView`/`homeMoments` · **`AiPrefs.assistant` = vestigial ไม่มีใครอ่าน** (consent ย้ายไปเซิร์ฟเวอร์ · คอมเมนต์เขียนเอง "nothing reads it today") · `AiPrefs.autoCategory` ยังอ่านอยู่ |
+| `src/lib/prefs.ts` | localStorage ทั้งหมด (`stash.*`) · `hideBalance`/`stockView`/`homeMoments` · **`AiPrefs.autoCategory`** ยังอ่านอยู่ (consent ย้ายไปเซิร์ฟเวอร์แล้ว — ไม่เก็บฝั่ง client) |
 | `src/lib/sku.ts` | normalize/validate **prefix** เท่านั้น (`^[A-Z0-9]{3}$`) — สูตรอยู่ที่ RPC `stock_sku_build` |
 | `src/lib/username.ts` | กติกา username (`^[a-z0-9_]{3,20}$`) mirror CHECK ใน DB (`0020`) |
 | `src/lib/dates.ts` | helper วันที่/เดือนกลาง (Asia/Bangkok) · **"เดือน" = string `YYYY-MM`** · `monthKey`/`addMonthsToKey`/`monthBoundsFromKey`/`monthBounds`/`monthAnchorFromKey`/`allTimeBounds`/`daysSince` — **worker `tools.ts` เรียกชุดนี้แปลง offset→เดือน และหาช่วง `period='all'`** |
@@ -100,11 +100,10 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 | `src/lib/percent.ts` | `largestRemainderPercents()` — % รวม 100 พอดี (Hamilton) |
 | `src/lib/errors.ts` | `translateError()` → ข้อความไทยที่เดียว · จับด้วย `code`/`status` ไม่จับ substring · **ข้อความที่มีอักษรไทยอยู่แล้วส่งผ่านตรง ๆ** — นี่คือเหตุผลที่ทั้ง RAISE ภาษาไทยใน RPC และข้อความไทยจาก worker AI ถึงผู้ใช้ตรง ๆ (§10 · §11.9) |
 | `src/lib/txCache.ts` / `txRestore.ts` | เติมแถวที่เพิ่ง insert ลง cache / payload คืนแถวที่ลบ · pure · structural |
-| `src/lib/offlineQueue.ts` | write-outbox บน IndexedDB — **ไม่มีไฟล์ไหน import (dead code)** ยืนยัน grep รอบนี้ (§10) |
 | `src/lib/useDialogA11y.ts` | โฟกัส/คีย์บอร์ดชีตกลาง · `onClose` ขี่ ref ไม่เป็น dependency ของ effect (กันบั๊ก caret หลุด · §9) |
 | `src/lib/visual-contrast.ts` | helper วัด contrast ที่ compute จริงในเบราว์เซอร์ (ใช้โดย visual guard) |
 
-> **หมายเหตุ:** `find src/lib -type f` รอบนี้ = 53 ไฟล์ (รวม `*.test.*`) · ตารางบนลิสต์เฉพาะไฟล์ที่ "ต้องรู้จัก" ไม่ครบทุกไฟล์ (เช่น `auth`/`storage`/`supabase`/`theme`/`icons`/`categoryFilter`/`entryHints` ไม่ได้ลิสต์ — ไม่อยู่ในเส้นทางที่ AI แตะ)
+> **หมายเหตุ:** `find src/lib -type f` รอบนี้ = 52 ไฟล์ (รวม `*.test.*`) · ตารางบนลิสต์เฉพาะไฟล์ที่ "ต้องรู้จัก" ไม่ครบทุกไฟล์ (เช่น `auth`/`storage`/`supabase`/`theme`/`icons`/`categoryFilter`/`entryHints` ไม่ได้ลิสต์ — ไม่อยู่ในเส้นทางที่ AI แตะ)
 
 **`src/worker/` (Cloudflare Worker · typecheck ด้วย `tsconfig.worker.json` · bundle ด้วย esbuild ของ wrangler):** ดูรายละเอียดเต็มใน §11.9 · **9 ไฟล์รันไทม์ + 4 ไฟล์เทสต์** (`ai.test.ts`/`tools.test.ts`/`categories.test.ts`/`history.test.ts`)
 
@@ -326,10 +325,8 @@ DB (tables + RPC + trigger)  →  lib/ (pure function)  →  hooks/ (TanStack Qu
 
 **ยังไม่ได้ทำ / หนี้ที่รู้ตัว (grep/อ่านใหม่รอบนี้ว่ายังจริง):**
 - **`GH_PAT` ยังไม่ตั้ง** — PR types-drift fallback เป็น `GITHUB_TOKEN` ที่ trigger `ci.yml` ต่อไม่ได้ (§2.1 · §9) → ยังเปิด · แก้ = ตั้ง secret (ใบแยก)
-- **`AiPrefs.assistant` ไม่มีใครอ่าน** — grep รอบนี้: อ้างถึงแค่ใน `prefs.ts` เอง (คอมเมนต์ + DEFAULTS + load/save) ไม่มี reader · consent อยู่เซิร์ฟเวอร์ (`ai_settings`) · `AiPrefs.autoCategory` ยังอ่าน · ลบทิ้งเป็น cleanup ใบแยก
 - **`friend_code` + `generate_friend_code()` เลิกใช้แต่ยังอยู่** — grep `friend_code src` = **เจอแค่คอมเมนต์ `ProfileManager` ("gone") + `database.types.ts`** → ยังจริง
 - **คำที่ห้ามขึ้นจอยังค้างใน `RAISE EXCEPTION` ของ RPC ยอดค้าง** — grep same-line `raise exception` + `หนี้|เจ้าหนี้|ลูกหนี้` = **16 จุด** (`0015`×12 · `0018`×1 · `0019`×3 · ตรวจรอบนี้ตรงเป๊ะ) → ผู้ใช้เห็นได้เพราะ `errors.ts` ส่งไทยผ่านตรง · แก้ต้อง migration reproduce = ใบแยก
-- **`src/lib/offlineQueue.ts` ไม่มีใครเรียก (dead code)** — `grep -rn offlineQueue src | grep -v lib/offlineQueue.ts` = **ว่าง** · คอมเมนต์ workbox (`vite.config.ts`) + `README.md` (ย่อหน้า offline queue) ยังพูดถึง = เอกสารค้าง (README บอกว่าเป็น dead code จริง — ถูกอยู่)
 - **ยังไม่มี ESLint** — `npm run lint` = `tsc -b`
 - **`AGE_OLD_MAX=60` เป็นค่าเดา** — คอมเมนต์ `stockAge.ts` ยอมรับเอง
 - **`transactions_search` ยังไม่มีหลักฐานว่ารัน smoke test** — UI + AI `month_spending` เรียก production (smoke อยู่ในหัวไฟล์ `0022`)
@@ -491,11 +488,9 @@ B1–B14 (redesign) · ค้นหาแมตช์แค่ note · dark-mode
 | worker import lib อะไร (§3) | `grep -rhoE "from '\.\./lib/[a-z]+'" src/worker` | `dates`/`format`/`ledger`/`homeSummary`/`stockAge`/`debtsSummary`/`budgetPace`/`upcomingBills`/`aiLimits`/`aiChat` |
 | worker ใช้ `@/` ไหม (§8-24) | `grep -rn '@/' src/worker` | ว่าง — ทุก import เป็น `../lib/…` |
 | seed reproduce ล่าสุด (§7) | `grep -rl 'create or replace function public.seed_defaults_internal' supabase/migrations \| sort \| tail -1` | `0026_shop_categories.sql` |
-| offlineQueue dead (§10) | `grep -rn offlineQueue src \| grep -v lib/offlineQueue.ts` | ว่าง |
 | หนี้ ใน src (§8-19) | `grep -rln 'หนี้' src` | `worker/anthropic.ts` (SYSTEM_PROMPT สั่งห้าม) + `lib/budgetable.ts` (+`.test`) |
 | คำต้องห้าม ใน migrations RAISE (§10) | `grep -rniE 'raise exception' supabase/migrations \| grep -E 'หนี้\|เจ้าหนี้\|ลูกหนี้' \| wc -l` | **16 จุด** (`0015`×12 · `0018`×1 · `0019`×3) |
 | friend_code อ่านใน src? (§10) | `grep -rn friend_code src` | คอมเมนต์ `ProfileManager` ("gone") + `database.types.ts` เท่านั้น |
-| AiPrefs.assistant มี reader? (§10) | `grep -rn 'AiPrefs\|\.assistant' src` | อ้างถึงแค่ใน `prefs.ts` เอง — ไม่มี reader |
 | ชุดข้อมูลทดสอบ (§11.10) | `ls supabase/seeds docs/testing` | seeds: reset/seed/verify + README · testing: `expected-answers.md` + `ai-test-battery.md` · verify → **PROVEN 28/28** |
 
 > **ยังไม่ได้ตรวจในรอบนี้ (บันทึกตรง ๆ):**
