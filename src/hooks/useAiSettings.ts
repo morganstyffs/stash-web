@@ -18,8 +18,8 @@ import type { AiSettings } from '@/lib/db'
  *
  * The server is the only source of truth (design §3.5): a client flag can't be
  * trusted, same principle as never trusting user_id from a request body. The old
- * localStorage `stash.prefs.ai.assistant` is now just a UI mirror and decides
- * nothing.
+ * localStorage AI-consent flag (once `stash.prefs.ai.assistant`) has been removed
+ * entirely; consent is server-only.
  */
 export type ConsentState = 'never_chosen' | 'off' | 'on'
 

@@ -1,25 +1,20 @@
 /**
  * Local-only UI preferences.
  *
- * `assistant` USED to be the source of truth for the "ใช้ผู้ช่วย AI" toggle, but
- * consent now lives server-side (the ai_settings table, read/written via
- * useAiSettings) because the server is the only source that can be trusted — a
- * client flag is no more trustworthy than a user_id from a request body (§3.5).
- * This field is kept only as a vestigial UI mirror and no longer decides
- * anything; nothing reads it today. (Removing it outright is a candidate for a
- * later cleanup — flagged, not done here, since AiPrefs still carries
- * `autoCategory`.)
+ * `autoCategory` is a still-local placeholder — a feature that guesses a category
+ * while typing (§5), unrelated to the AI chat.
  *
- * `autoCategory` is a separate, still-local placeholder — a different feature
- * (guessing a category while typing, §5), unrelated to the AI chat.
+ * The AI-consent toggle is deliberately NOT here: consent lives server-side (the
+ * ai_settings table, read/written via useAiSettings) because the server is the
+ * only source that can be trusted — a client flag is no more trustworthy than a
+ * user_id from a request body (§3.5).
  */
 export interface AiPrefs {
-  assistant: boolean
   autoCategory: boolean
 }
 
 const KEY = 'stash.prefs.ai'
-const DEFAULTS: AiPrefs = { assistant: true, autoCategory: true }
+const DEFAULTS: AiPrefs = { autoCategory: true }
 
 export function loadAiPrefs(): AiPrefs {
   try {

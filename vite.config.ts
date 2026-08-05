@@ -95,9 +95,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // App shell precache. Supabase data is handled by the app-level offline
-        // queue (IndexedDB) rather than blanket runtime caching, so writes stay
-        // correct offline and sync on reconnect.
+        // App shell precache only. Supabase data is not cached here and there is
+        // no offline write queue, so mutations require connectivity.
         // ── Root fix for the frozen-version bug ──────────────────────────────
         // index.html is the ONE file that says which JS bundle to load. Two things
         // pinned it: it was PRECACHED (so precacheAndRoute served it cache-first for

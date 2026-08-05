@@ -15,7 +15,7 @@
 - **✅ "การขายสินค้า" ทำแล้วใน 0012 (Model A)** — เดิมไม่มีเลย ตอนนี้มี `stock_sale_create`/`stock_sale_reverse`/`stock_sales_summary` (atomic RPC): ขายลง income เต็มราคา + COGS แยก, ตัด `qty_remaining`, เปลี่ยน `status` → partial/sold, snapshot ต้นทุน, ย้อนการขายได้ + trigger กันแก้/ลบรายการขายตรง (ปิด F-01)
 - **✅ SKU race/ซ้ำ แก้แล้วใน 0011 (F-02)** — เพิ่ม `unique(user_id, sku)` + counter `stock_sku_config.next_seq` (ไม่พึ่ง `count`) + retry ตอนชน; รูปแบบ SKU ตั้งค่าได้ต่อ user
 - **✅ Timezone แก้แล้วใน 0010 (F-03)** — RPC + `transactions.date` default ใช้ `(now() at time zone 'Asia/Bangkok')::date` ตรงกับ client แล้ว
-- **PWA/offline ยังเป็นแค่โครง**: โมดูล `offlineQueue.ts` เขียนไว้ครบแต่ **ไม่ถูก import ที่ไหนเลย** — คำโฆษณา "offline-first write-queue" ยังไม่จริง (F-06)
+- **PWA/offline ยังเป็นแค่โครง**: ไม่มีโมดูล offline write-queue (เคยมีเป็น dead code · **ลบทิ้งแล้ว**) — คำโฆษณา "offline-first write-queue" ยังไม่จริง (F-06)
 - **🟢 CI + unit test แล้ว (ESLint ยังไม่มี)**: GitHub Action รัน `npm run build` + `npm test` ทุก PR/push — Vitest 35 เคสคลุมสูตรเงินทั้งหมด (`lib/ledger`, `computeHomeSummary`, `computeStockHero`, `computePace`, `computeNeedsDetails`, `lib/dates` boundary) พิสูจน์ fail ได้จริง + รันเขียวทุก timezone (PR B, F-07) ⚠️ ยังไม่มี ESLint จริง (F-24) · `npm run typecheck`/`lint` = `tsc -b` แล้ว (F-19 แก้แล้ว)
 - **ลบเป็น hard delete ทั้งหมด ไม่มี soft delete / audit trail** — การลบรายการหรือสินค้าย้อนกลับไม่ได้และกระทบรายงานย้อนหลังทันที (F-08)
 
@@ -73,7 +73,6 @@ stash-web/
 │  │  ├─ ledger.ts            predicate กลางจัดประเภท transaction (0012) — แหล่งเดียว
 │  │  ├─ storage.ts           อัปโหลด/sign รูปสต็อก (validate type/size ฝั่ง client)
 │  │  ├─ errors.ts            แปลง error → ข้อความไทย (map ตาม SQLSTATE)
-│  │  ├─ offlineQueue.ts      IndexedDB outbox — ⚠️ dead code, ไม่ถูก import (F-06)
 │  │  ├─ prefs.ts             AI prefs ใน localStorage (ยังไม่ wire)
 │  │  └─ icons.tsx            (sku.ts ถูกลบใน 0011 → preview ใช้ RPC stock_sku_preview)
 │  │
@@ -259,7 +258,7 @@ erDiagram
 | ตั้งค่า (หมวด/กระเป๋า) | ✅ เสร็จ | `SettingsPage.tsx`, `useSettings.ts` |
 | ยอดคงเหลือต่อกระเป๋า | 🔴 ไม่มี (field `balance` ลบทิ้งแล้วใน 0011) | `wallets` |
 | PWA (installable, precache app shell) | ✅ เสร็จ | `vite.config.ts` |
-| Offline write-queue (sync เมื่อกลับ online) | 🔴 dead code (ไม่ถูก import) | `offlineQueue.ts` |
+| Offline write-queue (sync เมื่อกลับ online) | 🔴 ไม่มี (โมดูล dead code ลบทิ้งแล้ว) | — |
 | AI (พิมพ์/พูด, สแกน, auto-category) | 🔴 stub (UI disabled, `/api/ai` คืน 501) | `worker/ai.ts`, `prefs.ts`, `AddPage.tsx` |
 | Security headers / CSP | ✅ เสร็จ | `worker/security.ts` |
 
@@ -274,7 +273,7 @@ erDiagram
 | F-03 | ✅ Resolved | C | **Timezone client/server ไม่ตรง** (เดิม) | `0010_timezone_fix.sql` | — | **แก้ใน 0010**: `stock_intake_create`/`recurring_run_due` + `transactions.date` default ใช้ `(now() at time zone 'Asia/Bangkok')::date` |
 | F-04 | ✅ Resolved | G | **Photo upload / บันทึกล้มเหลวเงียบใน edit sheet** (เดิม) | `StockEditSheet.tsx`, `errors.ts` | — | **แก้ใน PR A:** `onAddPhotos` toast อยู่แล้ว; เพิ่ม try/catch + `toast.error(translateError)` ที่ `save()`/`remove()` (เดิม `save` ไม่มี catch → unhandled rejection; `remove` เป็น `catch {}`); ลบการ render `(update.error as Error).message` ดิบทิ้ง (แปล + กันหลุด message ต้นทาง) |
 | F-05 | ✅ Resolved | B/D | **`wallets.balance` เป็น dead field** — ไม่เคยอ่าน/เขียน (ยืนยัน read+write path แล้ว) | `database.types.ts`, `0001` wallets | — | **แก้แล้วใน 0011 (PR #30):** `drop column wallets.balance` + เอาออกจาก `seed_defaults_internal` + `database.types.ts` (ตัดสินใจข้อ (ก) ลบทิ้ง) — รอ apply |
-| F-06 | 🟠 Medium | A/I | **Offline queue เป็น dead code** — `offlineQueue.ts` (enqueue/pending/…) ไม่ถูก import ที่ใด แต่ README/vite comment โฆษณา "offline-first write-queue" | `offlineQueue.ts` ทั้งไฟล์, `useQueue.ts` (คนละเรื่อง) | เขียน offline ไม่ถูก queue จริง — mutation ตอนไม่มีเน็ตจะ fail; ความคาดหวังไม่ตรงกับความจริง | wire เข้ากับ mutation hooks (part 5 ที่ยังไม่ทำ) หรือปรับ README ให้ตรงสถานะ |
+| F-06 | ✅ Resolved | A/I | **Offline queue เป็น dead code** (เดิม) — โมดูล offline write-queue ไม่ถูก import ที่ใด แต่ README/vite comment โฆษณา "offline-first write-queue" | — (ลบไฟล์ทิ้งแล้ว) | เขียน offline ไม่ถูก queue จริง — mutation ตอนไม่มีเน็ตจะ fail; ความคาดหวังไม่ตรงกับความจริง | **แก้แล้ว:** ลบโมดูล dead code ทิ้ง + แก้คอมเมนต์ vite/README ให้ตรงสถานะ |
 | F-07 | 🟢 Low (เกือบครบ) | J | **ไม่มี test / ESLint / CI** (เดิม) | `.github/workflows/ci.yml`, `vitest.config.ts`, `*.test.ts` | — | **CI (#32)**: `npm run build` ทุก PR/push · **Test แก้ใน PR B:** Vitest 26 เคส คลุม `lib/ledger` ทุก predicate, `computeHomeSummary` (ซื้อเข้าสต็อกไม่นับจ่าย / COGS นับจ่าย / ขายกำไร-ขาดทุน safeToSpend ขยับเท่ากำไรสุทธิ), `computeStockHero` (qty_remaining/sold), `computePace` (over/fast/on_track + COGS ไม่เข้างบ), `computeNeedsDetails`; ต่อ CI (`npm test`); พิสูจน์ fail ได้จริง (แก้ `isSpendingRow` ให้ผิด → แดง 5 เคส แล้ว revert) · **ยังเหลือ**: ESLint จริง (F-24) |
 | F-08 | 🟡 Low | E | **Hard delete ทั้งหมด ไม่มี soft delete/audit** — ลบรายการ/สินค้าหายถาวร, ไม่มี log | `useTransactions.ts` delete, `0006` | ลบผิดกู้ไม่ได้; ไม่มีร่องรอยตรวจสอบย้อนหลัง | พิจารณา `deleted_at` + กรองทุก query, หรือ export/backup ก่อนลบ (single-user จึงไม่วิกฤต) |
 | F-09 | 🟡 Low | F | **การกันแก้/ลบ stock-purchase เป็น UI-only** — server (RLS) ยอมให้เจ้าของลบ expense ต้นทางตรงๆ ได้ ทำให้ stock item กำพร้า (`source_transaction_id` → null) | `useTransactions.ts:useDeleteTransaction`, guard อยู่แค่ `TransactionEditSheet.tsx` | เรียก API ตรง/ผ่าน client ที่ถูกแก้ ลบ expense ได้ → เงินหาย stock ค้าง (single-user เสี่ยงต่ำ) | ย้าย guard ลง DB: trigger บล็อกลบ transaction ที่ `is_stock_purchase=true` หรือให้ผ่าน RPC เท่านั้น |
