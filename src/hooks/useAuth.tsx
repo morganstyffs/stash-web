@@ -8,6 +8,7 @@ import {
 } from 'react'
 import type { AuthError, Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { clearChatHistory } from '@/lib/prefs'
 
 interface AuthState {
   session: Session | null
@@ -91,6 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error }
       },
       async signOut() {
+        // Wipe the saved AI transcript BEFORE the session ends. Every account is
+        // created by the owner and can share one device, so a lingering transcript
+        // would show the next person to sign in the previous one's financial
+        // conversation. This is the single sign-out path in the app, so it's the one
+        // place this must happen (task 7).
+        clearChatHistory()
         await supabase.auth.signOut()
       },
     }),
