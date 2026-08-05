@@ -15,7 +15,7 @@ PWA บันทึกรายรับ-รายจ่ายส่วนตั
 - **Frontend:** Vite 6 · React 18 · TypeScript · Tailwind CSS 3
 - **Data:** Supabase (Postgres + Auth อีเมล/รหัสผ่าน + Storage) ผ่าน TanStack Query 5 · routing ด้วย react-router-dom 6
 - **PWA:** `vite-plugin-pwa` (app-shell แบบ NetworkFirst)
-- **Deploy:** Cloudflare Workers (static assets) — Worker เดียว (`stash-web`) เสิร์ฟทั้ง SPA และ route `/api/*` (เผื่อ proxy Anthropic API ฝั่ง server — ยังเป็น stub)
+- **Deploy:** Cloudflare Workers (static assets) — Worker เดียว (`stash-web`) เสิร์ฟทั้ง SPA และ route `/api/*` (proxy Anthropic API ฝั่ง server สำหรับผู้ช่วย AI — **ใช้งานได้ครบวงจรแล้ว**)
 - **Test:** Vitest 2 · รวม guard เบราว์เซอร์จริงด้วย `playwright-core` + Chromium
 
 > **หมายเหตุ offline queue:** `src/lib/offlineQueue.ts` (write-outbox บน IndexedDB) มีอยู่แต่ **เป็น stub ที่ยังไม่มีไฟล์ไหนเรียก (dead code)** — ยืนยันด้วย `grep -rn offlineQueue src | grep -v lib/offlineQueue.ts` (ว่าง) · **ยังไม่ได้ต่อ offline-first เต็มรูปแบบ** (คอมเมนต์ workbox ใน `vite.config.ts` ยังพูดถึงมันราวกับใช้อยู่ = คอมเมนต์ค้าง)
@@ -70,18 +70,19 @@ src/
                budgetable, budgetNote, dates, catColor, …) — "ตรรกะที่แตะเงินอยู่ที่นี่ ห้าม inline ใน component"
   hooks/       TanStack Query hooks (useBudgets, useHome, useHistory, useShopOperating, …)
   components/  AppLayout (bottom nav / nav rail), WovenHero, ShopProfitCard, Toast, ชีตต่าง ๆ
-  pages/       13 หน้า (*Page.tsx) — login/recovery + tabbed + full-screen flows
-  worker/      Cloudflare Worker: index.ts (fetch + ASSETS + security headers) · ai.ts (AI proxy stub)
+  pages/       14 หน้า (*Page.tsx) — login/recovery + tabbed + full-screen flows
+  worker/      Cloudflare Worker: index.ts (fetch + ASSETS + security headers) · ai.ts/anthropic.ts/tools.ts/
+               categories.ts/rateLimit.ts/history.ts (ผู้ช่วย AI — /api/ai ครบวงจร ไม่ใช่ stub)
   styles/      index.css — แหล่งความจริงของ CSS variable (สี light/dark)
 supabase/
-  migrations/  0001–0028 (raw SQL, additive-only, รันมือใน SQL Editor)
+  migrations/  0001–0030 (raw SQL, additive-only, รันมือใน SQL Editor)
 docs/
   STASH_CONTEXT.md   บริบทถาวร — อ่านก่อนแก้โค้ด
   design/            handoff bundle จาก Claude Design
 tailwind.config.ts + src/styles/index.css   แหล่งความจริงของสี (hex/geometry อยู่ที่นี่ที่เดียว)
 ```
 
-ตัวเลขที่นับจริงในรอบนี้ (`ls supabase/migrations/*.sql | wc -l` ฯลฯ): **migration 28 ใบ** (ล่าสุด `0028` กระเป๋าเงิน) · **13 หน้า** (`*Page.tsx`) · **14 route** ใน `router.tsx` (13 หน้า + catch-all) · **bottom nav มือถือ = 4 แท็บ + FAB กลาง (5 ช่อง)** — ตั้งค่าเข้าจากไอคอนเฟืองมุมขวาบนหน้าแรก ไม่อยู่ในแถบล่าง (nav rail เดสก์ท็อปยังครบทุกหน้า) · กระเป๋าเงินเป็นชีตในหน้าตั้งค่า ไม่ใช่หน้าใหม่
+ตัวเลขที่นับจริงในรอบนี้ (`ls supabase/migrations/*.sql | wc -l` ฯลฯ): **migration 30 ใบ** (ล่าสุด `0030` RPC รับเข้าสต็อกให้ AI) · **14 หน้า** (`*Page.tsx` · รวมหน้าแชท `/ai`) · **15 route** ใน `router.tsx` (14 หน้า + catch-all) · **bottom nav มือถือ = 4 แท็บ + FAB กลาง (5 ช่อง)** — ตั้งค่าเข้าจากไอคอนเฟืองมุมขวาบนหน้าแรก ไม่อยู่ในแถบล่าง (nav rail เดสก์ท็อปยังครบทุกหน้า) · กระเป๋าเงินเป็นชีตในหน้าตั้งค่า ไม่ใช่หน้าใหม่ · ปุ่ม "ถาม AI" เป็น pill ลอย (แสดงเมื่อเปิดใช้ผู้ช่วย) ไม่ใช่ช่องที่ 6
 
 > `src/worker/` build โดย wrangler (ผ่าน `main` ใน `wrangler.jsonc`) ไม่ใช่ Vite → ถูก exclude จาก `tsconfig.app.json` และตรวจชนิดด้วย `tsconfig.worker.json`
 > **ค่าสี hex และเลขเรขาคณิตของฮีโร่ไม่ได้เขียนไว้ในเอกสารนี้** — แหล่งความจริงคือ `tailwind.config.ts` + `src/styles/index.css` (มีคอมเมนต์กำกับ locked/role)
@@ -95,13 +96,13 @@ tailwind.config.ts + src/styles/index.css   แหล่งความจริ
 | `ci.yml` | ทุก push→`main` + ทุก PR: `npm ci` → `npm run build` → ติดตั้ง Chromium → `npm test` · **ไม่ deploy** · ขั้น Chromium มีเพื่อให้ guard เบราว์เซอร์จริงรันได้ใน CI |
 | `types-drift.yml` | cron รายวัน: generate types จาก DB จริงเทียบกับ `src/lib/database.types.ts` · ต่างเมื่อไรเปิด PR อัตโนมัติ (branch `automation/database-types-drift`) · ไม่แตะ `main` ตรง ๆ |
 
-- **เทสต์:** `npm test` รันทั้งชุดด้วย Vitest · **62 ไฟล์เทสต์ · 13 เป็น visual guard เบราว์เซอร์จริง** (Playwright + Chromium) ที่ **`ctx.skip()` นอก CI** (Chromium ไม่พร้อมในเครื่อง) แต่ **`throw` เมื่อ `process.env.CI` ถูกตั้ง** → รันในเครื่องจะเห็น skipped ส่วนนี้ พิสูจน์ได้จริงเฉพาะใน CI · ผลรอบล่าสุด: **`495 passed | 0 skipped (495)` ใน CI (มี Chromium)** / **`481 passed | 14 skipped (495)`** เครื่องเปล่า (14 skipped = visual guard ทั้งหมด)
+- **เทสต์:** `npm test` รันทั้งชุดด้วย Vitest · **72 ไฟล์เทสต์ · 13 เป็น visual guard เบราว์เซอร์จริง** (Playwright + Chromium) ที่ **`ctx.skip()` นอก CI** (Chromium ไม่พร้อมในเครื่อง) แต่ **`throw` เมื่อ `process.env.CI` ถูกตั้ง** → รันในเครื่องจะเห็น skipped ส่วนนี้ พิสูจน์ได้จริงเฉพาะใน CI · ผลรอบล่าสุด (เครื่องเปล่า ไม่มี Chromium): **`638 passed | 15 skipped (653)`** (15 skipped = visual guard ทั้งหมด) · ใน CI (มี Chromium) คาดว่า skipped กลายเป็น passed ทั้งหมด
 - **Deploy:** อัตโนมัติผ่าน **Cloudflare Workers Git integration** — Build command `npm run build` · Deploy `npx wrangler deploy` (build สร้าง `./dist` ที่ wrangler อัปโหลดเป็น assets) · Build variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` · Runtime secret: `ANTHROPIC_API_KEY`
 
 ## สถานะ
 
-**ทำแล้ว (ยืนยันได้จากโค้ด):** บันทึกรายรับ-รายจ่าย · **กระเป๋าเงินหลายใบครบวงจร** (ยอดตั้งต้น + คงเหลือคำนวณสด + โอนระหว่างกระเป๋า + ประวัติการโอน) · ระบบสต็อก/ขายครบวงจร + SKU (prefix แก้ได้) · บัญชีร้านสองถัง + การ์ดกำไร (`ShopProfitCard`) + ป๊อปอัพค่าส่งขาเข้า · ทุนจม/วันในคลัง · **ระบบยอดค้างกับเพื่อน** cross-user ครบวงจร (เพิ่มเพื่อน/บันทึก/ยืนยัน/เคลียร์/ย้อน) · ค้นหาประวัติ + ตัวกรองเดือน · หน้างบ (เลื่อนดูเดือน, ตัวเลขแทนคำตัดสิน, กันตั้งงบหมวดที่ไม่นับในงบ) · dark mode + guard เบราว์เซอร์จริง · schema types generate จาก DB จริง (workflow)
+**ทำแล้ว (ยืนยันได้จากโค้ด):** บันทึกรายรับ-รายจ่าย · **กระเป๋าเงินหลายใบครบวงจร** (ยอดตั้งต้น + คงเหลือคำนวณสด + โอนระหว่างกระเป๋า + ประวัติการโอน) · ระบบสต็อก/ขายครบวงจร + SKU (prefix แก้ได้) · บัญชีร้านสองถัง + การ์ดกำไร (`ShopProfitCard`) + ป๊อปอัพค่าส่งขาเข้า · ทุนจม/วันในคลัง · **ระบบยอดค้างกับเพื่อน** cross-user ครบวงจร (เพิ่มเพื่อน/บันทึก/ยืนยัน/เคลียร์/ย้อน) · ค้นหาประวัติ + ตัวกรองเดือน · หน้างบ (เลื่อนดูเดือน, ตัวเลขแทนคำตัดสิน, กันตั้งงบหมวดที่ไม่นับในงบ) · dark mode + guard เบราว์เซอร์จริง · schema types generate จาก DB จริง (workflow) · **ผู้ช่วย AI ตอบคำถามการเงินครบวงจร** (consent ฝั่งเซิร์ฟเวอร์ + หน้าแชท `/ai` + `/api/ai` verify→consent→limit→Anthropic + tool อ่านอย่างเดียว + multi-turn + ปุ่มลัดในคำตอบ — รายละเอียดใน [`docs/STASH_CONTEXT.md`](docs/STASH_CONTEXT.md) §11.9)
 
-**ยังไม่ได้ทำ:** ฟีเจอร์ AI (โครงเปล่า — `worker/ai.ts` เป็น stub) · offline-first เต็มรูปแบบ (`offlineQueue.ts` ยังไม่ต่อ) · ถังขยะ/สำรองข้อมูล · ยังไม่มี ESLint · **หนี้เทคนิคที่รู้ตัวอื่น ๆ อยู่ใน [`docs/STASH_CONTEXT.md`](docs/STASH_CONTEXT.md) §10**
+**ยังไม่ได้ทำ:** ประวัติแชท AI แบบถาวร (ตอนนี้ ephemeral ในหน่วยความจำ) · offline-first เต็มรูปแบบ (`offlineQueue.ts` ยังเป็น dead code ไม่มีใครเรียก) · ถังขยะ/สำรองข้อมูล · ยังไม่มี ESLint · **หนี้เทคนิคที่รู้ตัวอื่น ๆ อยู่ใน [`docs/STASH_CONTEXT.md`](docs/STASH_CONTEXT.md) §10**
 
 > Environment/secrets: client อ่านเฉพาะ `VITE_SUPABASE_*` (anon key ปลอดภัยเพราะ RLS ทุกตาราง) · **ห้ามใส่ secret ในโค้ด client** · AI key เก็บฝั่ง server (Cloudflare) เท่านั้น
