@@ -70,7 +70,7 @@ src/
                budgetable, budgetNote, dates, catColor, …) — "ตรรกะที่แตะเงินอยู่ที่นี่ ห้าม inline ใน component"
   hooks/       TanStack Query hooks (useBudgets, useHome, useHistory, useShopOperating, …)
   components/  AppLayout (bottom nav / nav rail), WovenHero, ShopProfitCard, Toast, ชีตต่าง ๆ
-  pages/       13 หน้า (*Page.tsx) — login/recovery + tabbed + full-screen flows
+  pages/       14 หน้า (*Page.tsx) — login/recovery + tabbed + full-screen flows
   worker/      Cloudflare Worker: index.ts (fetch + ASSETS + security headers) · ai.ts/anthropic.ts/tools.ts/
                categories.ts/rateLimit.ts/history.ts (ผู้ช่วย AI — /api/ai ครบวงจร ไม่ใช่ stub)
   styles/      index.css — แหล่งความจริงของ CSS variable (สี light/dark)
